@@ -69,7 +69,7 @@ class Stage:
 # Producer worker function (per slide)
 def _producer_worker(slide_path: str, stage_specs: List[Stage], queue: MPQueue):
     init_logging()
-    logging.info(f"[Producer:{Path(slide_path).name}] Starting processing.")
+    logging.info("Starting processing.")
     try:
         # Generic per-slide adaptation: each stage decides if/how it needs to specialize
         local_stages: List[Stage] = [st.for_slide(slide_path) for st in stage_specs]
@@ -88,7 +88,7 @@ def _producer_worker(slide_path: str, stage_specs: List[Stage], queue: MPQueue):
     except KeyboardInterrupt:
         pass
     except Exception as e:
-        logging.info(f"[Producer:{Path(slide_path).name}] Error: {e}", file=sys.stderr)
+        logging.info(f"Error: {e}", file=sys.stderr)
     finally:
         # Signal end-of-slide (optional informational marker)
         queue.put({"_eos": True})
@@ -112,23 +112,25 @@ class Pipeline(Stage):
           - One writer process (last stage must be WebDatasetWriter)
           - Up to 'cpu_processes' producer processes (one per slide) running all previous stages
         """
-        if not self.stages:
-            return
-
-        assert isinstance(self.stages[-1], WebDatasetWriter), (
-            "The last stage must be WebDatasetWriter for this executor."
-        )
+        assert isinstance(self.stages[0], WSIGrid), "First stage must be WSIGrid in this MVP."
+        assert isinstance(self.stages[-1], WebDatasetWriter), "Last stage must be WebDatasetWriter."
 
         writer_stage: WebDatasetWriter = self.stages[-1]  # type: ignore
         producer_stages: List[Stage] = self.stages[:-1]
 
         # Extract slides from the first stage (must be WSIGrid)
-        assert isinstance(self.stages[0], WSIGrid), "First stage must be WSIGrid in this MVP."
         grid: WSIGrid = self.stages[0]  # type: ignore
         slides = list(grid.slides)
         if not slides:
             logging.info("[WARN] No slides provided. Nothing to do.")
             return
+
+        # Prepare multi processing protection
+        if mp.get_start_method(allow_none=True) != "spawn":
+            try:
+                mp.set_start_method("spawn", force=True)
+            except RuntimeError:
+                pass
 
         # Single MP queue for encoded samples (bytes)
         q: MPQueue = mp.Queue(maxsize=queue_maxsize)
@@ -203,7 +205,6 @@ class WSIGrid(Stage):
         self.stride = stride
         self.level = level
 
-    # NEW: tell a producer to use only its own slide
     def for_slide(self, slide_path: str) -> "Stage":
         return WSIGrid(slides=[slide_path], tile_size=self.tile_size, stride=self.stride, level=self.level)
 
@@ -211,7 +212,7 @@ class WSIGrid(Stage):
         for path in self.slides:
             wsi_id = Path(path).stem
             W, H = _get_level_dims(path, self.level)
-            logging.info(f"[WSIGrid] Starting on Slide {wsi_id}")
+            logging.info(f"Starting on Slide {wsi_id}")
             yield {
                 "type": "slide",
                 "wsi_id": wsi_id,
@@ -247,7 +248,7 @@ class FilterByROI(Stage):
             slide_rect = (0, 0, W, H)
             rects = [r for r in rects if _bbox_intersects(r, slide_rect)]
             s["rois"] = rects
-            logging.info(f"[FilterByROI] Slide {wsi_id} -> {len(rects)} ROIs")
+            logging.info(f"Slide {wsi_id} -> {len(rects)} ROIs")
             yield s
 
 
@@ -275,7 +276,8 @@ class Regionize(Stage):
                 tiles = list(_tiles_in_rect(x0, y0, w, h, tile_size, stride))
                 if not tiles:
                     continue
-                logging.info(f"[Regionize] Slide {s['wsi_id']} region ({x0},{y0},{w},{h}) -> {len(tiles)} tiles")
+
+                logging.info(f"Slide {s['wsi_id']} region ({x0},{y0},{w},{h}) -> {len(tiles)} tiles")
                 yield {
                     "type": "region",
                     "wsi_id": s["wsi_id"],
@@ -318,9 +320,6 @@ class RegionReadAndBatch(Stage):
 
             # Read region into memory
             region_img = _read_region(path, x0, y0, w, h, level, num_workers=self.num_workers)
-            # Expect HxWxC uint8
-            if region_img is None:
-                continue
 
             # Slice into patches
             batch: List[Sample] = []
@@ -342,7 +341,7 @@ class RegionReadAndBatch(Stage):
                 batch.append(sample)
 
                 if len(batch) >= self.batch_size:
-                    logging.info(f"[RegionReadAndBatch] Yielding batch from wsi: {task['wsi_id']} size: {len(batch)}")
+                    logging.info(f"Yielding batch from wsi: {task['wsi_id']} size: {len(batch)}")
                     yield {"batch": batch}
                     batch = []
 
@@ -370,21 +369,8 @@ class DummyTissueClassifier(Stage):
 
     def __call__(self, it: Iterable[Sample]) -> Iterable[Sample]:
         for item in it:
-            if not (isinstance(item, dict) and "batch" in item):
-                # Pass through non-batch items
-                yield item
-                continue
-
             batch: List[Sample] = item["batch"]
-            if not batch:
-                yield item
-                continue
-
-            # Stack into tensor if torch available; else use numpy
             patches = [s["patch"] for s in batch if s.get("patch") is not None]
-            if not patches:
-                yield item
-                continue
 
             # Convert to tensor (B,H,W,C) -> normalize to [0,1]
             arr = np.stack(patches, axis=0)  # uint8
@@ -398,7 +384,7 @@ class DummyTissueClassifier(Stage):
                 s["tissue_score"] = float(sc)
                 s["is_tissue"] = bool(sc > 0.5)
 
-            logging.info(f"[DummyTissueClassifier] Yielding batch from wsi: {batch[0]['wsi_id']} size: {len(batch)}")
+            logging.info(f"Yielding batch from wsi: {batch[0]['wsi_id']} size: {len(batch)}")
 
             yield {"batch": batch}
 
@@ -432,27 +418,17 @@ class PNGEncoder(Stage):
     @staticmethod
     def _encode_one(s: Sample) -> Optional[Sample]:
         patch = s.get("patch")
-        if patch is None:
-            return None
-
         key = f"{s['wsi_id']}-{s['coord'][0]}-{s['coord'][1]}-L{s['level']}"
 
-        # Ensure uint8 HxWxC
-        arr = patch
-        if arr.dtype != np.uint8:
-            arr = np.clip(arr, 0, 255).astype(np.uint8)
-
         # Encode to PNG
-        png_bytes = _png_encode(arr)
+        buf = io.BytesIO()
+        Image.fromarray(patch, mode="RGB").save(buf, format="PNG")
+        png_bytes = buf.getvalue()
 
         # Build json sidecar (exclude heavy fields)
         meta = {k: v for k, v in s.items() if k not in ("patch",)}
-        meta["__key__"] = key
-        json_bytes = json.dumps(meta, ensure_ascii=False).encode("utf-8")
 
-        logging.info(f"[PNG Encoder] Encoded sample: {key}")
-
-        return {"__key__": key, "png_bytes": png_bytes, "json_bytes": json_bytes}
+        return {"__key__": key, "png_bytes": png_bytes, "json_bytes": meta}
 
 
 # --------------------------
@@ -478,27 +454,10 @@ class WebDatasetWriter:
         self.shuffle_buffer_size = int(shuffle_buffer_size)
         self.shard_pattern = str(self.outdir / "shard-%06d.tar")
 
-    def __call__(self, it: Iterable[Dict[str, Any]]) -> None:
-        """Single-process mode: write directly from iterable."""
-        self.outdir.mkdir(parents=True, exist_ok=True)
-        sink = wds.ShardWriter(self.shard_pattern, maxcount=self.shard_size, verbose=0)
-
-        buffer: List[Dict[str, Any]] = []
-        for sample in it:
-            if sample.get("_eos"):
-                continue
-            buffer.append(sample)
-            if len(buffer) >= self.shuffle_buffer_size:
-                self._flush_buffer(buffer, sink)
-
-        if buffer:
-            self._flush_buffer(buffer, sink)
-
-        sink.close()
-
     def start_writer(self, queue) -> None:
         """Multi-process mode: consume from queue and write shards."""
         init_logging()
+        logging.info("Writer process started.")
         self.outdir.mkdir(parents=True, exist_ok=True)
         sink = wds.ShardWriter(self.shard_pattern, maxcount=self.shard_size, verbose=0)
 
@@ -506,11 +465,10 @@ class WebDatasetWriter:
         while True:
             sample = queue.get()
             if sample is None:  # shutdown signal
-                logging.info("[WebdatasetWriter] Received shutdown signal.")
+                logging.info("Received shutdown signal.")
                 break
             if sample.get("_eos"):
                 continue
-            logging.info(f"[WebdatasetWriter] Writing sample to buffer: {sample.get('__key__')}")
             buffer.append(sample)
             if len(buffer) >= self.shuffle_buffer_size:
                 self._flush_buffer(buffer, sink)
@@ -521,11 +479,12 @@ class WebDatasetWriter:
         sink.close()
 
     def _flush_buffer(self, buffer: List[Dict[str, Any]], sink: wds.ShardWriter) -> None:
-        logging.info(f"WebdatasetWriter] Flushing buffer of size: {len(buffer)}")
+        logging.info(f"Flushing buffer of size: {len(buffer)}")
         random.shuffle(buffer)
         for _ in range(min(self.shard_size, len(buffer))):
             s = buffer.pop()
             sink.write({"__key__": s["__key__"], "png": s["png_bytes"], "json": s["json_bytes"]})
+        logging.info(f"Buffer size after flush: {len(buffer)}")
 
 
 # -------------------------
@@ -554,13 +513,6 @@ def _read_region(path: str, x: int, y: int, w: int, h: int, level: int, num_work
     if arr.dtype != np.uint8:
         arr = np.clip(arr, 0, 255).astype(np.uint8)
     return arr
-
-
-def _png_encode(arr_uint8_hwc: np.ndarray) -> bytes:
-    im = Image.fromarray(arr_uint8_hwc, mode="RGB")
-    buf = io.BytesIO()
-    im.save(buf, format="PNG", optimize=True)
-    return buf.getvalue()
 
 
 # -------------
@@ -602,12 +554,5 @@ def main(argv=None):
     )
 
     start_time = time.time()
-    # IMPORTANT: protect multiprocessing entrypoint
-    if mp.get_start_method(allow_none=True) != "spawn":
-        try:
-            mp.set_start_method("spawn", force=True)
-        except RuntimeError:
-            pass
-
     p.run(cpu_processes=args.procs)
     logging.info(f"Done in {time.time() - start_time:.1f} seconds.")
