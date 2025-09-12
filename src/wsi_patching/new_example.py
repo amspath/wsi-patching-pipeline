@@ -45,7 +45,9 @@ from PIL import Image  # Pillow
 
 def init_logging():
     logging.basicConfig(
-        level=logging.INFO, format="[%(processName)s] %(message)s", handlers=[logging.StreamHandler(sys.stdout)]
+        level=logging.INFO,
+        format="[%(asctime)s] [%(processName)s] %(message)s",
+        handlers=[logging.StreamHandler(sys.stdout)],
     )
 
 
@@ -554,5 +556,6 @@ def main(argv=None):
     )
 
     start_time = time.time()
+    logging.info(f"Starting pipeline at time {start_time:.1f}")
     p.run(cpu_processes=args.procs)
     logging.info(f"Done in {time.time() - start_time:.1f} seconds.")
