@@ -15,6 +15,7 @@ gpu = ["cucim", "cupy-cuda12x"]
 
 [project.scripts]
 example-script = "wsi_patching.example:main"
+new-example-script = "wsi_patching.new_example:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/wsi_patching"]
