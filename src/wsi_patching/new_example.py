@@ -20,6 +20,13 @@ Notes
 - WebDataset writer:
     * The writer process owns the only ShardWriter.
     * Samples are written as they arrive; no ordering guarantees.
+
+Profiling
+---------
+- Enable via Pipeline.run(..., profile=True).
+- Each producer process profiles its stages (writer excluded) and sends a summary
+  to the parent via a dedicated queue.
+- After run(), call Pipeline.get_profile() for a dict or Pipeline.print_profile() for a summary.
 """
 
 from __future__ import annotations
@@ -51,9 +58,6 @@ def init_logging():
     )
 
 
-# ---------------------------------
-# Core types and pipeline plumbing
-# ---------------------------------
 Sample = Dict[str, Any]
 
 
@@ -68,13 +72,96 @@ class Stage:
         return self
 
 
-# Producer worker function (per slide)
-def _producer_worker(slide_path: str, stage_specs: List[Stage], queue: MPQueue):
+# ---------------------------
+# Profiling helpers (new)
+# ---------------------------
+
+
+class _Profiler:
+    """Per-process profiler that accumulates per-stage wall time and yield counts."""
+
+    def __init__(self, enabled: bool, slide_id: str):
+        self.enabled = bool(enabled)
+        self.slide_id = slide_id
+        # stats: stage_name -> {"wall_time_sec": float, "yields": int}
+        self._stats: Dict[str, Dict[str, float | int]] = {}
+
+    def _ensure(self, stage_name: str):
+        if stage_name not in self._stats:
+            self._stats[stage_name] = {"wall_time_sec": 0.0, "yields": 0}
+
+    def add_time(self, stage_name: str, dt: float, yielded: bool):
+        if not self.enabled:
+            return
+        self._ensure(stage_name)
+        self._stats[stage_name]["wall_time_sec"] = float(self._stats[stage_name]["wall_time_sec"]) + float(dt)
+        if yielded:
+            self._stats[stage_name]["yields"] = int(self._stats[stage_name]["yields"]) + 1
+
+    def serialize(self) -> Dict[str, Any]:
+        # return plain JSON-serializable dict
+        return {"slide_id": self.slide_id, "stages": self._stats}
+
+
+class _ProfiledIterable:
+    """Wraps an iterator so that each __next__() is timed and charged to `stage_name`."""
+
+    def __init__(self, iterator: Iterable[Sample], profiler: _Profiler, stage_name: str):
+        self._it = iter(iterator)
+        self._prof = profiler
+        self._stage_name = stage_name
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        t0 = time.perf_counter()
+        try:
+            item = next(self._it)
+            dt = time.perf_counter() - t0
+            self._prof.add_time(self._stage_name, dt, yielded=True)
+            return item
+        except StopIteration:
+            dt = time.perf_counter() - t0
+            # Charge the "final" next() time to this stage as well (no yield increment).
+            self._prof.add_time(self._stage_name, dt, yielded=False)
+            raise
+
+
+class ProfilingWrapper(Stage):
+    """Stage wrapper that returns a profiled iterable for the inner stage."""
+
+    def __init__(self, inner: Stage, profiler: _Profiler):
+        self.inner = inner
+        self.profiler = profiler
+
+    def for_slide(self, slide_path: str) -> "Stage":
+        # Preserve per-slide adaptation, then wrap again
+        return ProfilingWrapper(self.inner.for_slide(slide_path), self.profiler)
+
+    def __call__(self, it: Iterable[Sample]) -> Iterable[Sample]:
+        out_iter = self.inner(it)
+        stage_name = self.inner.__class__.__name__
+        return _ProfiledIterable(out_iter, self.profiler, stage_name)
+
+
+# ---------------------------
+
+
+def _producer_worker(
+    slide_path: str, stage_specs: List[Stage], queue: MPQueue, profile: bool, prof_queue: Optional[MPQueue]
+):
     init_logging()
     logging.info("Starting processing.")
     try:
+        slide_id = Path(slide_path).stem
+        profiler = _Profiler(enabled=profile, slide_id=slide_id)
+
         # Generic per-slide adaptation: each stage decides if/how it needs to specialize
         local_stages: List[Stage] = [st.for_slide(slide_path) for st in stage_specs]
+        if profile:
+            # Wrap all producer stages in profiling wrappers
+            local_stages = [ProfilingWrapper(st, profiler) for st in local_stages]
 
         # Run per-slide pipeline up to (but excluding) the writer sink.
         pipe = Pipeline(local_stages)
@@ -92,7 +179,13 @@ def _producer_worker(slide_path: str, stage_specs: List[Stage], queue: MPQueue):
     except Exception as e:
         logging.info(f"Error: {e}", file=sys.stderr)
     finally:
-        # Signal end-of-slide (optional informational marker)
+        # Send per-slide profile summary to parent (not to writer)
+        if profile and prof_queue is not None:
+            try:
+                prof_queue.put({"_profile": True, **profiler.serialize()})
+            except Exception:
+                pass
+        # Signal end-of-slide (optional informational marker for writer)
         queue.put({"_eos": True})
 
 
@@ -108,11 +201,79 @@ class Pipeline(Stage):
     def then(self, nxt: Stage) -> "Pipeline":
         return Pipeline(self.stages + [nxt])
 
-    def run(self, cpu_processes: int = 4, queue_maxsize: int = 4000):
+    # ---------------------------
+    # Aggregated profile storage (new)
+    # ---------------------------
+    def _reset_profile(self):
+        self._profile_agg: Dict[str, Any] = {
+            "by_stage": {},  # stage_name -> {"wall_time_sec": float, "yields": int, "avg_ms_per_yield": float}
+            "by_slide": {},  # slide_id -> {stage_name -> { ... same fields ... }}
+        }
+
+    def _ingest_profile_msg(self, msg: Dict[str, Any]):
+        slide_id = msg.get("slide_id", "<unknown>")
+        stages: Dict[str, Dict[str, float | int]] = msg.get("stages", {})
+
+        # by_slide breakdown
+        self._profile_agg["by_slide"][slide_id] = {}
+        for stage_name, stats in stages.items():
+            wall = float(stats.get("wall_time_sec", 0.0))
+            n = int(stats.get("yields", 0))
+            avg = (wall / n * 1000.0) if n > 0 else 0.0
+            self._profile_agg["by_slide"][slide_id][stage_name] = {
+                "wall_time_sec": wall,
+                "yields": n,
+                "avg_ms_per_yield": avg,
+            }
+
+            # by_stage totals
+            agg = self._profile_agg["by_stage"].setdefault(stage_name, {"wall_time_sec": 0.0, "yields": 0})
+            agg["wall_time_sec"] = float(agg["wall_time_sec"]) + wall
+            agg["yields"] = int(agg["yields"]) + n
+
+    def get_profile(self) -> Dict[str, Any]:
+        """Return aggregated profile from the last run(profile=True)."""
+        if not hasattr(self, "_profile_agg"):
+            return {"by_stage": {}, "by_slide": {}}
+        # finalize by_stage with avg
+        out = {"by_stage": {}, "by_slide": self._profile_agg.get("by_slide", {})}
+        for stage_name, agg in self._profile_agg.get("by_stage", {}).items():
+            wall = float(agg["wall_time_sec"])
+            n = int(agg["yields"])
+            out["by_stage"][stage_name] = {
+                "wall_time_sec": wall,
+                "yields": n,
+                "avg_ms_per_yield": (wall / n * 1000.0) if n > 0 else 0.0,
+            }
+        return out
+
+    def print_profile(self) -> None:
+        """Pretty-print the aggregated profile."""
+        prof = self.get_profile()
+        if not prof["by_stage"]:
+            print("[profile] No profile data (did you run with profile=True?)")
+            return
+        print("\n=== Pipeline Profile (aggregate) ===")
+        print(f"{'Stage':30} {'Yields':>10} {'Wall (s)':>12} {'Avg (ms/yield)':>16}")
+        for name, stats in sorted(prof["by_stage"].items(), key=lambda kv: kv[1]["wall_time_sec"], reverse=True):
+            print(f"{name:30} {stats['yields']:10d} {stats['wall_time_sec']:12.3f} {stats['avg_ms_per_yield']:16.3f}")
+        print("\n--- Per slide breakdown ---")
+        for slide_id, stages in prof["by_slide"].items():
+            print(f"[{slide_id}]")
+            for name, stats in sorted(stages.items(), key=lambda kv: kv[1]["wall_time_sec"], reverse=True):
+                print(
+                    f"  {name:28} yields={stats['yields']:6d} wall={stats['wall_time_sec']:8.3f}s avg={stats['avg_ms_per_yield']:8.3f}ms"
+                )
+
+    # ---------------------------
+
+    def run(self, cpu_processes: int = 4, queue_maxsize: int = 4000, profile: bool = False):
         """
         Execute the pipeline with:
           - One writer process (last stage must be WebDatasetWriter)
           - Up to 'cpu_processes' producer processes (one per slide) running all previous stages
+
+        If profile=True, per-stage timings are collected from producer processes.
         """
         assert isinstance(self.stages[0], WSIGrid), "First stage must be WSIGrid in this MVP."
         assert isinstance(self.stages[-1], WebDatasetWriter), "Last stage must be WebDatasetWriter."
@@ -136,6 +297,10 @@ class Pipeline(Stage):
 
         # Single MP queue for encoded samples (bytes)
         q: MPQueue = mp.Queue(maxsize=queue_maxsize)
+        # Dedicated profile queue (parent-only)
+        prof_q: Optional[MPQueue] = mp.Queue() if profile else None
+        if profile:
+            self._reset_profile()
 
         # Start writer process
         writer_proc = mp.Process(target=writer_stage.start_writer, args=(q,), name="webdataset-writer")
@@ -146,7 +311,11 @@ class Pipeline(Stage):
         active: List[mp.Process] = []
 
         def spawn_for(path: str):
-            p = mp.Process(target=_producer_worker, args=(path, producer_stages, q), name=f"producer-{Path(path).stem}")
+            p = mp.Process(
+                target=_producer_worker,
+                args=(path, producer_stages, q, profile, prof_q),
+                name=f"producer-{Path(path).stem}",
+            )
             p.start()
             return p
 
@@ -165,14 +334,26 @@ class Pipeline(Stage):
                 slide_path = pending.pop(0)
                 active.append(spawn_for(slide_path))
 
+        # Collect profiles from producers (one per slide expected)
+        if profile and prof_q is not None:
+            received = 0
+            expected = len(slides)
+            # Drain with a timeout to avoid deadlock if a producer crashed before sending.
+            while received < expected:
+                try:
+                    msg = prof_q.get(timeout=1.0)
+                except Exception:
+                    # double-check if we should break: all producers are joined already
+                    break
+                if isinstance(msg, dict) and msg.get("_profile"):
+                    self._ingest_profile_msg(msg)
+                    received += 1
+
         # All producers done; signal writer to stop and wait for it to drain/close.
         q.put(None)  # shutdown sentinel
         writer_proc.join()
 
 
-# ----------------
-# Helper geometry
-# ----------------
 def _bbox_intersects(a: Tuple[int, int, int, int], b: Tuple[int, int, int, int]) -> bool:
     ax, ay, aw, ah = a
     bx, by, bw, bh = b
@@ -192,9 +373,6 @@ def _tiles_in_rect(x0: int, y0: int, w: int, h: int, tile_size: int, stride: int
         y += stride
 
 
-# ----------------
-# Source: WSIGrid
-# ----------------
 class WSIGrid(Stage):
     """
     Minimal source that yields one 'slide' sample per input slide.
@@ -227,9 +405,6 @@ class WSIGrid(Stage):
             }
 
 
-# -----------------------
-# Filter: FilterByROI
-# -----------------------
 class FilterByROI(Stage):
     """
     Attaches ROI rectangles for each slide and passes through the slide sample.
@@ -254,9 +429,6 @@ class FilterByROI(Stage):
             yield s
 
 
-# -----------------------
-# Regionize (per slide)
-# -----------------------
 class Regionize(Stage):
     """
     Creates RegionTask items from slide + ROI rectangles.
@@ -293,9 +465,6 @@ class Regionize(Stage):
                 }
 
 
-# ----------------------------------------
-# RegionReadAndBatch (region-prefetch I/O)
-# ----------------------------------------
 class RegionReadAndBatch(Stage):
     """
     For each RegionTask:
@@ -351,9 +520,6 @@ class RegionReadAndBatch(Stage):
                 yield {"batch": batch}
 
 
-# -----------------------------------------
-# Dummy GPU op: DummyTissueClassifier (batched)
-# -----------------------------------------
 class DummyTissueClassifier(Stage):
     """
     Simulates a batched GPU op. For each batch:
@@ -391,51 +557,40 @@ class DummyTissueClassifier(Stage):
             yield {"batch": batch}
 
 
-# ----------------
-# PNG Encoder sink-side prep
-# ----------------
 class PNGEncoder(Stage):
-    """
-    Encodes patches to PNG bytes and flattens batches into single-sample items ready for the writer.
-    Output items contain: "__key__", "png_bytes", "json_bytes"
-    """
+    def __init__(self, compress_level: int = 6):
+        self.compress_level = int(compress_level)
+        self._buf = io.BytesIO()  # reuse within the process
 
-    def __call__(self, it: Iterable[Sample]) -> Iterable[Sample]:
+    def __call__(self, it):
         for item in it:
-            # Handle batched items
-            if isinstance(item, dict) and "batch" in item:
-                batch: List[Sample] = item["batch"]
-                for s in batch:
+            if "batch" in item:
+                for s in item["batch"]:
                     out = self._encode_one(s)
                     if out is not None:
                         yield out
-                continue
-
-            # Single item path
-            if isinstance(item, dict) and item.get("type") == "sample":
+            elif item.get("type") == "sample":
                 out = self._encode_one(item)
                 if out is not None:
                     yield out
 
-    @staticmethod
-    def _encode_one(s: Sample) -> Optional[Sample]:
+    def _encode_one(self, s: Sample) -> Optional[Sample]:
         patch = s.get("patch")
         key = f"{s['wsi_id']}-{s['coord'][0]}-{s['coord'][1]}-L{s['level']}"
+        h, w, _ = patch.shape
 
-        # Encode to PNG
-        buf = io.BytesIO()
-        Image.fromarray(patch, mode="RGB").save(buf, format="PNG")
-        png_bytes = buf.getvalue()
+        # reuse buffer
+        buf = self._buf
+        buf.seek(0)
+        buf.truncate(0)
 
-        # Build json sidecar (exclude heavy fields)
-        meta = {k: v for k, v in s.items() if k not in ("patch",)}
+        # avoid an extra copy vs fromarray()
+        img = Image.frombuffer("RGB", (w, h), patch, "raw", "RGB", 0, 1)
+        img.save(buf, format="PNG", compress_level=self.compress_level)  # optimize=False default
 
-        return {"__key__": key, "png_bytes": png_bytes, "json_bytes": meta}
+        return {"__key__": key, "png_bytes": buf.getvalue(), "json_bytes": {k: v for k, v in s.items() if k != "patch"}}
 
 
-# --------------------------
-# WebDatasetWriter (sink)
-# --------------------------
 class WebDatasetWriter:
     """
     Writer for WebDataset shards.
@@ -489,9 +644,6 @@ class WebDatasetWriter:
         logging.info(f"Buffer size after flush: {len(buffer)}")
 
 
-# -------------------------
-# I/O helpers (cuCIM/PIL)
-# -------------------------
 def _get_level_dims(path: str, level: int) -> Tuple[int, int]:
     img = CuImage(path)
     # cuCIM uses series/level sizes; get level shape (width, height)
@@ -505,8 +657,6 @@ def _read_region(path: str, x: int, y: int, w: int, h: int, level: int, num_work
     Prefer cuCIM; fallback to PIL (level 0 only).
     """
     img = CuImage(path)
-    # cuCIM: location is (x, y) in level coords; size is (w, h) at that level
-    # NOTE: Some versions expect args via keyword names (location=, size=, level=).
     region = img.read_region(location=(x, y), size=(w, h), level=level, num_workers=num_workers)
     # Ensure HxWxC uint8
     arr = np.asarray(region)
@@ -517,9 +667,6 @@ def _read_region(path: str, x: int, y: int, w: int, h: int, level: int, num_work
     return arr
 
 
-# -------------
-# CLI example
-# -------------
 def main(argv=None):
     import argparse
 
@@ -530,6 +677,9 @@ def main(argv=None):
     parser.add_argument("--procs", type=int, default=4, help="Max producer processes (one per slide concurrently).")
     parser.add_argument("--batch", type=int, default=200, help="Batch size for GPU micro-batching.")
     parser.add_argument("--num-workers", type=int, default=8, help="cuCIM num_workers per region read.")
+    parser.add_argument(
+        "--profile", action="store_true", help="Enable per-stage profiling for producers.", default=True
+    )
     args = parser.parse_args(argv)
 
     init_logging()
@@ -557,5 +707,9 @@ def main(argv=None):
 
     start_time = time.time()
     logging.info(f"Starting pipeline at time {start_time:.1f}")
-    p.run(cpu_processes=args.procs)
+    p.run(cpu_processes=args.procs, profile=args.profile)
     logging.info(f"Done in {time.time() - start_time:.1f} seconds.")
+
+    if args.profile:
+        # Print a summary on completion if requested
+        p.print_profile()
