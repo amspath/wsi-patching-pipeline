@@ -95,6 +95,7 @@ class _Profiler:
             return
         self._ensure(stage_name)
         self._stats[stage_name]["wall_time_sec"] = float(self._stats[stage_name]["wall_time_sec"]) + float(dt)
+        # logging.info(f"[profile] {stage_name} +{dt * 1000:.1f} ms (yielded={yielded})")
         if yielded:
             self._stats[stage_name]["yields"] = int(self._stats[stage_name]["yields"]) + 1
 
@@ -145,6 +146,19 @@ class ProfilingWrapper(Stage):
         return _ProfiledIterable(out_iter, self.profiler, stage_name)
 
 
+# Global per-process profiler handle so stages can log isolated timings
+_CURRENT_PROFILER: Optional["_Profiler"] = None
+
+
+def _set_current_profiler(p: Optional["_Profiler"]) -> None:
+    global _CURRENT_PROFILER
+    _CURRENT_PROFILER = p
+
+
+def _get_current_profiler() -> Optional["_Profiler"]:
+    return _CURRENT_PROFILER
+
+
 # ---------------------------
 
 
@@ -156,6 +170,7 @@ def _producer_worker(
     try:
         slide_id = Path(slide_path).stem
         profiler = _Profiler(enabled=profile, slide_id=slide_id)
+        _set_current_profiler(profiler)
 
         # Generic per-slide adaptation: each stage decides if/how it needs to specialize
         local_stages: List[Stage] = [st.for_slide(slide_path) for st in stage_specs]
@@ -179,13 +194,16 @@ def _producer_worker(
     except Exception as e:
         logging.info(f"Error: {e}", file=sys.stderr)
     finally:
-        # Send per-slide profile summary to parent (not to writer)
+        # Send per-slide profile summary ...
         if profile and prof_queue is not None:
             try:
                 prof_queue.put({"_profile": True, **profiler.serialize()})
             except Exception:
+                logging.info("Failed to send profile message.", file=sys.stderr)
                 pass
-        # Signal end-of-slide (optional informational marker for writer)
+        # Clear process-local profiler
+        _set_current_profiler(None)
+        # Signal end-of-slide ...
         queue.put({"_eos": True})
 
 
@@ -248,21 +266,38 @@ class Pipeline(Stage):
         return out
 
     def print_profile(self) -> None:
-        """Pretty-print the aggregated profile."""
+        """Pretty-print the aggregated profile, separating isolated timings."""
         prof = self.get_profile()
         if not prof["by_stage"]:
             print("[profile] No profile data (did you run with profile=True?)")
             return
-        print("\n=== Pipeline Profile (aggregate) ===")
+
+        # Separate isolated vs. iterator timings
+        iterator_times = {k: v for k, v in prof["by_stage"].items() if not k.endswith(".isolated")}
+        isolated_times = {k: v for k, v in prof["by_stage"].items() if k.endswith(".isolated")}
+
+        def fmt(stats):
+            return f"{stats['yields']:10d} {stats['wall_time_sec']:12.3f} {stats['avg_ms_per_yield']:16.3f}"
+
+        print("\n=== Pipeline Profile (aggregate, iterator timings) ===")
         print(f"{'Stage':30} {'Yields':>10} {'Wall (s)':>12} {'Avg (ms/yield)':>16}")
-        for name, stats in sorted(prof["by_stage"].items(), key=lambda kv: kv[1]["wall_time_sec"], reverse=True):
-            print(f"{name:30} {stats['yields']:10d} {stats['wall_time_sec']:12.3f} {stats['avg_ms_per_yield']:16.3f}")
+        for name, stats in sorted(iterator_times.items(), key=lambda kv: kv[1]["wall_time_sec"], reverse=True):
+            print(f"{name:30} {fmt(stats)}")
+
+        if isolated_times:
+            print("\n--- Isolated per-stage timings (own work only) ---")
+            print(f"{'Stage':30} {'Yields':>10} {'Wall (s)':>12} {'Avg (ms/yield)':>16}")
+            for name, stats in sorted(isolated_times.items(), key=lambda kv: kv[1]["wall_time_sec"], reverse=True):
+                base = name.replace(".isolated", "")
+                print(f"{base:30} {fmt(stats)}")
+
         print("\n--- Per slide breakdown ---")
         for slide_id, stages in prof["by_slide"].items():
             print(f"[{slide_id}]")
             for name, stats in sorted(stages.items(), key=lambda kv: kv[1]["wall_time_sec"], reverse=True):
                 print(
-                    f"  {name:28} yields={stats['yields']:6d} wall={stats['wall_time_sec']:8.3f}s avg={stats['avg_ms_per_yield']:8.3f}ms"
+                    f"  {name:28} yields={stats['yields']:6d} "
+                    f"wall={stats['wall_time_sec']:8.3f}s avg={stats['avg_ms_per_yield']:8.3f}ms"
                 )
 
     # ---------------------------
@@ -558,37 +593,52 @@ class DummyTissueClassifier(Stage):
 
 
 class PNGEncoder(Stage):
-    def __init__(self, compress_level: int = 6):
-        self.compress_level = int(compress_level)
-        self._buf = io.BytesIO()  # reuse within the process
+    """
+    Encodes patches to PNG bytes and flattens batches into single-sample items ready for the writer.
+    Output items contain: "__key__", "png_bytes", "json_bytes"
+    """
 
-    def __call__(self, it):
+    def __call__(self, it: Iterable[Sample]) -> Iterable[Sample]:
+        prof = _get_current_profiler()  # may be None if profiling is disabled
         for item in it:
-            if "batch" in item:
-                for s in item["batch"]:
+            # Handle batched items
+            if isinstance(item, dict) and "batch" in item:
+                batch: List[Sample] = item["batch"]
+                for s in batch:
+                    t0 = time.perf_counter()
                     out = self._encode_one(s)
+                    dt = time.perf_counter() - t0
+                    if prof is not None and out is not None:
+                        # record isolated encode time only (no upstream waiting)
+                        prof.add_time("PNGEncoder.isolated", dt, yielded=True)
                     if out is not None:
                         yield out
-            elif item.get("type") == "sample":
+                continue
+
+            # Single item path
+            if isinstance(item, dict) and item.get("type") == "sample":
+                t0 = time.perf_counter()
                 out = self._encode_one(item)
+                dt = time.perf_counter() - t0
+                if prof is not None and out is not None:
+                    prof.add_time("PNGEncoder.isolated", dt, yielded=True)
                 if out is not None:
                     yield out
 
-    def _encode_one(self, s: Sample) -> Optional[Sample]:
+    @staticmethod
+    def _encode_one(s: Sample) -> Optional[Sample]:
         patch = s.get("patch")
         key = f"{s['wsi_id']}-{s['coord'][0]}-{s['coord'][1]}-L{s['level']}"
-        h, w, _ = patch.shape
 
-        # reuse buffer
-        buf = self._buf
-        buf.seek(0)
-        buf.truncate(0)
+        # Encode to PNG
+        buf = io.BytesIO()
+        Image.fromarray(patch, mode="RGB").save(buf, format="PNG")
+        png_bytes = buf.getvalue()
 
-        # avoid an extra copy vs fromarray()
-        img = Image.frombuffer("RGB", (w, h), patch, "raw", "RGB", 0, 1)
-        img.save(buf, format="PNG", compress_level=self.compress_level)  # optimize=False default
+        # Build json sidecar (exclude heavy fields)
+        meta = {k: v for k, v in s.items() if k not in ("patch",)}
 
-        return {"__key__": key, "png_bytes": buf.getvalue(), "json_bytes": {k: v for k, v in s.items() if k != "patch"}}
+        return {"__key__": key, "png_bytes": png_bytes, "json_bytes": meta}
 
 
 class WebDatasetWriter:
@@ -691,6 +741,9 @@ def main(argv=None):
         "./data/RBIO-GC072-HE-03.tiff",
         "./data/RBIO-GC072-HE-04.tiff",
         "./data/RBIO-GC072-HE-05.tiff",
+        "./data/RBIO-GC072-HE-06.tiff",
+        "./data/RBIO-GC072-HE-07.tiff",
+        "./data/RBIO-GC072-HE-08.tiff",
     ]
 
     rois = {Path(s).stem: [(0, 0, 4000, 4000)] for s in slides}
