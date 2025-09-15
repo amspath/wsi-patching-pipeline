@@ -4,8 +4,8 @@ from typing import Iterable, List, Optional
 
 from PIL import Image
 
-from wsi_patching.pipeline import Sample, Stage
-from wsi_patching.profiling import get_current_profiler
+from wsi_patching.core.pipeline import Sample, Stage
+from wsi_patching.utils.profiling import get_current_profiler
 
 
 class PNGEncoder(Stage):

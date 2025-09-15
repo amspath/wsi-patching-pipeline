@@ -5,7 +5,7 @@ from typing import Any, Dict, List
 
 import webdataset as wds
 
-from wsi_patching.logging_config import init_logging
+from wsi_patching.utils.logging_config import init_logging
 
 
 class WebDatasetWriter:

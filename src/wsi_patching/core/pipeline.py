@@ -6,8 +6,8 @@ from multiprocessing.queues import Queue as MPQueue
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
-from wsi_patching.logging_config import init_logging
-from wsi_patching.profiling import PipelineProfileAggregator, Profiler, set_current_profiler
+from wsi_patching.utils.logging_config import init_logging
+from wsi_patching.utils.profiling import PipelineProfileAggregator, Profiler, set_current_profiler
 from wsi_patching.webdatasetwriter import WebDatasetWriter
 
 Sample = Dict[str, Any]

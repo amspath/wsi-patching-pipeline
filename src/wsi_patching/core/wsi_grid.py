@@ -1,10 +1,10 @@
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, Iterable, List, Tuple
+from typing import Iterable, List, Tuple
 
 from cucim import CuImage
 
-from wsi_patching.pipeline import PipelineContext, Sample, Stage
+from wsi_patching.core.pipeline import PipelineContext, Sample, Stage
 
 
 class WSIGrid(Stage):

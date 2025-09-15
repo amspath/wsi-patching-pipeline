@@ -2,7 +2,7 @@ import logging
 from dataclasses import dataclass
 from typing import Dict, Iterable, List, Tuple
 
-from wsi_patching.pipeline import Sample, Stage
+from wsi_patching.core.pipeline import Sample, Stage
 
 Box = Tuple[int, int, int, int]  # (x, y, w, h) in level-0 pixels
 

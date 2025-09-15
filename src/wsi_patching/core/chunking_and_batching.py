@@ -4,8 +4,8 @@ from typing import Iterable, List, Optional, Tuple
 import numpy as np
 from cucim import CuImage
 
-from wsi_patching.pipeline import Sample, Stage
-from wsi_patching.regions_of_interest import ROI, BoxROI
+from wsi_patching.core.pipeline import Sample, Stage
+from wsi_patching.core.regions_of_interest import ROI, BoxROI
 
 
 class TilePlanner(Stage):

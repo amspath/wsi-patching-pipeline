@@ -4,7 +4,7 @@ from typing import Iterable, List
 import numpy as np
 import torch
 
-from wsi_patching.pipeline import Sample, Stage
+from wsi_patching.core.pipeline import Sample, Stage
 
 
 class DummyTissueClassifier(Stage):

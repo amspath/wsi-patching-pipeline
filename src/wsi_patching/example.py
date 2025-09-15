@@ -35,13 +35,13 @@ import logging
 import time
 from pathlib import Path
 
-from wsi_patching.chuncking_and_batching import ReadWindowChunker, RegionReadAndBatch, TilePlanner
-from wsi_patching.logging_config import init_logging
+from wsi_patching.core.chunking_and_batching import ReadWindowChunker, RegionReadAndBatch, TilePlanner
+from wsi_patching.core.regions_of_interest import AttachROIs, RectROIProvider
+from wsi_patching.core.wsi_grid import WSIGrid
 from wsi_patching.pngencoder import PNGEncoder
-from wsi_patching.regions_of_interest import AttachROIs, RectROIProvider
 from wsi_patching.tissue_classifier import DummyTissueClassifier
+from wsi_patching.utils.logging_config import init_logging
 from wsi_patching.webdatasetwriter import WebDatasetWriter
-from wsi_patching.wsi_grid import WSIGrid
 
 
 def main(argv=None):
