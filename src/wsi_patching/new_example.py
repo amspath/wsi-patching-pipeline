@@ -60,6 +60,14 @@ def init_logging():
 Sample = Dict[str, Any]
 
 
+class PipelineContext(dict):
+    """Lightweight, picklable context for cross-stage config & checks."""
+
+    def require_key(self, key: str):
+        if key not in self:
+            raise KeyError(f"Missing required context key: '{key}'")
+
+
 class Stage:
     def __call__(self, it: Iterable[Sample]) -> Iterable[Sample]:
         raise NotImplementedError
@@ -69,6 +77,58 @@ class Stage:
 
     def for_slide(self, slide_path: str) -> "Stage":
         return self
+
+    # --- new hooks ---
+    def attach_context(self, ctx: PipelineContext) -> None:
+        self._ctx = ctx  # type: ignore[attr-defined]
+
+    def export_context(self, ctx: PipelineContext) -> None:
+        """Optional: seed/override context keys (called before preflight)."""
+        pass
+
+    def validate(self) -> None:
+        """Optional: validate config using self._ctx (called once before run)."""
+        pass
+
+    @property
+    def ctx(self) -> PipelineContext:
+        return getattr(self, "_ctx", PipelineContext())
+
+
+@dataclass
+class RectAreaROI:
+    x: int
+    y: int
+    w: int
+    h: int
+
+    def as_tuple(self) -> Tuple[int, int, int, int]:
+        return (self.x, self.y, self.w, self.h)
+
+    def subdivide(self, max_size: int, tile_size: int, stride: int) -> List["RectAreaROI"]:
+        """
+        Split this rectangle into smaller rectangles if width or height > max_size.
+        Splits are aligned to stride so that tiles stay consistent.
+        """
+        sub_rois: List[RectAreaROI] = []
+        x_end = self.x + self.w
+        y_end = self.y + self.h
+
+        for yy in range(self.y, y_end, max_size):
+            for xx in range(self.x, x_end, max_size):
+                ww = min(max_size, x_end - xx)
+                hh = min(max_size, y_end - yy)
+
+                # Align to stride boundaries: ensure splits produce valid tile starts
+                # (optional: round ww/hh up so they cover full tiles)
+                aligned_w = (ww // stride) * stride
+                aligned_h = (hh // stride) * stride
+                if aligned_w < tile_size or aligned_h < tile_size:
+                    continue
+
+                sub_rois.append(RectAreaROI(xx, yy, aligned_w, aligned_h))
+
+        return sub_rois
 
 
 class _Profiler:
@@ -147,7 +207,10 @@ class PipelineProfileAggregator:
             return
 
         def fmt(stats: Dict[str, float | int]) -> str:
-            return f"{int(stats['yields']):10d} {float(stats['wall_time_sec']):12.3f} {float(stats['avg_ms_per_yield']):16.3f}"
+            return (
+                f"{int(stats['yields']):10d} {float(stats['wall_time_sec']):12.3f} "
+                f"{float(stats['avg_ms_per_yield']):16.3f}"
+            )
 
         print("\n=== Pipeline Profile (isolated timings only) ===")
         print(f"{'Stage':30} {'Yields':>10} {'Wall (s)':>12} {'Avg (ms/yield)':>16}")
@@ -220,6 +283,20 @@ class Pipeline(Stage):
     stages: List[Stage]
     prof_agg: Optional["PipelineProfileAggregator"] = None  # new
 
+    def __init__(
+        self,
+        stages: List[Stage],
+        prof_agg: Optional["PipelineProfileAggregator"] = None,
+        context: Optional[PipelineContext] = None,
+    ):
+        self.stages = stages
+        self.prof_agg = prof_agg
+        self._context = context or PipelineContext()
+
+    @property
+    def context(self) -> PipelineContext:
+        return self._context
+
     def __call__(self, it: Iterable[Sample]) -> Iterable[Sample]:
         for s in self.stages:
             it = s(it)
@@ -255,6 +332,15 @@ class Pipeline(Stage):
         if not slides:
             logging.info("[WARN] No slides provided. Nothing to do.")
             return
+
+        # 1) Let stages contribute to context
+        for s in self.stages[:-1]:
+            s.export_context(self._context)
+
+        # 2) Attach context then run preflight validations
+        for s in self.stages[:-1]:
+            s.attach_context(self._context)
+            s.validate()
 
         if mp.get_start_method(allow_none=True) != "spawn":
             try:
@@ -325,6 +411,12 @@ class WSIGrid(Stage):
         self.stride = stride
         self.level = level
 
+    def export_context(self, ctx: PipelineContext) -> None:
+        # Seed/override global grid parameters for other stages to read.
+        ctx["tile_size"] = self.tile_size
+        ctx["stride"] = self.stride
+        ctx["level"] = self.level
+
     def for_slide(self, slide_path: str) -> "Stage":
         return WSIGrid(slides=[slide_path], tile_size=self.tile_size, stride=self.stride, level=self.level)
 
@@ -346,13 +438,8 @@ class WSIGrid(Stage):
 
 
 class FilterByROI(Stage):
-    """
-    Attaches ROI rectangles for each slide and passes through the slide sample.
-    'rois' must be a dict: { wsi_id (or stem of path): [(x, y, w, h), ...] }
-    """
-
     def __init__(self, rois: Dict[str, List[Tuple[int, int, int, int]]]):
-        self.rois = rois
+        self.rois = {k: [RectAreaROI(*r) for r in v] for k, v in rois.items()}
 
     def __call__(self, it: Iterable[Sample]) -> Iterable[Sample]:
         for s in it:
@@ -360,12 +447,10 @@ class FilterByROI(Stage):
                 continue
             wsi_id = s["wsi_id"]
             rects = self.rois.get(wsi_id, [])
-            # Filter out rectangles that don't intersect slide bounds
             W, H = s["dims"]
-            slide_rect = (0, 0, W, H)
-            rects = [r for r in rects if self._bbox_intersects(r, slide_rect)]
-            s["rois"] = rects
-            logging.info(f"Slide {wsi_id} -> {len(rects)} ROIs")
+            slide_rect = RectAreaROI(0, 0, W, H)
+            valid = [r for r in rects if self._bbox_intersects(r.as_tuple(), slide_rect.as_tuple())]
+            s["rois"] = valid if valid else [slide_rect]
             yield s
 
     def _bbox_intersects(self, a: Tuple[int, int, int, int], b: Tuple[int, int, int, int]) -> bool:
@@ -375,39 +460,48 @@ class FilterByROI(Stage):
 
 
 class Regionize(Stage):
-    """
-    Creates RegionTask items from slide + ROI rectangles.
-    For each rectangle, we also precompute the list of tile coords in that rectangle.
-    """
+    def __init__(self, max_region_size: int = 2048):
+        self.max_region_size = max_region_size
+
+    def validate(self) -> None:
+        self.ctx.require_key("tile_size")
+        self.ctx.require_key("stride")
+
+        if self.max_region_size % self.ctx["tile_size"] != 0:
+            raise ValueError(
+                f"max_region_size ({self.max_region_size}) must be multiple of tile_size ({self.ctx['tile_size']})"
+            )
 
     def __call__(self, it: Iterable[Sample]) -> Iterable[Sample]:
         for s in it:
             if s.get("type") != "slide":
                 continue
-            rois: List[Tuple[int, int, int, int]] = s.get("rois", [])
-            if not rois:
-                # If no ROI given, process the whole slide as a single region
-                W, H = s["dims"]
-                rois = [(0, 0, W, H)]
-            tile_size = s["tile_size"]
-            stride = s["stride"]
-            for x0, y0, w, h in rois:
-                tiles = list(self._tiles_in_rect(x0, y0, w, h, tile_size, stride))
-                if not tiles:
-                    continue
 
-                logging.info(f"Slide {s['wsi_id']} region ({x0},{y0},{w},{h}) -> {len(tiles)} tiles")
-                yield {
-                    "type": "region",
-                    "wsi_id": s["wsi_id"],
-                    "wsi_path": s["wsi_path"],
-                    "level": s["level"],
-                    "tile_size": tile_size,
-                    "stride": stride,
-                    "region": (x0, y0, w, h),
-                    "tiles": tiles,
-                    "meta": s.get("meta", {}),
-                }
+            rois: List[RectAreaROI] = s.get("rois", [])
+            if not rois:
+                W, H = s["dims"]
+                rois = [RectAreaROI(0, 0, W, H)]
+
+            tile_size, stride = s["tile_size"], s["stride"]
+
+            for roi in rois:
+                # Subdivide large regions
+                sub_rois = roi.subdivide(self.max_region_size, tile_size, stride)
+                for sub in sub_rois or [roi]:  # if no split was needed
+                    tiles = list(self._tiles_in_rect(sub.x, sub.y, sub.w, sub.h, tile_size, stride))
+                    if not tiles:
+                        continue
+                    yield {
+                        "type": "region",
+                        "wsi_id": s["wsi_id"],
+                        "wsi_path": s["wsi_path"],
+                        "level": s["level"],
+                        "tile_size": tile_size,
+                        "stride": stride,
+                        "region": sub.as_tuple(),
+                        "tiles": tiles,
+                        "meta": s.get("meta", {}),
+                    }
 
     def _tiles_in_rect(
         self, x0: int, y0: int, w: int, h: int, tile_size: int, stride: int
@@ -584,6 +678,7 @@ class WebDatasetWriter:
         self.shard_size = int(shard_size)
         self.shuffle_buffer_size = int(shuffle_buffer_size)
         self.shard_pattern = str(self.outdir / "shard-%06d.tar")
+        self.write_count = 0
 
     def start_writer(self, queue) -> None:
         """Multi-process mode: consume from queue and write shards."""
@@ -607,6 +702,7 @@ class WebDatasetWriter:
         if buffer:
             self._flush_buffer(buffer, sink)
 
+        logging.info(f"Writer processed {self.write_count} samples.")
         sink.close()
 
     def _flush_buffer(self, buffer: List[Dict[str, Any]], sink: wds.ShardWriter) -> None:
@@ -614,6 +710,7 @@ class WebDatasetWriter:
         random.shuffle(buffer)
         for _ in range(min(self.shard_size, len(buffer))):
             s = buffer.pop()
+            self.write_count += 1
             sink.write({"__key__": s["__key__"], "png": s["png_bytes"], "json": s["json_bytes"]})
         logging.info(f"Buffer size after flush: {len(buffer)}")
 
