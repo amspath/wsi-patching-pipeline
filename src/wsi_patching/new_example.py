@@ -32,7 +32,6 @@ Profiling
 from __future__ import annotations
 
 import io
-import json
 import logging
 import multiprocessing as mp
 import random
@@ -72,18 +71,12 @@ class Stage:
         return self
 
 
-# ---------------------------
-# Profiling helpers (new)
-# ---------------------------
-
-
 class _Profiler:
-    """Per-process profiler that accumulates per-stage wall time and yield counts."""
+    """Per-process profiler, but only used for isolated timings (manual calls)."""
 
     def __init__(self, enabled: bool, slide_id: str):
         self.enabled = bool(enabled)
         self.slide_id = slide_id
-        # stats: stage_name -> {"wall_time_sec": float, "yields": int}
         self._stats: Dict[str, Dict[str, float | int]] = {}
 
     def _ensure(self, stage_name: str):
@@ -95,58 +88,14 @@ class _Profiler:
             return
         self._ensure(stage_name)
         self._stats[stage_name]["wall_time_sec"] = float(self._stats[stage_name]["wall_time_sec"]) + float(dt)
-        # logging.info(f"[profile] {stage_name} +{dt * 1000:.1f} ms (yielded={yielded})")
         if yielded:
             self._stats[stage_name]["yields"] = int(self._stats[stage_name]["yields"]) + 1
 
     def serialize(self) -> Dict[str, Any]:
-        # return plain JSON-serializable dict
         return {"slide_id": self.slide_id, "stages": self._stats}
 
 
-class _ProfiledIterable:
-    """Wraps an iterator so that each __next__() is timed and charged to `stage_name`."""
-
-    def __init__(self, iterator: Iterable[Sample], profiler: _Profiler, stage_name: str):
-        self._it = iter(iterator)
-        self._prof = profiler
-        self._stage_name = stage_name
-
-    def __iter__(self):
-        return self
-
-    def __next__(self):
-        t0 = time.perf_counter()
-        try:
-            item = next(self._it)
-            dt = time.perf_counter() - t0
-            self._prof.add_time(self._stage_name, dt, yielded=True)
-            return item
-        except StopIteration:
-            dt = time.perf_counter() - t0
-            # Charge the "final" next() time to this stage as well (no yield increment).
-            self._prof.add_time(self._stage_name, dt, yielded=False)
-            raise
-
-
-class ProfilingWrapper(Stage):
-    """Stage wrapper that returns a profiled iterable for the inner stage."""
-
-    def __init__(self, inner: Stage, profiler: _Profiler):
-        self.inner = inner
-        self.profiler = profiler
-
-    def for_slide(self, slide_path: str) -> "Stage":
-        # Preserve per-slide adaptation, then wrap again
-        return ProfilingWrapper(self.inner.for_slide(slide_path), self.profiler)
-
-    def __call__(self, it: Iterable[Sample]) -> Iterable[Sample]:
-        out_iter = self.inner(it)
-        stage_name = self.inner.__class__.__name__
-        return _ProfiledIterable(out_iter, self.profiler, stage_name)
-
-
-# Global per-process profiler handle so stages can log isolated timings
+# Global per-process profiler handle
 _CURRENT_PROFILER: Optional["_Profiler"] = None
 
 
@@ -157,9 +106,6 @@ def _set_current_profiler(p: Optional["_Profiler"]) -> None:
 
 def _get_current_profiler() -> Optional["_Profiler"]:
     return _CURRENT_PROFILER
-
-
-# ---------------------------
 
 
 def _producer_worker(
@@ -174,36 +120,29 @@ def _producer_worker(
 
         # Generic per-slide adaptation: each stage decides if/how it needs to specialize
         local_stages: List[Stage] = [st.for_slide(slide_path) for st in stage_specs]
-        if profile:
-            # Wrap all producer stages in profiling wrappers
-            local_stages = [ProfilingWrapper(st, profiler) for st in local_stages]
 
         # Run per-slide pipeline up to (but excluding) the writer sink.
         pipe = Pipeline(local_stages)
         it = pipe(iter(()))  # sources ignore input
 
-        # Drain and put into MP queue
         for out in it:
             if out is None or out.get("_eos"):
                 continue
             if "__key__" not in out or "png_bytes" not in out or "json_bytes" not in out:
                 continue
-            queue.put(out)  # backpressure if full
+            queue.put(out)
     except KeyboardInterrupt:
         pass
     except Exception as e:
         logging.info(f"Error: {e}", file=sys.stderr)
     finally:
-        # Send per-slide profile summary ...
         if profile and prof_queue is not None:
             try:
                 prof_queue.put({"_profile": True, **profiler.serialize()})
             except Exception:
                 logging.info("Failed to send profile message.", file=sys.stderr)
                 pass
-        # Clear process-local profiler
         _set_current_profiler(None)
-        # Signal end-of-slide ...
         queue.put({"_eos": True})
 
 
@@ -219,20 +158,13 @@ class Pipeline(Stage):
     def then(self, nxt: Stage) -> "Pipeline":
         return Pipeline(self.stages + [nxt])
 
-    # ---------------------------
-    # Aggregated profile storage (new)
-    # ---------------------------
     def _reset_profile(self):
-        self._profile_agg: Dict[str, Any] = {
-            "by_stage": {},  # stage_name -> {"wall_time_sec": float, "yields": int, "avg_ms_per_yield": float}
-            "by_slide": {},  # slide_id -> {stage_name -> { ... same fields ... }}
-        }
+        self._profile_agg: Dict[str, Any] = {"by_stage": {}, "by_slide": {}}
 
     def _ingest_profile_msg(self, msg: Dict[str, Any]):
         slide_id = msg.get("slide_id", "<unknown>")
         stages: Dict[str, Dict[str, float | int]] = msg.get("stages", {})
 
-        # by_slide breakdown
         self._profile_agg["by_slide"][slide_id] = {}
         for stage_name, stats in stages.items():
             wall = float(stats.get("wall_time_sec", 0.0))
@@ -244,16 +176,13 @@ class Pipeline(Stage):
                 "avg_ms_per_yield": avg,
             }
 
-            # by_stage totals
             agg = self._profile_agg["by_stage"].setdefault(stage_name, {"wall_time_sec": 0.0, "yields": 0})
             agg["wall_time_sec"] = float(agg["wall_time_sec"]) + wall
             agg["yields"] = int(agg["yields"]) + n
 
     def get_profile(self) -> Dict[str, Any]:
-        """Return aggregated profile from the last run(profile=True)."""
         if not hasattr(self, "_profile_agg"):
             return {"by_stage": {}, "by_slide": {}}
-        # finalize by_stage with avg
         out = {"by_stage": {}, "by_slide": self._profile_agg.get("by_slide", {})}
         for stage_name, agg in self._profile_agg.get("by_stage", {}).items():
             wall = float(agg["wall_time_sec"])
@@ -266,30 +195,18 @@ class Pipeline(Stage):
         return out
 
     def print_profile(self) -> None:
-        """Pretty-print the aggregated profile, separating isolated timings."""
         prof = self.get_profile()
         if not prof["by_stage"]:
             print("[profile] No profile data (did you run with profile=True?)")
             return
 
-        # Separate isolated vs. iterator timings
-        iterator_times = {k: v for k, v in prof["by_stage"].items() if not k.endswith(".isolated")}
-        isolated_times = {k: v for k, v in prof["by_stage"].items() if k.endswith(".isolated")}
-
         def fmt(stats):
             return f"{stats['yields']:10d} {stats['wall_time_sec']:12.3f} {stats['avg_ms_per_yield']:16.3f}"
 
-        print("\n=== Pipeline Profile (aggregate, iterator timings) ===")
+        print("\n=== Pipeline Profile (isolated timings only) ===")
         print(f"{'Stage':30} {'Yields':>10} {'Wall (s)':>12} {'Avg (ms/yield)':>16}")
-        for name, stats in sorted(iterator_times.items(), key=lambda kv: kv[1]["wall_time_sec"], reverse=True):
+        for name, stats in sorted(prof["by_stage"].items(), key=lambda kv: kv[1]["wall_time_sec"], reverse=True):
             print(f"{name:30} {fmt(stats)}")
-
-        if isolated_times:
-            print("\n--- Isolated per-stage timings (own work only) ---")
-            print(f"{'Stage':30} {'Yields':>10} {'Wall (s)':>12} {'Avg (ms/yield)':>16}")
-            for name, stats in sorted(isolated_times.items(), key=lambda kv: kv[1]["wall_time_sec"], reverse=True):
-                base = name.replace(".isolated", "")
-                print(f"{base:30} {fmt(stats)}")
 
         print("\n--- Per slide breakdown ---")
         for slide_id, stages in prof["by_slide"].items():
@@ -300,48 +217,33 @@ class Pipeline(Stage):
                     f"wall={stats['wall_time_sec']:8.3f}s avg={stats['avg_ms_per_yield']:8.3f}ms"
                 )
 
-    # ---------------------------
-
     def run(self, cpu_processes: int = 4, queue_maxsize: int = 4000, profile: bool = False):
-        """
-        Execute the pipeline with:
-          - One writer process (last stage must be WebDatasetWriter)
-          - Up to 'cpu_processes' producer processes (one per slide) running all previous stages
-
-        If profile=True, per-stage timings are collected from producer processes.
-        """
-        assert isinstance(self.stages[0], WSIGrid), "First stage must be WSIGrid in this MVP."
-        assert isinstance(self.stages[-1], WebDatasetWriter), "Last stage must be WebDatasetWriter."
+        assert isinstance(self.stages[0], WSIGrid)
+        assert isinstance(self.stages[-1], WebDatasetWriter)
 
         writer_stage: WebDatasetWriter = self.stages[-1]  # type: ignore
         producer_stages: List[Stage] = self.stages[:-1]
 
-        # Extract slides from the first stage (must be WSIGrid)
         grid: WSIGrid = self.stages[0]  # type: ignore
         slides = list(grid.slides)
         if not slides:
             logging.info("[WARN] No slides provided. Nothing to do.")
             return
 
-        # Prepare multi processing protection
         if mp.get_start_method(allow_none=True) != "spawn":
             try:
                 mp.set_start_method("spawn", force=True)
             except RuntimeError:
                 pass
 
-        # Single MP queue for encoded samples (bytes)
         q: MPQueue = mp.Queue(maxsize=queue_maxsize)
-        # Dedicated profile queue (parent-only)
         prof_q: Optional[MPQueue] = mp.Queue() if profile else None
         if profile:
             self._reset_profile()
 
-        # Start writer process
         writer_proc = mp.Process(target=writer_stage.start_writer, args=(q,), name="webdataset-writer")
         writer_proc.start()
 
-        # Run producers with a limited number of processes
         pending = list(slides)
         active: List[mp.Process] = []
 
@@ -354,12 +256,10 @@ class Pipeline(Stage):
             p.start()
             return p
 
-        # Initial wave
         for _ in range(min(cpu_processes, len(pending))):
             slide_path = pending.pop(0)
             active.append(spawn_for(slide_path))
 
-        # Keep scheduling until all done
         while active:
             for p in list(active):
                 p.join(timeout=0.1)
@@ -369,23 +269,19 @@ class Pipeline(Stage):
                 slide_path = pending.pop(0)
                 active.append(spawn_for(slide_path))
 
-        # Collect profiles from producers (one per slide expected)
         if profile and prof_q is not None:
             received = 0
             expected = len(slides)
-            # Drain with a timeout to avoid deadlock if a producer crashed before sending.
             while received < expected:
                 try:
                     msg = prof_q.get(timeout=1.0)
                 except Exception:
-                    # double-check if we should break: all producers are joined already
                     break
                 if isinstance(msg, dict) and msg.get("_profile"):
                     self._ingest_profile_msg(msg)
                     received += 1
 
-        # All producers done; signal writer to stop and wait for it to drain/close.
-        q.put(None)  # shutdown sentinel
+        q.put(None)
         writer_proc.join()
 
 
