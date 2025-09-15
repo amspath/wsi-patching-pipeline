@@ -313,25 +313,6 @@ class Pipeline(Stage):
         writer_proc.join()
 
 
-def _bbox_intersects(a: Tuple[int, int, int, int], b: Tuple[int, int, int, int]) -> bool:
-    ax, ay, aw, ah = a
-    bx, by, bw, bh = b
-    return not (ax + aw <= bx or bx + bw <= ax or ay + ah <= by or by + bh <= ay)
-
-
-def _tiles_in_rect(x0: int, y0: int, w: int, h: int, tile_size: int, stride: int) -> Iterator[Tuple[int, int]]:
-    x1, y1 = x0 + w, y0 + h
-    # Align start to the provided grid (assume tiles already aligned by WSIGrid setting)
-    # For simplicity in MVP, start exactly at the rectangle origin (user ensures alignment).
-    y = y0
-    while y + tile_size <= y1:
-        x = x0
-        while x + tile_size <= x1:
-            yield (x, y)
-            x += stride
-        y += stride
-
-
 class WSIGrid(Stage):
     """
     Minimal source that yields one 'slide' sample per input slide.
@@ -382,10 +363,15 @@ class FilterByROI(Stage):
             # Filter out rectangles that don't intersect slide bounds
             W, H = s["dims"]
             slide_rect = (0, 0, W, H)
-            rects = [r for r in rects if _bbox_intersects(r, slide_rect)]
+            rects = [r for r in rects if self._bbox_intersects(r, slide_rect)]
             s["rois"] = rects
             logging.info(f"Slide {wsi_id} -> {len(rects)} ROIs")
             yield s
+
+    def _bbox_intersects(self, a: Tuple[int, int, int, int], b: Tuple[int, int, int, int]) -> bool:
+        ax, ay, aw, ah = a
+        bx, by, bw, bh = b
+        return not (ax + aw <= bx or bx + bw <= ax or ay + ah <= by or by + bh <= ay)
 
 
 class Regionize(Stage):
@@ -406,7 +392,7 @@ class Regionize(Stage):
             tile_size = s["tile_size"]
             stride = s["stride"]
             for x0, y0, w, h in rois:
-                tiles = list(_tiles_in_rect(x0, y0, w, h, tile_size, stride))
+                tiles = list(self._tiles_in_rect(x0, y0, w, h, tile_size, stride))
                 if not tiles:
                     continue
 
@@ -422,6 +408,20 @@ class Regionize(Stage):
                     "tiles": tiles,
                     "meta": s.get("meta", {}),
                 }
+
+    def _tiles_in_rect(
+        self, x0: int, y0: int, w: int, h: int, tile_size: int, stride: int
+    ) -> Iterator[Tuple[int, int]]:
+        x1, y1 = x0 + w, y0 + h
+        # Align start to the provided grid (assume tiles already aligned by WSIGrid setting)
+        # For simplicity in MVP, start exactly at the rectangle origin (user ensures alignment).
+        y = y0
+        while y + tile_size <= y1:
+            x = x0
+            while x + tile_size <= x1:
+                yield (x, y)
+                x += stride
+            y += stride
 
 
 class RegionReadAndBatch(Stage):
