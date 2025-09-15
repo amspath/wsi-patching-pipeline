@@ -427,7 +427,7 @@ class WSIGrid(Stage):
             logging.info(f"Starting on Slide {wsi_id}")
             yield {"type": "slide", "wsi_id": wsi_id, "wsi_path": path, "dims": (W, H), "meta": {"backend": "cucim"}}
 
-    def _get_level_dims(path: str, level: int) -> Tuple[int, int]:
+    def _get_level_dims(self, path: str, level: int) -> Tuple[int, int]:
         img = CuImage(path)
         W, H = img.resolutions["level_dimensions"][level]
         return int(W), int(H)
