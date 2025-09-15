@@ -45,8 +45,8 @@ from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple
 import numpy as np
 import torch
 import webdataset as wds
-from cucim import CuImage  # type: ignore
-from PIL import Image  # Pillow
+from cucim import CuImage
+from PIL import Image
 
 
 def init_logging():
@@ -423,9 +423,14 @@ class WSIGrid(Stage):
     def __call__(self, _it: Iterable[Sample]) -> Iterable[Sample]:
         for path in self.slides:
             wsi_id = Path(path).stem
-            W, H = _get_level_dims(path, self.level)
+            W, H = self._get_level_dims(path, self.level)
             logging.info(f"Starting on Slide {wsi_id}")
             yield {"type": "slide", "wsi_id": wsi_id, "wsi_path": path, "dims": (W, H), "meta": {"backend": "cucim"}}
+
+    def _get_level_dims(path: str, level: int) -> Tuple[int, int]:
+        img = CuImage(path)
+        W, H = img.resolutions["level_dimensions"][level]
+        return int(W), int(H)
 
 
 class FilterByROI(Stage):
@@ -703,13 +708,6 @@ class WebDatasetWriter:
             self.write_count += 1
             sink.write({"__key__": s["__key__"], "png": s["png_bytes"], "json": s["json_bytes"]})
         logging.info(f"Buffer size after flush: {len(buffer)}")
-
-
-def _get_level_dims(path: str, level: int) -> Tuple[int, int]:
-    img = CuImage(path)
-    # cuCIM uses series/level sizes; get level shape (width, height)
-    W, H = img.size("XY")  # list of (width, height)
-    return int(W), int(H)
 
 
 def _read_region(path: str, x: int, y: int, w: int, h: int, level: int, num_workers: int = 8) -> Optional[np.ndarray]:
