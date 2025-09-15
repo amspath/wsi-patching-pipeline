@@ -425,16 +425,7 @@ class WSIGrid(Stage):
             wsi_id = Path(path).stem
             W, H = _get_level_dims(path, self.level)
             logging.info(f"Starting on Slide {wsi_id}")
-            yield {
-                "type": "slide",
-                "wsi_id": wsi_id,
-                "wsi_path": path,
-                "level": self.level,
-                "tile_size": self.tile_size,
-                "stride": self.stride,
-                "dims": (W, H),
-                "meta": {"backend": "cucim"},
-            }
+            yield {"type": "slide", "wsi_id": wsi_id, "wsi_path": path, "dims": (W, H), "meta": {"backend": "cucim"}}
 
 
 class FilterByROI(Stage):
@@ -482,22 +473,19 @@ class Regionize(Stage):
                 W, H = s["dims"]
                 rois = [RectAreaROI(0, 0, W, H)]
 
-            tile_size, stride = s["tile_size"], s["stride"]
-
             for roi in rois:
                 # Subdivide large regions
-                sub_rois = roi.subdivide(self.max_region_size, tile_size, stride)
+                sub_rois = roi.subdivide(self.max_region_size, self.ctx["tile_size"], self.ctx["stride"])
                 for sub in sub_rois or [roi]:  # if no split was needed
-                    tiles = list(self._tiles_in_rect(sub.x, sub.y, sub.w, sub.h, tile_size, stride))
+                    tiles = list(
+                        self._tiles_in_rect(sub.x, sub.y, sub.w, sub.h, self.ctx["tile_size"], self.ctx["stride"])
+                    )
                     if not tiles:
                         continue
                     yield {
                         "type": "region",
                         "wsi_id": s["wsi_id"],
                         "wsi_path": s["wsi_path"],
-                        "level": s["level"],
-                        "tile_size": tile_size,
-                        "stride": stride,
                         "region": sub.as_tuple(),
                         "tiles": tiles,
                         "meta": s.get("meta", {}),
@@ -531,6 +519,10 @@ class RegionReadAndBatch(Stage):
         self.batch_size = int(batch_size)
         self.num_workers = int(num_workers)
 
+    def validate(self) -> None:
+        self.ctx.require_key("tile_size")
+        self.ctx.require_key("level")
+
     def __call__(self, it: Iterable[Sample]) -> Iterable[Sample]:
         for task in it:
             if task.get("type") != "region":
@@ -538,27 +530,23 @@ class RegionReadAndBatch(Stage):
 
             path = task["wsi_path"]
             x0, y0, w, h = task["region"]
-            level = task["level"]
             tiles: List[Tuple[int, int]] = task["tiles"]
-            tile_size = task["tile_size"]
 
             # Read region into memory
-            region_img = _read_region(path, x0, y0, w, h, level, num_workers=self.num_workers)
+            region_img = _read_region(path, x0, y0, w, h, self.ctx["level"], num_workers=self.num_workers)
 
             # Slice into patches
             batch: List[Sample] = []
             for tx, ty in tiles:
                 rx, ry = tx - x0, ty - y0
-                patch = region_img[ry : ry + tile_size, rx : rx + tile_size, :]
-                if patch.shape[0] != tile_size or patch.shape[1] != tile_size:
+                patch = region_img[ry : ry + self.ctx["tile_size"], rx : rx + self.ctx["tile_size"], :]
+                if patch.shape[0] != self.ctx["tile_size"] or patch.shape[1] != self.ctx["tile_size"]:
                     # Skip partial tiles on edges (shouldn't happen if tiles computed within region)
                     continue
                 sample: Sample = {
                     "type": "sample",
                     "wsi_id": task["wsi_id"],
                     "coord": (tx, ty),
-                    "level": level,
-                    "tile_size": tile_size,
                     "meta": {"path": path, **task.get("meta", {})},
                     "patch": patch,
                 }
@@ -616,6 +604,9 @@ class PNGEncoder(Stage):
     Output items contain: "__key__", "png_bytes", "json_bytes"
     """
 
+    def validate(self) -> None:
+        self.ctx.require_key("level")
+
     def __call__(self, it: Iterable[Sample]) -> Iterable[Sample]:
         prof = _get_current_profiler()  # may be None if profiling is disabled
         for item in it:
@@ -643,10 +634,9 @@ class PNGEncoder(Stage):
                 if out is not None:
                     yield out
 
-    @staticmethod
-    def _encode_one(s: Sample) -> Optional[Sample]:
+    def _encode_one(self, s: Sample) -> Optional[Sample]:
         patch = s.get("patch")
-        key = f"{s['wsi_id']}-{s['coord'][0]}-{s['coord'][1]}-L{s['level']}"
+        key = f"{s['wsi_id']}-{s['coord'][0]}-{s['coord'][1]}-L{self.ctx['level']}"
 
         # Encode to PNG
         buf = io.BytesIO()
