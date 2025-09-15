@@ -40,7 +40,7 @@ import time
 from dataclasses import dataclass
 from multiprocessing.queues import Queue as MPQueue
 from pathlib import Path
-from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import numpy as np
 import torch
@@ -57,6 +57,68 @@ def init_logging():
         format="[%(asctime)s] [%(processName)s] %(message)s",
         handlers=[logging.StreamHandler(sys.stdout)],
     )
+
+
+Box = Tuple[int, int, int, int]  # (x, y, w, h) in level-0 pixels
+
+
+class ROI:
+    """Geometry-agnostic region of interest in level-0 coordinates."""
+
+    def bounds(self) -> Box:
+        raise NotImplementedError
+
+    def contains_point(self, x: float, y: float) -> bool:
+        """Return True if the (x,y) center lies in ROI. Used by center-in-ROI selection."""
+        raise NotImplementedError
+
+
+@dataclass
+class BoxROI(ROI):
+    x: int
+    y: int
+    w: int
+    h: int
+
+    def bounds(self) -> Box:
+        return (self.x, self.y, self.w, self.h)
+
+    def contains_point(self, x: float, y: float) -> bool:
+        return (self.x <= x < self.x + self.w) and (self.y <= y < self.y + self.h)
+
+
+class ROIProvider:
+    """Source of ROIs for a slide."""
+
+    def for_slide(self, slide: Sample) -> List[ROI]:
+        raise NotImplementedError
+
+
+@dataclass
+class RectROIProvider(ROIProvider):
+    """Compatibility provider using a dict: {wsi_id: [(x,y,w,h), ...]}.
+    Raises ValueError if any ROI lies outside the slide bounds."""
+
+    rois: Dict[str, List[Tuple[int, int, int, int]]]
+
+    def for_slide(self, slide: Sample) -> List[ROI]:
+        wsi_id = slide["wsi_id"]
+        W, H = slide["dims"]
+        out: List[ROI] = []
+        for tpl in self.rois.get(wsi_id, []):
+            x, y, w, h = tpl
+            if x < 0 or y < 0 or (x + w) > W or (y + h) > H:
+                raise ValueError(f"ROI {tpl} for slide {wsi_id} lies outside slide dimensions {(W, H)}")
+            out.append(BoxROI(x, y, w, h))
+        return out
+
+
+class WholeSlideProvider(ROIProvider):
+    """Provides a single ROI covering the full slide extent."""
+
+    def for_slide(self, slide: Sample) -> List[ROI]:
+        W, H = slide["dims"]
+        return [BoxROI(0, 0, int(W), int(H))]
 
 
 Sample = Dict[str, Any]
@@ -326,82 +388,171 @@ class WSIGrid(Stage):
         return int(W), int(H)
 
 
-class FilterByROI(Stage):
-    def __init__(self, rois: Dict[str, List[Tuple[int, int, int, int]]]):
-        self.rois = {k: [RectAreaROI(*r) for r in v] for k, v in rois.items()}
+class AttachROIs(Stage):
+    """Attach a list[ROI] to each slide using one or more providers."""
+
+    def __init__(self, providers: List[ROIProvider], default_whole_slide: bool = True, preclip_to_slide: bool = True):
+        self.providers = list(providers)
+        self.default_whole_slide = bool(default_whole_slide)
+        self.preclip = bool(preclip_to_slide)
 
     def __call__(self, it: Iterable[Sample]) -> Iterable[Sample]:
         for s in it:
             if s.get("type") != "slide":
                 continue
-            wsi_id = s["wsi_id"]
-            rects = self.rois.get(wsi_id, [])
+            all_rois: List[ROI] = []
+            for prov in self.providers:
+                try:
+                    rois = prov.for_slide(s)
+                except Exception as e:
+                    logging.info(f"[AttachROIs] provider {type(prov).__name__} failed: {e}")
+                    rois = []
+                all_rois.extend(rois)
+
+            if not all_rois and self.default_whole_slide:
+                all_rois.extend(WholeSlideProvider().for_slide(s))
+
+            s2 = dict(s)
+            s2["type"] = "roi_list"
+            s2["rois"] = all_rois
+            yield s2
+
+
+class TilePlanner(Stage):
+    """
+    Enumerate tiles per ROI using a selection policy and the global tile grid.
+
+    tile_selection_mode:
+      - "full_inside_bounds" (default): tile must fit fully within ROI.bounds().
+      - "center_in_roi": tile center must be inside ROI.
+    """
+
+    def __init__(self, tile_selection_mode: str = "full_inside_bounds"):
+        self.tile_selection_mode = tile_selection_mode
+
+    def validate(self) -> None:
+        self.ctx.require_key("tile_size")
+        self.ctx.require_key("stride")
+        self.ctx.require_key("level")
+
+    def __call__(self, it: Iterable[Sample]) -> Iterable[Sample]:
+        for s in it:
+            if s.get("type") != "roi_list":
+                continue
+            tile_size = int(self.ctx["tile_size"])
+            stride = int(self.ctx["stride"])
+            rois: List[ROI] = s.get("rois", [])
             W, H = s["dims"]
-            slide_rect = RectAreaROI(0, 0, W, H)
-            valid = [r for r in rects if self._bbox_intersects(r.as_tuple(), slide_rect.as_tuple())]
-            s["rois"] = valid if valid else [slide_rect]
-            yield s
 
-    def _bbox_intersects(self, a: Tuple[int, int, int, int], b: Tuple[int, int, int, int]) -> bool:
-        ax, ay, aw, ah = a
-        bx, by, bw, bh = b
-        return not (ax + aw <= bx or bx + bw <= ax or ay + ah <= by or by + bh <= ay)
+            for idx, roi in enumerate(rois):
+                bx, by, bw, bh = roi.bounds()
+                # Enumerate grid-aligned tiles within the ROI bounding box
+                x0 = _align_to_grid(max(0, bx), stride)
+                y0 = _align_to_grid(max(0, by), stride)
+                x1 = min(bx + bw, W)
+                y1 = min(by + bh, H)
+
+                tiles: List[Tuple[int, int]] = []
+                y = y0
+                while y + tile_size <= y1:
+                    x = x0
+                    while x + tile_size <= x1:
+                        if self._accept_tile(roi, x, y, tile_size):
+                            tiles.append((x, y))
+                        x += stride
+                    y += stride
+
+                if not tiles:
+                    continue
+
+                yield {
+                    "type": "roi_tiles",
+                    "wsi_id": s["wsi_id"],
+                    "wsi_path": s["wsi_path"],
+                    "dims": s["dims"],
+                    "roi_index": idx,
+                    "roi_bounds": (bx, by, bw, bh),
+                    "tiles": tiles,
+                    "meta": s.get("meta", {}),
+                }
+
+    def _accept_tile(self, roi: ROI, tx: int, ty: int, tile_size: int) -> bool:
+        mode = self.tile_selection_mode
+        if mode == "full_inside_bounds":
+            # Conservative: ensure full tile lies inside ROI bounds rectangle.
+            if isinstance(roi, BoxROI):
+                bx, by, bw, bh = roi.bounds()
+                return (tx >= bx) and (ty >= by) and (tx + tile_size <= bx + bw) and (ty + tile_size <= by + bh)
+            # For non-box geometries, fall back to center-in-ROI
+            mode = "center_in_roi"
+
+        if mode == "center_in_roi":
+            cx = tx + tile_size / 2.0
+            cy = ty + tile_size / 2.0
+            return roi.contains_point(cx, cy)
+
+        # Default fallback
+        return True
 
 
-class Regionize(Stage):
-    def __init__(self, max_region_size: int = 2048):
-        self.max_region_size = max_region_size
+class ReadWindowChunker(Stage):
+    """
+    Packs tiles into rectangular read windows of max_window_size.
+
+    Strategy: subdivide the ROI's bounding box into stride-aligned windows
+    of size up to max_window_size; emit a window only if it contains tiles.
+    """
+
+    def __init__(self, max_window_size: int = 2048, align_to_stride: bool = True):
+        self.max_window_size = int(max_window_size)
+        self.align_to_stride = bool(align_to_stride)
 
     def validate(self) -> None:
         self.ctx.require_key("tile_size")
         self.ctx.require_key("stride")
 
-        if self.max_region_size % self.ctx["tile_size"] != 0:
-            raise ValueError(
-                f"max_region_size ({self.max_region_size}) must be multiple of tile_size ({self.ctx['tile_size']})"
-            )
-
     def __call__(self, it: Iterable[Sample]) -> Iterable[Sample]:
+        tile_size = int(self.ctx["tile_size"])
+        stride = int(self.ctx["stride"])
         for s in it:
-            if s.get("type") != "slide":
+            if s.get("type") != "roi_tiles":
                 continue
 
-            rois: List[RectAreaROI] = s.get("rois", [])
-            if not rois:
-                W, H = s["dims"]
-                rois = [RectAreaROI(0, 0, W, H)]
+            bx, by, bw, bh = s["roi_bounds"]
+            W, H = s["dims"]
+            tiles: List[Tuple[int, int]] = s.get("tiles", [])
+            if not tiles:
+                continue
 
-            for roi in rois:
-                # Subdivide large regions
-                sub_rois = roi.subdivide(self.max_region_size, self.ctx["tile_size"], self.ctx["stride"])
-                for sub in sub_rois or [roi]:  # if no split was needed
-                    tiles = list(
-                        self._tiles_in_rect(sub.x, sub.y, sub.w, sub.h, self.ctx["tile_size"], self.ctx["stride"])
-                    )
-                    if not tiles:
+            # Define stride-aligned grid for windows
+            x_start = _align_to_grid(max(0, bx), stride) if self.align_to_stride else bx
+            y_start = _align_to_grid(max(0, by), stride) if self.align_to_stride else by
+            x_end = min(bx + bw, W)
+            y_end = min(by + bh, H)
+
+            for yy in range(y_start, y_end, self.max_window_size):
+                for xx in range(x_start, x_end, self.max_window_size):
+                    ww = min(self.max_window_size, x_end - xx)
+                    hh = min(self.max_window_size, y_end - yy)
+
+                    # Collect tiles fully inside this window
+                    in_window: List[Tuple[int, int]] = []
+                    wx1, wy1 = xx + ww, yy + hh
+                    for tx, ty in tiles:
+                        if tx >= xx and ty >= yy and (tx + tile_size) <= wx1 and (ty + tile_size) <= wy1:
+                            in_window.append((tx, ty))
+
+                    if not in_window:
                         continue
+
                     yield {
                         "type": "region",
                         "wsi_id": s["wsi_id"],
                         "wsi_path": s["wsi_path"],
-                        "region": sub.as_tuple(),
-                        "tiles": tiles,
+                        "region": (xx, yy, ww, hh),
+                        "tiles": in_window,
                         "meta": s.get("meta", {}),
                     }
-
-    def _tiles_in_rect(
-        self, x0: int, y0: int, w: int, h: int, tile_size: int, stride: int
-    ) -> Iterator[Tuple[int, int]]:
-        x1, y1 = x0 + w, y0 + h
-        # Align start to the provided grid (assume tiles already aligned by WSIGrid setting)
-        # For simplicity in MVP, start exactly at the rectangle origin (user ensures alignment).
-        y = y0
-        while y + tile_size <= y1:
-            x = x0
-            while x + tile_size <= x1:
-                yield (x, y)
-                x += stride
-            y += stride
 
 
 class RegionReadAndBatch(Stage):
@@ -619,6 +770,14 @@ def _read_region(path: str, x: int, y: int, w: int, h: int, level: int, num_work
     return arr
 
 
+def _align_to_grid(v: int, stride: int, origin: int = 0) -> int:
+    """Return the smallest grid value >= v on grid defined by origin & stride."""
+    if stride <= 0:
+        return v
+    r = (v - origin) % stride
+    return v if r == 0 else v + (stride - r)
+
+
 def main(argv=None):
     import argparse
 
@@ -648,12 +807,14 @@ def main(argv=None):
         "./data/RBIO-GC072-HE-08.tiff",
     ]
 
-    rois = {Path(s).stem: [(0, 0, 4000, 4000)] for s in slides}
+    # Example ROI dict (compat with old code)
+    rois_dict = {Path(s).stem: [(0, 0, 4000, 4000)] for s in slides}
 
     p = (
         WSIGrid(slides=slides, tile_size=256, stride=256, level=0)
-        .then(FilterByROI(rois))
-        .then(Regionize())
+        .then(AttachROIs(providers=[RectROIProvider(rois_dict)]))
+        .then(TilePlanner())
+        .then(ReadWindowChunker(max_window_size=args.max_window, align_to_stride=True))
         .then(RegionReadAndBatch(batch_size=args.batch, num_workers=args.num_workers))
         .then(DummyTissueClassifier("cuda"))
         .then(PNGEncoder())
