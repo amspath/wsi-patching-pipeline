@@ -95,6 +95,75 @@ class _Profiler:
         return {"slide_id": self.slide_id, "stages": self._stats}
 
 
+class PipelineProfileAggregator:
+    """
+    Collects per-process _Profiler summaries and exposes an aggregated view
+    with the same shape you had before:
+      - get_profile(): {"by_stage": {...}, "by_slide": {...}}
+      - print_profile(): pretty console output
+    """
+
+    def __init__(self) -> None:
+        self.reset()
+
+    def reset(self) -> None:
+        self._agg: Dict[str, Any] = {"by_stage": {}, "by_slide": {}}
+
+    def ingest_msg(self, msg: Dict[str, Any]) -> None:
+        """Ingest a single producer summary message."""
+        slide_id = msg.get("slide_id", "<unknown>")
+        stages: Dict[str, Dict[str, float | int]] = msg.get("stages", {})
+
+        self._agg["by_slide"][slide_id] = {}
+        for stage_name, stats in stages.items():
+            wall = float(stats.get("wall_time_sec", 0.0))
+            n = int(stats.get("yields", 0))
+            avg = (wall / n * 1000.0) if n > 0 else 0.0
+
+            # Per-slide
+            self._agg["by_slide"][slide_id][stage_name] = {"wall_time_sec": wall, "yields": n, "avg_ms_per_yield": avg}
+
+            # Aggregate by stage
+            agg = self._agg["by_stage"].setdefault(stage_name, {"wall_time_sec": 0.0, "yields": 0})
+            agg["wall_time_sec"] = float(agg["wall_time_sec"]) + wall
+            agg["yields"] = int(agg["yields"]) + n
+
+    def get_profile(self) -> Dict[str, Any]:
+        out = {"by_stage": {}, "by_slide": self._agg.get("by_slide", {})}
+        for stage_name, agg in self._agg.get("by_stage", {}).items():
+            wall = float(agg["wall_time_sec"])
+            n = int(agg["yields"])
+            out["by_stage"][stage_name] = {
+                "wall_time_sec": wall,
+                "yields": n,
+                "avg_ms_per_yield": (wall / n * 1000.0) if n > 0 else 0.0,
+            }
+        return out
+
+    def print_profile(self) -> None:
+        prof = self.get_profile()
+        if not prof["by_stage"]:
+            print("[profile] No profile data (did you run with profile=True?)")
+            return
+
+        def fmt(stats: Dict[str, float | int]) -> str:
+            return f"{int(stats['yields']):10d} {float(stats['wall_time_sec']):12.3f} {float(stats['avg_ms_per_yield']):16.3f}"
+
+        print("\n=== Pipeline Profile (isolated timings only) ===")
+        print(f"{'Stage':30} {'Yields':>10} {'Wall (s)':>12} {'Avg (ms/yield)':>16}")
+        for name, stats in sorted(prof["by_stage"].items(), key=lambda kv: kv[1]["wall_time_sec"], reverse=True):
+            print(f"{name:30} {fmt(stats)}")
+
+        print("\n--- Per slide breakdown ---")
+        for slide_id, stages in prof["by_slide"].items():
+            print(f"[{slide_id}]")
+            for name, stats in sorted(stages.items(), key=lambda kv: kv[1]["wall_time_sec"], reverse=True):
+                print(
+                    f"  {name:28} yields={int(stats['yields']):6d} "
+                    f"wall={float(stats['wall_time_sec']):8.3f}s avg={float(stats['avg_ms_per_yield']):8.3f}ms"
+                )
+
+
 # Global per-process profiler handle
 _CURRENT_PROFILER: Optional["_Profiler"] = None
 
@@ -149,6 +218,7 @@ def _producer_worker(
 @dataclass
 class Pipeline(Stage):
     stages: List[Stage]
+    prof_agg: Optional["PipelineProfileAggregator"] = None  # new
 
     def __call__(self, it: Iterable[Sample]) -> Iterable[Sample]:
         for s in self.stages:
@@ -156,66 +226,22 @@ class Pipeline(Stage):
         return it
 
     def then(self, nxt: Stage) -> "Pipeline":
-        return Pipeline(self.stages + [nxt])
-
-    def _reset_profile(self):
-        self._profile_agg: Dict[str, Any] = {"by_stage": {}, "by_slide": {}}
-
-    def _ingest_profile_msg(self, msg: Dict[str, Any]):
-        slide_id = msg.get("slide_id", "<unknown>")
-        stages: Dict[str, Dict[str, float | int]] = msg.get("stages", {})
-
-        self._profile_agg["by_slide"][slide_id] = {}
-        for stage_name, stats in stages.items():
-            wall = float(stats.get("wall_time_sec", 0.0))
-            n = int(stats.get("yields", 0))
-            avg = (wall / n * 1000.0) if n > 0 else 0.0
-            self._profile_agg["by_slide"][slide_id][stage_name] = {
-                "wall_time_sec": wall,
-                "yields": n,
-                "avg_ms_per_yield": avg,
-            }
-
-            agg = self._profile_agg["by_stage"].setdefault(stage_name, {"wall_time_sec": 0.0, "yields": 0})
-            agg["wall_time_sec"] = float(agg["wall_time_sec"]) + wall
-            agg["yields"] = int(agg["yields"]) + n
+        return Pipeline(self.stages + [nxt], prof_agg=self.prof_agg)
 
     def get_profile(self) -> Dict[str, Any]:
-        if not hasattr(self, "_profile_agg"):
+        if self.prof_agg is None:
             return {"by_stage": {}, "by_slide": {}}
-        out = {"by_stage": {}, "by_slide": self._profile_agg.get("by_slide", {})}
-        for stage_name, agg in self._profile_agg.get("by_stage", {}).items():
-            wall = float(agg["wall_time_sec"])
-            n = int(agg["yields"])
-            out["by_stage"][stage_name] = {
-                "wall_time_sec": wall,
-                "yields": n,
-                "avg_ms_per_yield": (wall / n * 1000.0) if n > 0 else 0.0,
-            }
-        return out
+        return self.prof_agg.get_profile()
 
     def print_profile(self) -> None:
-        prof = self.get_profile()
-        if not prof["by_stage"]:
+        if self.prof_agg is None:
             print("[profile] No profile data (did you run with profile=True?)")
             return
+        self.prof_agg.print_profile()
 
-        def fmt(stats):
-            return f"{stats['yields']:10d} {stats['wall_time_sec']:12.3f} {stats['avg_ms_per_yield']:16.3f}"
-
-        print("\n=== Pipeline Profile (isolated timings only) ===")
-        print(f"{'Stage':30} {'Yields':>10} {'Wall (s)':>12} {'Avg (ms/yield)':>16}")
-        for name, stats in sorted(prof["by_stage"].items(), key=lambda kv: kv[1]["wall_time_sec"], reverse=True):
-            print(f"{name:30} {fmt(stats)}")
-
-        print("\n--- Per slide breakdown ---")
-        for slide_id, stages in prof["by_slide"].items():
-            print(f"[{slide_id}]")
-            for name, stats in sorted(stages.items(), key=lambda kv: kv[1]["wall_time_sec"], reverse=True):
-                print(
-                    f"  {name:28} yields={stats['yields']:6d} "
-                    f"wall={stats['wall_time_sec']:8.3f}s avg={stats['avg_ms_per_yield']:8.3f}ms"
-                )
+    def _ensure_prof_agg(self) -> None:
+        if self.prof_agg is None:
+            self.prof_agg = PipelineProfileAggregator()
 
     def run(self, cpu_processes: int = 4, queue_maxsize: int = 4000, profile: bool = False):
         assert isinstance(self.stages[0], WSIGrid)
@@ -238,8 +264,10 @@ class Pipeline(Stage):
 
         q: MPQueue = mp.Queue(maxsize=queue_maxsize)
         prof_q: Optional[MPQueue] = mp.Queue() if profile else None
+
         if profile:
-            self._reset_profile()
+            self._ensure_prof_agg()
+            self.prof_agg.reset()  # type: ignore[union-attr]
 
         writer_proc = mp.Process(target=writer_stage.start_writer, args=(q,), name="webdataset-writer")
         writer_proc.start()
@@ -269,7 +297,7 @@ class Pipeline(Stage):
                 slide_path = pending.pop(0)
                 active.append(spawn_for(slide_path))
 
-        if profile and prof_q is not None:
+        if profile and prof_q is not None and self.prof_agg is not None:
             received = 0
             expected = len(slides)
             while received < expected:
@@ -278,7 +306,7 @@ class Pipeline(Stage):
                 except Exception:
                     break
                 if isinstance(msg, dict) and msg.get("_profile"):
-                    self._ingest_profile_msg(msg)
+                    self.prof_agg.ingest_msg(msg)  # << delegate
                     received += 1
 
         q.put(None)
