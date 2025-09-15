@@ -11,7 +11,7 @@ from wsi_patching.utils.profiling import get_current_profiler
 class PNGEncoder(Stage):
     """
     Encodes patches to PNG bytes and flattens batches into single-sample items ready for the writer.
-    Output items contain: "__key__", "png_bytes", "json_bytes"
+    Output items contain: "__key__", "sample_bytes", "json_bytes"
     """
 
     def validate(self) -> None:
@@ -56,4 +56,4 @@ class PNGEncoder(Stage):
         # Build json sidecar (exclude heavy fields)
         meta = {k: v for k, v in s.items() if k not in ("patch",)}
 
-        return {"__key__": key, "png_bytes": png_bytes, "json_bytes": meta}
+        return {"__key__": key, "sample_bytes": png_bytes, "json_bytes": meta}

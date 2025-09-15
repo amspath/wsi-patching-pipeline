@@ -18,7 +18,7 @@ class WebDatasetWriter:
 
     Each sample should have:
       - "__key__" (str)
-      - "png_bytes" (bytes)
+      - "sample_bytes" (bytes)
       - "json_bytes" (bytes)
     """
 
@@ -60,5 +60,5 @@ class WebDatasetWriter:
         for _ in range(min(self.shard_size, len(buffer))):
             s = buffer.pop()
             self.write_count += 1
-            sink.write({"__key__": s["__key__"], "png": s["png_bytes"], "json": s["json_bytes"]})
+            sink.write({"__key__": s["__key__"], "png": s["sample_bytes"], "json": s["json_bytes"]})
         logging.info(f"Buffer size after flush: {len(buffer)}")
