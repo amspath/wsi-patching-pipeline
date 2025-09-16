@@ -57,7 +57,7 @@ class PatchSample:
 class CollatedPatchBatch:
     wsi_id: str
     coords: List[Tuple[int, int]]
-    patches: Union[np.ndarray, "cp.ndarray"]  # B x H x W x C uint8
+    patches: Union[np.ndarray, "cp.ndarray"]  # np if use_gpu=False else cp.ndarray
     meta: Dict[str, Any] = field(default_factory=dict)
 
 

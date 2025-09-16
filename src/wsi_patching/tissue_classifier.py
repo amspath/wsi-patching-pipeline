@@ -1,11 +1,11 @@
 import logging
-from typing import Iterable, List
+from dataclasses import replace
+from typing import Iterable
 
-import numpy as np
 import torch
 
 from wsi_patching.core.pipeline import Stage
-from wsi_patching.utils.types import CollatedPatchBatch, PatchSample
+from wsi_patching.utils.types import CollatedPatchBatch
 
 
 class DummyTissueClassifier(Stage):
@@ -42,19 +42,14 @@ class DummyTissueClassifier(Stage):
             # Simple "score": mean over (C,H,W)
             scores = ten.mean(dim=(1, 2, 3)).detach().cpu().numpy()
 
-            # Filter patches that have a score under 0.5
-            filtered_coords_and_patches = [
-                (coord, patch)
-                for coord, patch, score in zip(collated_patch_batch.coords, patches, scores)
-                if score > 0.5
-            ]
+            # Create filter mask
+            mask = scores > 0.5
 
-            # Create filtered output patch batch.
-            patch_batch: CollatedPatchBatch = CollatedPatchBatch(
-                wsi_id=collated_patch_batch.wsi_id,
-                patches=[patch for _, patch in filtered_coords_and_patches],
-                coords=[coord for coord, _ in filtered_coords_and_patches],
-                meta=collated_patch_batch.meta,
+            # Filter patch batch with mask
+            patch_batch = replace(
+                collated_patch_batch,
+                coords=[c for c, m in zip(collated_patch_batch.coords, mask) if m],
+                patches=patches[mask],
             )
 
             logging.info(f"Yielding batch from wsi: {patch_batch.wsi_id} size: {len(patch_batch.patches)}")
