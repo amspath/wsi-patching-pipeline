@@ -40,7 +40,6 @@ from wsi_patching.core.regions_of_interest import AttachROIs, RectROIProvider
 from wsi_patching.core.wsi_grid import WSIGrid
 from wsi_patching.pngencoder import PNGEncoder
 from wsi_patching.tissue_classifier import DummyTissueClassifier
-from wsi_patching.utils.logging_config import init_logging
 from wsi_patching.webdatasetwriter import WebDatasetWriter
 
 
@@ -58,8 +57,6 @@ def main(argv=None):
         "--profile", action="store_true", help="Enable per-stage profiling for producers.", default=True
     )
     args = parser.parse_args(argv)
-
-    init_logging()
 
     # Example usage (adjust 'slides' to your real paths)
     slides = [

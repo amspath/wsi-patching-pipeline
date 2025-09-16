@@ -194,6 +194,9 @@ class Pipeline(Stage):
             self.prof_agg = PipelineProfileAggregator()
 
     def run(self, cpu_processes: int = 4, queue_maxsize: int = 4000, profile: bool = False):
+        init_logging()
+        logging.info(f"Starting pipeline with {cpu_processes} processes (profile={profile}).")
+
         writer_stage = self.stages[-1]
         producer_stages = self.stages[:-1]
 
