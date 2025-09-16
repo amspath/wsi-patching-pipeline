@@ -6,7 +6,7 @@ from PIL import Image
 
 from wsi_patching.core.pipeline import Stage
 from wsi_patching.utils.profiling import get_current_profiler
-from wsi_patching.utils.types import EncodedPatch, PatchBatch
+from wsi_patching.utils.types import CollatedPatchBatch, EncodedPatch
 
 
 class PNGEncoder(Stage):
@@ -15,21 +15,18 @@ class PNGEncoder(Stage):
     Output items contain: "__key__", "sample_bytes", "json_bytes"
     """
 
-    def validate(self) -> None:
-        self.ctx.require_key("level")
-
-    def __call__(self, it: Iterable[PatchBatch]) -> Iterable[EncodedPatch]:
+    def __call__(self, it: Iterable[CollatedPatchBatch]) -> Iterable[EncodedPatch]:
         prof = get_current_profiler()
         for batch in it:
-            for sample in batch.samples:
+            for idx in range(len(batch.coords)):
                 t0 = time.perf_counter()
-                key = f"{sample.wsi_id}-{sample.coord[0]}-{sample.coord[1]}"
+                key = f"{batch.wsi_id}-{batch.coords[idx][0]}-{batch.coords[idx][1]}"
                 # PNG
                 bio = io.BytesIO()
-                Image.fromarray(sample.patch).save(bio, format="PNG")
+                Image.fromarray(batch.patches[idx]).save(bio, format="PNG")
                 png_bytes = bio.getvalue()
                 # JSON
-                meta = {"wsi_id": sample.wsi_id, "coord": sample.coord, **sample.meta}
+                meta = {"wsi_id": batch.wsi_id, "coord": batch.coords[idx], **batch.meta}
 
                 dt = time.perf_counter() - t0
                 if prof is not None:

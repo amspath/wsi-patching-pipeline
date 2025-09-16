@@ -1,12 +1,13 @@
 import logging
-from typing import Iterable, List, Optional, Tuple
+from typing import Iterable, List, Optional, Tuple, Union
 
+import cupy as cp
 import numpy as np
 from cucim import CuImage
 
 from wsi_patching.core.pipeline import Stage
 from wsi_patching.core.regions_of_interest import ROI, BoxROI, WholeSlideProvider
-from wsi_patching.utils.types import PatchBatch, PatchSample, RegionTask, Slide, SlideWithROIs, TilePlan
+from wsi_patching.utils.types import CollatedPatchBatch, RegionTask, Slide, SlideWithROIs, TilePlan
 
 
 class TilePlanner(Stage):
@@ -135,26 +136,40 @@ class RegionReadAndBatch(Stage):
     def validate(self) -> None:
         self.ctx.require_key("tile_size")
         self.ctx.require_key("level")
+        self.ctx.require_key("use_gpu")
 
-    def __call__(self, it: Iterable[RegionTask]) -> Iterable[PatchBatch]:
+    def __call__(self, it: Iterable[RegionTask]) -> Iterable[CollatedPatchBatch]:
+        xp = cp if self.ctx.require_key("use_gpu") else np
         tile_size = int(self.ctx["tile_size"])
         level = int(self.ctx["level"])
 
         for task in it:
             x0, y0, w, h = task.region
             region_img = _read_region(task.wsi_path, x0, y0, w, h, level, self.num_workers)
-            batch: List[PatchSample] = []
+
+            coords: List[Tuple[int, int]] = []
+            patches: List[Union[np.ndarray, "cp.ndarray"]] = []
+
             for tx, ty in task.tiles:
                 rx, ry = tx - x0, ty - y0
                 patch = region_img[ry : ry + tile_size, rx : rx + tile_size, :]
                 if patch.shape[:2] != (tile_size, tile_size):
                     continue
-                batch.append(PatchSample(task.wsi_id, (tx, ty), patch, meta=task.meta))
-                if len(batch) >= self.batch_size:
-                    yield PatchBatch(batch)
-                    batch = []
-            if batch:
-                yield PatchBatch(batch)
+
+                coords.append((tx, ty))
+                patches.append(patch)
+
+                if len(patches) >= self.batch_size:
+                    yield self._make_batch(task, coords, patches, xp)
+                    coords, patches = [], []
+
+            if patches:
+                yield self._make_batch(task, coords, patches, xp)
+
+    def _make_batch(self, task, coords, patches, xp):
+        batch_array = np.stack(patches, axis=0)
+        patches_xp = xp.asarray(batch_array)
+        return CollatedPatchBatch(wsi_id=task.wsi_id, coords=coords, patches=patches_xp, meta=task.meta)
 
 
 def _read_region(path: str, x: int, y: int, w: int, h: int, level: int, num_workers: int = 8) -> Optional[np.ndarray]:

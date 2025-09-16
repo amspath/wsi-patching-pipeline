@@ -77,12 +77,12 @@ def main(argv=None):
     rois_dict = {Path(s).stem: [(0, 0, 4000, 4000)] for s in slides}
 
     p = (
-        WSIGrid(slides=slides, tile_size=256, stride=256, level=0)
+        WSIGrid(slides=slides, tile_size=256, stride=256, level=0, use_gpu=True)
         .then(AttachROIs(providers=[RectROIProvider(rois_dict)]))
         .then(TilePlanner())
         .then(ReadWindowChunker(max_window_size=4096))
         .then(RegionReadAndBatch(batch_size=args.batch, num_workers=args.num_workers))
-        .then(DummyTissueClassifier("cuda"))
+        .then(DummyTissueClassifier())
         .then(PNGEncoder())
         .then(WebDatasetWriter())
     )

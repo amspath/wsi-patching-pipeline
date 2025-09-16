@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Tuple, Union
 
+import cupy as cp
 import numpy as np
 
 Box = Tuple[int, int, int, int]
@@ -53,8 +54,11 @@ class PatchSample:
 
 
 @dataclass
-class PatchBatch:
-    samples: List[PatchSample]
+class CollatedPatchBatch:
+    wsi_id: str
+    coords: List[Tuple[int, int]]
+    patches: Union[np.ndarray, "cp.ndarray"]  # B x H x W x C uint8
+    meta: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
