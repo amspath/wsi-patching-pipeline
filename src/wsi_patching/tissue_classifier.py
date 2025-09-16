@@ -4,7 +4,8 @@ from typing import Iterable, List
 import numpy as np
 import torch
 
-from wsi_patching.core.pipeline import Sample, Stage
+from wsi_patching.core.pipeline import Stage
+from wsi_patching.utils.types import PatchBatch, PatchSample
 
 
 class DummyTissueClassifier(Stage):
@@ -22,10 +23,10 @@ class DummyTissueClassifier(Stage):
     def __init__(self, device: str = "cuda"):
         self.device = device
 
-    def __call__(self, it: Iterable[Sample]) -> Iterable[Sample]:
+    def __call__(self, it: Iterable[PatchBatch]) -> Iterable[PatchBatch]:
         for item in it:
-            batch: List[Sample] = item["batch"]
-            patches = [s["patch"] for s in batch if s.get("patch") is not None]
+            batch: List[PatchSample] = item.samples
+            patches = [s.patch for s in batch if s.patch is not None]
 
             # Convert to tensor (B,H,W,C) -> normalize to [0,1]
             arr = np.stack(patches, axis=0)  # uint8
@@ -35,10 +36,10 @@ class DummyTissueClassifier(Stage):
                 ten = ten.cuda(non_blocking=True)
             # Simple "score": mean over (C,H,W)
             scores = ten.mean(dim=(1, 2, 3)).detach().cpu().numpy()
-            for s, sc in zip(batch, scores):
-                s["tissue_score"] = float(sc)
-                s["is_tissue"] = bool(sc > 0.5)
 
-            logging.info(f"Yielding batch from wsi: {batch[0]['wsi_id']} size: {len(batch)}")
+            # Filter patches that have a score under 0.5
+            patch_batch = PatchBatch(samples=[sample for sample, score in zip(batch, scores) if score > 0.5])
 
-            yield {"batch": batch}
+            logging.info(f"Yielding batch from wsi: {patch_batch.samples[0].wsi_id} size: {len(patch_batch.samples)}")
+
+            yield patch_batch

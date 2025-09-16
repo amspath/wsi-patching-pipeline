@@ -1,10 +1,11 @@
 import logging
 from pathlib import Path
-from typing import Iterable, List, Tuple
+from typing import Any, Iterable, List, Tuple
 
 from cucim import CuImage
 
-from wsi_patching.core.pipeline import PipelineContext, Sample, Stage
+from wsi_patching.core.pipeline import PipelineContext, Stage
+from wsi_patching.utils.types import Slide
 
 
 class WSIGrid(Stage):
@@ -28,12 +29,12 @@ class WSIGrid(Stage):
     def for_slide(self, slide_path: str) -> "Stage":
         return WSIGrid(slides=[slide_path], tile_size=self.tile_size, stride=self.stride, level=self.level)
 
-    def __call__(self, _it: Iterable["Sample"]) -> Iterable["Sample"]:
+    def __call__(self, _it: Iterable[Any]) -> Iterable[Slide]:
         for path in self.slides:
             wsi_id = Path(path).stem
             W, H = self._get_level_dims(path, self.level)
             logging.info(f"Starting on Slide {wsi_id}")
-            yield {"type": "slide", "wsi_id": wsi_id, "wsi_path": path, "dims": (W, H), "meta": {"backend": "cucim"}}
+            yield Slide(wsi_id=wsi_id, wsi_path=path, dims=(W, H), meta={"backend": "cucim"})
 
     def _get_level_dims(self, path: str, level: int) -> Tuple[int, int]:
         img = CuImage(path)

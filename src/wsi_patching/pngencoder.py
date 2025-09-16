@@ -1,11 +1,12 @@
 import io
 import time
-from typing import Iterable, List, Optional
+from typing import Iterable
 
 from PIL import Image
 
-from wsi_patching.core.pipeline import Sample, Stage
+from wsi_patching.core.pipeline import Stage
 from wsi_patching.utils.profiling import get_current_profiler
+from wsi_patching.utils.types import EncodedPatch, PatchBatch
 
 
 class PNGEncoder(Stage):
@@ -17,43 +18,20 @@ class PNGEncoder(Stage):
     def validate(self) -> None:
         self.ctx.require_key("level")
 
-    def __call__(self, it: Iterable[Sample]) -> Iterable[Sample]:
-        prof = get_current_profiler()  # may be None if profiling is disabled
-        for item in it:
-            # Handle batched items
-            if isinstance(item, dict) and "batch" in item:
-                batch: List[Sample] = item["batch"]
-                for s in batch:
-                    t0 = time.perf_counter()
-                    out = self._encode_one(s)
-                    dt = time.perf_counter() - t0
-                    if prof is not None and out is not None:
-                        # record isolated encode time only (no upstream waiting)
-                        prof.add_time("PNGEncoder.isolated", dt, yielded=True)
-                    if out is not None:
-                        yield out
-                continue
-
-            # Single item path
-            if isinstance(item, dict) and item.get("type") == "sample":
+    def __call__(self, it: Iterable[PatchBatch]) -> Iterable[EncodedPatch]:
+        prof = get_current_profiler()
+        for batch in it:
+            for sample in batch.samples:
                 t0 = time.perf_counter()
-                out = self._encode_one(item)
+                key = f"{sample.wsi_id}-{sample.coord[0]}-{sample.coord[1]}"
+                # PNG
+                bio = io.BytesIO()
+                Image.fromarray(sample.patch).save(bio, format="PNG")
+                png_bytes = bio.getvalue()
+                # JSON
+                meta = {"wsi_id": sample.wsi_id, "coord": sample.coord, **sample.meta}
+
                 dt = time.perf_counter() - t0
-                if prof is not None and out is not None:
+                if prof is not None:
                     prof.add_time("PNGEncoder.isolated", dt, yielded=True)
-                if out is not None:
-                    yield out
-
-    def _encode_one(self, s: Sample) -> Optional[Sample]:
-        patch = s.get("patch")
-        key = f"{s['wsi_id']}-{s['coord'][0]}-{s['coord'][1]}-L{self.ctx['level']}"
-
-        # Encode to PNG
-        buf = io.BytesIO()
-        Image.fromarray(patch, mode="RGB").save(buf, format="PNG")
-        png_bytes = buf.getvalue()
-
-        # Build json sidecar (exclude heavy fields)
-        meta = {k: v for k, v in s.items() if k not in ("patch",)}
-
-        return {"__key__": key, "sample_bytes": png_bytes, "json_bytes": meta}
+                yield EncodedPatch(key=key, patch_bytes=png_bytes, json_dict=meta)

@@ -1,11 +1,12 @@
 import logging
 import random
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import List, Union
 
 import webdataset as wds
 
 from wsi_patching.utils.logging_config import init_logging
+from wsi_patching.utils.types import EncodedPatch, EndOfQueue, EndOfStream
 
 
 class WebDatasetWriter:
@@ -36,13 +37,13 @@ class WebDatasetWriter:
         self.outdir.mkdir(parents=True, exist_ok=True)
         sink = wds.ShardWriter(self.shard_pattern, maxcount=self.shard_size, verbose=0)
 
-        buffer: List[Dict[str, Any]] = []
+        buffer: List[EncodedPatch] = []
         while True:
-            sample = queue.get()
-            if sample is None:  # shutdown signal
+            sample: Union[EncodedPatch, EndOfStream, EndOfQueue] = queue.get()
+            if isinstance(sample, EndOfQueue):
                 logging.info("Received shutdown signal.")
                 break
-            if sample.get("_eos"):
+            if isinstance(sample, EndOfStream):
                 continue
             buffer.append(sample)
             if len(buffer) >= self.shuffle_buffer_size:
@@ -54,11 +55,11 @@ class WebDatasetWriter:
         logging.info(f"Writer processed {self.write_count} samples.")
         sink.close()
 
-    def _flush_buffer(self, buffer: List[Dict[str, Any]], sink: wds.ShardWriter) -> None:
+    def _flush_buffer(self, buffer: List[EncodedPatch], sink: wds.ShardWriter) -> None:
         logging.info(f"Flushing buffer of size: {len(buffer)}")
         random.shuffle(buffer)
         for _ in range(min(self.shard_size, len(buffer))):
             s = buffer.pop()
             self.write_count += 1
-            sink.write({"__key__": s["__key__"], "png": s["sample_bytes"], "json": s["json_bytes"]})
+            sink.write({"__key__": s.key, "png": s.patch_bytes, "json": s.json_dict})
         logging.info(f"Buffer size after flush: {len(buffer)}")

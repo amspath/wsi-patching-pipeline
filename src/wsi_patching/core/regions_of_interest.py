@@ -2,20 +2,15 @@ import logging
 from dataclasses import dataclass
 from typing import Dict, Iterable, List, Tuple
 
-from wsi_patching.core.pipeline import Sample, Stage
+from wsi_patching.core.pipeline import Stage
+from wsi_patching.utils.types import Slide, SlideBase, SlideWithROIs
 
-Box = Tuple[int, int, int, int]  # (x, y, w, h) in level-0 pixels
+Box = Tuple[int, int, int, int]
 
 
 class ROI:
-    """Geometry-agnostic region of interest in level-0 coordinates."""
-
-    def bounds(self) -> Box:
-        raise NotImplementedError
-
-    def contains_point(self, x: float, y: float) -> bool:
-        """Return True if the (x,y) center lies in ROI. Used by center-in-ROI selection."""
-        raise NotImplementedError
+    def bounds(self) -> Box: ...
+    def contains_point(self, x: float, y: float) -> bool: ...
 
 
 @dataclass
@@ -33,36 +28,28 @@ class BoxROI(ROI):
 
 
 class ROIProvider:
-    """Source of ROIs for a slide."""
-
-    def for_slide(self, slide: Sample) -> List[ROI]:
+    def for_slide(self, slide: SlideBase) -> List[ROI]:
         raise NotImplementedError
 
 
 @dataclass
 class RectROIProvider(ROIProvider):
-    """Compatibility provider using a dict: {wsi_id: [(x,y,w,h), ...]}.
-    Raises ValueError if any ROI lies outside the slide bounds."""
-
     rois: Dict[str, List[Tuple[int, int, int, int]]]
 
-    def for_slide(self, slide: Sample) -> List[ROI]:
-        wsi_id = slide["wsi_id"]
-        W, H = slide["dims"]
+    def for_slide(self, slide: SlideBase) -> List[ROI]:
+        wsi_id = slide.wsi_id
+        W, H = slide.dims
         out: List[ROI] = []
-        for tpl in self.rois.get(wsi_id, []):
-            x, y, w, h = tpl
+        for x, y, w, h in self.rois.get(wsi_id, []):
             if x < 0 or y < 0 or (x + w) > W or (y + h) > H:
-                raise ValueError(f"ROI {tpl} for slide {wsi_id} lies outside slide dimensions {(W, H)}")
+                raise ValueError(f"ROI {(x, y, w, h)} for slide {wsi_id} lies outside {(W, H)}")
             out.append(BoxROI(x, y, w, h))
         return out
 
 
 class WholeSlideProvider(ROIProvider):
-    """Provides a single ROI covering the full slide extent."""
-
-    def for_slide(self, slide: Sample) -> List[ROI]:
-        W, H = slide["dims"]
+    def for_slide(self, slide: SlideBase) -> List[ROI]:
+        W, H = slide.dims
         return [BoxROI(0, 0, int(W), int(H))]
 
 
@@ -109,23 +96,17 @@ class AttachROIs(Stage):
         self.providers = list(providers)
         self.preclip = bool(preclip_to_slide)
 
-    def __call__(self, it: Iterable[Sample]) -> Iterable[Sample]:
+    def __call__(self, it: Iterable[Slide]) -> Iterable[SlideWithROIs]:
         for s in it:
-            if s.get("type") != "slide":
-                continue
-            all_rois: List[ROI] = []
+            all_rois = []
             for prov in self.providers:
                 try:
-                    rois = prov.for_slide(s)
+                    all_rois.extend(prov.for_slide(s))
                 except Exception as e:
-                    logging.info(f"[AttachROIs] provider {type(prov).__name__} failed: {e}")
-                    rois = []
-                all_rois.extend(rois)
+                    logging.info(f"[AttachROIs] {type(prov).__name__} failed: {e}")
 
-            if len(all_rois) == 0:
-                logging.warning(f"No ROIs found for slide {s['wsi_id']}")
+            if not all_rois:
+                all_rois = WholeSlideProvider().for_slide(s)
+                logging.warning(f"No ROIs found for slide {s.wsi_id}; using whole slide.")
 
-            s2 = dict(s)
-            s2["type"] = "slide"
-            s2["rois"] = all_rois
-            yield s2
+            yield SlideWithROIs(**s.__dict__, rois=all_rois)

@@ -4,8 +4,9 @@ from typing import Iterable, List, Optional, Tuple
 import numpy as np
 from cucim import CuImage
 
-from wsi_patching.core.pipeline import Sample, Stage
+from wsi_patching.core.pipeline import Stage
 from wsi_patching.core.regions_of_interest import ROI, BoxROI, WholeSlideProvider
+from wsi_patching.utils.types import PatchBatch, PatchSample, RegionTask, Slide, SlideWithROIs, TilePlan
 
 
 class TilePlanner(Stage):
@@ -25,30 +26,19 @@ class TilePlanner(Stage):
         self.ctx.require_key("stride")
         self.ctx.require_key("level")
 
-    def __call__(self, it: Iterable[Sample]) -> Iterable[Sample]:
+    def __call__(self, it: Iterable[Slide | SlideWithROIs]) -> Iterable[TilePlan]:
+        tile_size = int(self.ctx["tile_size"])
+        stride = int(self.ctx["stride"])
+
         for s in it:
-            if s.get("type") != "slide":
-                logging.warning(f"TilePlanner skipping non-slide item: {s.get('type')}")
-                continue
-
-            tile_size = int(self.ctx["tile_size"])
-            stride = int(self.ctx["stride"])
-            rois: List[ROI] = s.get("rois", [])
-            W, H = s["dims"]
-
-            if rois is None or len(rois) == 0:
-                logging.warning(f"No ROIs found for slide {s['wsi_id']}, defaulting to whole slide.")
-                rois = WholeSlideProvider().for_slide(s)
-
+            rois = getattr(s, "rois", None) or WholeSlideProvider().for_slide(s)
+            W, H = s.dims
             for idx, roi in enumerate(rois):
                 bx, by, bw, bh = roi.bounds()
-
-                # Enumerate grid-aligned tiles within the ROI bounding box
                 x0 = _align_to_grid(max(0, bx), stride)
                 y0 = _align_to_grid(max(0, by), stride)
                 x1 = min(bx + bw, W)
                 y1 = min(by + bh, H)
-
                 tiles: List[Tuple[int, int]] = []
                 y = y0
                 while y + tile_size <= y1:
@@ -59,19 +49,12 @@ class TilePlanner(Stage):
                         x += stride
                     y += stride
 
-                if not tiles:
-                    continue
-
-                yield {
-                    "type": "slide",
-                    "wsi_id": s["wsi_id"],
-                    "wsi_path": s["wsi_path"],
-                    "dims": s["dims"],
-                    "roi_index": idx,
-                    "roi_bounds": (bx, by, bw, bh),
-                    "tiles": tiles,
-                    "meta": s.get("meta", {}),
-                }
+                if tiles:
+                    yield TilePlan(s.wsi_id, s.wsi_path, s.dims, idx, (bx, by, bw, bh), tiles, meta=s.meta)
+                else:
+                    logging.warning(
+                        f"TilePlanner: no tiles found for slide {s.wsi_id} ROI {idx} bounds {bx, by, bw, bh}"
+                    )
 
     def _accept_tile(self, roi: ROI, tx: int, ty: int, tile_size: int) -> bool:
         mode = self.tile_selection_mode
@@ -108,49 +91,32 @@ class ReadWindowChunker(Stage):
         self.ctx.require_key("tile_size")
         self.ctx.require_key("stride")
 
-    def __call__(self, it: Iterable[Sample]) -> Iterable[Sample]:
+    def __call__(self, it: Iterable[TilePlan]) -> Iterable[RegionTask]:
         tile_size = int(self.ctx["tile_size"])
         stride = int(self.ctx["stride"])
-        for s in it:
-            if s.get("type") != "slide":
-                logging.warning(f"TilePlanner skipping non-slide item: {s.get('type')}")
+
+        for plan in it:
+            bx, by, bw, bh = plan.roi_bounds
+            W, H = plan.dims
+            if not plan.tiles:
+                logging.warning(f"ReadWindowChunker: no tiles in plan for slide {plan.wsi_id} ROI {plan.roi_index}")
                 continue
 
-            bx, by, bw, bh = s["roi_bounds"]
-            W, H = s["dims"]
-            tiles: List[Tuple[int, int]] = s.get("tiles", [])
-            if not tiles:
-                continue
-
-            # Define stride-aligned grid for windows
             x_start = _align_to_grid(max(0, bx), stride) if self.align_to_stride else bx
             y_start = _align_to_grid(max(0, by), stride) if self.align_to_stride else by
-            x_end = min(bx + bw, W)
-            y_end = min(by + bh, H)
+            x_end, y_end = min(bx + bw, W), min(by + bh, H)
 
             for yy in range(y_start, y_end, self.max_window_size):
                 for xx in range(x_start, x_end, self.max_window_size):
-                    ww = min(self.max_window_size, x_end - xx)
-                    hh = min(self.max_window_size, y_end - yy)
-
-                    # Collect tiles fully inside this window
+                    ww, hh = min(self.max_window_size, x_end - xx), min(self.max_window_size, y_end - yy)
                     in_window: List[Tuple[int, int]] = []
                     wx1, wy1 = xx + ww, yy + hh
-                    for tx, ty in tiles:
+                    for tx, ty in plan.tiles:
                         if tx >= xx and ty >= yy and (tx + tile_size) <= wx1 and (ty + tile_size) <= wy1:
                             in_window.append((tx, ty))
 
-                    if not in_window:
-                        continue
-
-                    yield {
-                        "type": "region",
-                        "wsi_id": s["wsi_id"],
-                        "wsi_path": s["wsi_path"],
-                        "region": (xx, yy, ww, hh),
-                        "tiles": in_window,
-                        "meta": s.get("meta", {}),
-                    }
+                    if in_window:
+                        yield RegionTask(plan.wsi_id, plan.wsi_path, (xx, yy, ww, hh), in_window, meta=plan.meta)
 
 
 class RegionReadAndBatch(Stage):
@@ -170,42 +136,25 @@ class RegionReadAndBatch(Stage):
         self.ctx.require_key("tile_size")
         self.ctx.require_key("level")
 
-    def __call__(self, it: Iterable[Sample]) -> Iterable[Sample]:
+    def __call__(self, it: Iterable[RegionTask]) -> Iterable[PatchBatch]:
+        tile_size = int(self.ctx["tile_size"])
+        level = int(self.ctx["level"])
+
         for task in it:
-            if task.get("type") != "region":
-                continue
-
-            path = task["wsi_path"]
-            x0, y0, w, h = task["region"]
-            tiles: List[Tuple[int, int]] = task["tiles"]
-
-            # Read region into memory
-            region_img = _read_region(path, x0, y0, w, h, self.ctx["level"], num_workers=self.num_workers)
-
-            # Slice into patches
-            batch: List[Sample] = []
-            for tx, ty in tiles:
+            x0, y0, w, h = task.region
+            region_img = _read_region(task.wsi_path, x0, y0, w, h, level, self.num_workers)
+            batch: List[PatchSample] = []
+            for tx, ty in task.tiles:
                 rx, ry = tx - x0, ty - y0
-                patch = region_img[ry : ry + self.ctx["tile_size"], rx : rx + self.ctx["tile_size"], :]
-                if patch.shape[0] != self.ctx["tile_size"] or patch.shape[1] != self.ctx["tile_size"]:
-                    # Skip partial tiles on edges (shouldn't happen if tiles computed within region)
+                patch = region_img[ry : ry + tile_size, rx : rx + tile_size, :]
+                if patch.shape[:2] != (tile_size, tile_size):
                     continue
-                sample: Sample = {
-                    "type": "sample",
-                    "wsi_id": task["wsi_id"],
-                    "coord": (tx, ty),
-                    "meta": {"path": path, **task.get("meta", {})},
-                    "patch": patch,
-                }
-                batch.append(sample)
-
+                batch.append(PatchSample(task.wsi_id, (tx, ty), patch, meta=task.meta))
                 if len(batch) >= self.batch_size:
-                    logging.info(f"Yielding batch from wsi: {task['wsi_id']} size: {len(batch)}")
-                    yield {"batch": batch}
+                    yield PatchBatch(batch)
                     batch = []
-
             if batch:
-                yield {"batch": batch}
+                yield PatchBatch(batch)
 
 
 def _read_region(path: str, x: int, y: int, w: int, h: int, level: int, num_workers: int = 8) -> Optional[np.ndarray]:
