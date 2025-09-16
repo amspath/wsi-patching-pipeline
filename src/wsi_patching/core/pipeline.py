@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import collections.abc as cabc
 import logging
 import multiprocessing as mp
 import sys
@@ -22,20 +23,28 @@ class PipelineContext(dict):
 
 # -------- Annotation utilities --------
 def _iter_payload(t: Any) -> Any:
-    """Extract T from Iterable[T]; support Union/PEP604 T1|T2."""
+    """Extract T from Iterable[T]; support Union[T1, T2] and | unions."""
     if t is None:
         return object
     origin = get_origin(t)
-    if origin in (Iterable,):
+
+    # Iterable[T]
+    if origin in (list, tuple, set, frozenset, iter, Iterable, cabc.Iterable):
         args = get_args(t)
         if not args:
             return object
-        (payload,) = args
-        po = get_origin(payload)
-        if po in (Union,) or str(po).endswith("types.UnionType"):
-            return tuple(a for a in get_args(payload) if a is not type(None))
-        return payload
-    return object
+        payload = args[0]
+        return _unwrap_union(payload)
+
+    # Already a Union or plain class
+    return _unwrap_union(t)
+
+
+def _unwrap_union(t: Any) -> Any:
+    origin = get_origin(t)
+    if origin is Union or str(origin).endswith("types.UnionType"):
+        return tuple(a for a in get_args(t) if a is not type(None))
+    return t
 
 
 def _type_options(t: Any) -> tuple[type, ...]:

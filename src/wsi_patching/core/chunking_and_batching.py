@@ -27,7 +27,7 @@ class TilePlanner(Stage):
         self.ctx.require_key("stride")
         self.ctx.require_key("level")
 
-    def __call__(self, it: Iterable[Slide | SlideWithROIs]) -> Iterable[TilePlan]:
+    def __call__(self, it: Iterable[Union[Slide, SlideWithROIs]]) -> Iterable[TilePlan]:
         tile_size = int(self.ctx["tile_size"])
         stride = int(self.ctx["stride"])
 
