@@ -12,11 +12,13 @@ from wsi_patching.utils.types import CollatedPatchBatch, RegionTask, Slide, Slid
 
 class TilePlanner(Stage):
     """
-    Enumerate tiles per ROI using a selection policy and the global tile grid.
+    Divide slides (with or without ROIs) into patches on a regular grid.
 
-    tile_selection_mode:
-      - "full_inside_bounds" (default): tile must fit fully within ROI.bounds().
-      - "center_in_roi": tile center must be inside ROI.
+    The TilePlanner emits a TilePlan. Each TilePlan corresponds to a single slide,
+    and might has a list of coords corresponding to coordinates of patches to be extracted.
+    If ROIs are attached to the slide, all generated coordinates will lie within the ROIs.
+    If no ROIs are attached, the WholeSlideProvider is used to generate a single ROI
+    covering the entire slide.
     """
 
     def __init__(self, tile_selection_mode: str = "full_inside_bounds"):
@@ -80,17 +82,32 @@ class ReadWindowChunker(Stage):
     """
     Packs tiles into rectangular read windows of max_window_size.
 
+    The goal here is to batch together coordinates that lie closely together.
+    These can be read as a single large region read from the WSI,
+    and then sliced into individual patches in numpy.
+    Since the region read is square, we group together patches that fit in a square.
+    Each slide object is split into one or more region tasks dependend on the max_window_size.
+    Controlling the max_window_size is a tradeoff between memory use and read efficiency.
+    A larger window size means fewer, larger reads, but more memory use.
+    A smaller window size means more, smaller reads, and less memory use.
+    As the library multiprocesses over slides, reading in complete slides for each cpu might be too much memory.
+
     Strategy: subdivide the ROI's bounding box into stride-aligned windows
     of size up to max_window_size; emit a window only if it contains tiles.
     """
 
-    def __init__(self, max_window_size: int = 2048, align_to_stride: bool = True):
+    def __init__(self, max_window_size: int = 4096, align_to_stride: bool = True):
         self.max_window_size = int(max_window_size)
         self.align_to_stride = bool(align_to_stride)
 
     def validate(self) -> None:
         self.ctx.require_key("tile_size")
         self.ctx.require_key("stride")
+
+        if self.max_window_size % self.ctx["tile_size"] != 0:
+            raise ValueError(
+                "ReadWindowChunker: max_window_size must be a multiple of tile_size to avoid unnecessary padding"
+            )
 
     def __call__(self, it: Iterable[TilePlan]) -> Iterable[RegionTask]:
         tile_size = int(self.ctx["tile_size"])

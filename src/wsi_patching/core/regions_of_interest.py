@@ -90,7 +90,7 @@ class RectAreaROI:
 
 
 class AttachROIs(Stage):
-    """Attach a list[ROI] to each slide using one or more providers."""
+    """Add Regions of Interest (ROIs) to each slide using one or more ROI providers."""
 
     def __init__(self, providers: List[ROIProvider], preclip_to_slide: bool = True):
         self.providers = list(providers)
