@@ -13,9 +13,6 @@ dependencies = ["numpy", "pandas", "webdataset"]
 [project.optional-dependencies]
 gpu = ["cucim", "cupy-cuda12x"]
 
-[project.scripts]
-example-script = "wsi_patching.example:main"
-
 [tool.hatch.build.targets.wheel]
 packages = ["src/wsi_patching"]
 

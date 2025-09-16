@@ -32,10 +32,11 @@ pipeline = (
 )
 ```
 
-> If you installed this package, you can run `example-script` as a cli command, which will run the example.py.
+> Check out the `examples/demo.py` for a basic use case of this library. After you have set up input and parameters, you can run it with `python examples/demo.py`.
 
 # More will come
 - [ ] More readme stuff
+- [ ] Tests
 - [ ] Abstract writer to easily extend and write different writers
 - [ ] More basic stuff (i.e. numpy encoder, basic xml ROI reader, cellvit tissue classifier, etc)
 - [ ] Functionality for just running the pipeline on a single tiff and getting a list of patches (instead of saving to a dataset)

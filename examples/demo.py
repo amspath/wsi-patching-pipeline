@@ -88,10 +88,13 @@ def main(argv=None):
     )
 
     start_time = time.time()
-    logging.info(f"Starting pipeline at time {start_time:.1f}")
     p.run(cpu_processes=args.procs, profile=args.profile)
     logging.info(f"Done in {time.time() - start_time:.1f} seconds.")
 
     if args.profile:
         # Print a summary on completion if requested
         p.print_profile()
+
+
+if __name__ == "__main__":
+    main()
