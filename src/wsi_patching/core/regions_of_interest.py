@@ -105,9 +105,8 @@ class RectAreaROI:
 class AttachROIs(Stage):
     """Attach a list[ROI] to each slide using one or more providers."""
 
-    def __init__(self, providers: List[ROIProvider], default_whole_slide: bool = True, preclip_to_slide: bool = True):
+    def __init__(self, providers: List[ROIProvider], preclip_to_slide: bool = True):
         self.providers = list(providers)
-        self.default_whole_slide = bool(default_whole_slide)
         self.preclip = bool(preclip_to_slide)
 
     def __call__(self, it: Iterable[Sample]) -> Iterable[Sample]:
@@ -123,10 +122,10 @@ class AttachROIs(Stage):
                     rois = []
                 all_rois.extend(rois)
 
-            if not all_rois and self.default_whole_slide:
-                all_rois.extend(WholeSlideProvider().for_slide(s))
+            if len(all_rois) == 0:
+                logging.warning(f"No ROIs found for slide {s['wsi_id']}")
 
             s2 = dict(s)
-            s2["type"] = "roi_list"
+            s2["type"] = "slide"
             s2["rois"] = all_rois
             yield s2

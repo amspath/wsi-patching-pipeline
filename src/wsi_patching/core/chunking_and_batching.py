@@ -5,7 +5,7 @@ import numpy as np
 from cucim import CuImage
 
 from wsi_patching.core.pipeline import Sample, Stage
-from wsi_patching.core.regions_of_interest import ROI, BoxROI
+from wsi_patching.core.regions_of_interest import ROI, BoxROI, WholeSlideProvider
 
 
 class TilePlanner(Stage):
@@ -27,15 +27,22 @@ class TilePlanner(Stage):
 
     def __call__(self, it: Iterable[Sample]) -> Iterable[Sample]:
         for s in it:
-            if s.get("type") != "roi_list":
+            if s.get("type") != "slide":
+                logging.warning(f"TilePlanner skipping non-slide item: {s.get('type')}")
                 continue
+
             tile_size = int(self.ctx["tile_size"])
             stride = int(self.ctx["stride"])
             rois: List[ROI] = s.get("rois", [])
             W, H = s["dims"]
 
+            if rois is None or len(rois) == 0:
+                logging.warning(f"No ROIs found for slide {s['wsi_id']}, defaulting to whole slide.")
+                rois = WholeSlideProvider().for_slide(s)
+
             for idx, roi in enumerate(rois):
                 bx, by, bw, bh = roi.bounds()
+
                 # Enumerate grid-aligned tiles within the ROI bounding box
                 x0 = _align_to_grid(max(0, bx), stride)
                 y0 = _align_to_grid(max(0, by), stride)
@@ -56,7 +63,7 @@ class TilePlanner(Stage):
                     continue
 
                 yield {
-                    "type": "roi_tiles",
+                    "type": "slide",
                     "wsi_id": s["wsi_id"],
                     "wsi_path": s["wsi_path"],
                     "dims": s["dims"],
@@ -105,7 +112,8 @@ class ReadWindowChunker(Stage):
         tile_size = int(self.ctx["tile_size"])
         stride = int(self.ctx["stride"])
         for s in it:
-            if s.get("type") != "roi_tiles":
+            if s.get("type") != "slide":
+                logging.warning(f"TilePlanner skipping non-slide item: {s.get('type')}")
                 continue
 
             bx, by, bw, bh = s["roi_bounds"]
