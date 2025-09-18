@@ -22,7 +22,7 @@ class WriterBase(metaclass=WriterMeta):
     Multi-process usage: writer.start_writer(queue) will block and consume messages from producers.
     """
 
-    # By default, accept anything; concrete writers should annotate __call__ to set input_type
+    # By default, accept anything; concrete writers should annotate 'write' to set input_type
     input_type: Any = object
     output_type: Any = object
 

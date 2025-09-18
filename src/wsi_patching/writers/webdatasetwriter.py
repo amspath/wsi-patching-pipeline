@@ -10,12 +10,7 @@ from wsi_patching.writers.writer import WriterBase
 
 
 class WebDatasetWriter(WriterBase):
-    """
-    Writer for WebDataset shards.
-
-    - Single process: call writer(it) with an iterable of Patch.
-    - Multi process: Pipeline.run() will spawn writer.start_writer(queue) for you.
-    """
+    """Writer for WebDataset shards."""
 
     def __init__(self, outdir: Path = Path("./output/"), shard_size: int = 200, shuffle_buffer_size: int = 500):
         super().__init__()
