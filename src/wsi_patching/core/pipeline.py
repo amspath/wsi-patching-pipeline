@@ -113,7 +113,10 @@ class Pipeline(Stage):
         return stream
 
     def then(self, nxt: Stage) -> "Pipeline":
-        return Pipeline(self.stages + [nxt], writer=self.writer, prof_agg=self.prof_agg, context=self._context)
+        if self.writer is not None:
+            raise RuntimeError("Cannot add stages after a writer. A writer is the last stage.")
+
+        return Pipeline(self.stages + [nxt], prof_agg=self.prof_agg, context=self._context)
 
     def to(self, writer: WriterBase) -> "Pipeline":
         return Pipeline(stages=self.stages, writer=writer, prof_agg=self.prof_agg, context=self._context)
