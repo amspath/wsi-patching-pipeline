@@ -62,10 +62,10 @@ class CollatedPatchBatch:
 
 
 @dataclass(frozen=True)
-class EncodedPatch:
+class Patch:
     key: str
-    patch_bytes: bytes
-    json_dict: dict
+    patch: object
+    meta: dict
 
 
 @dataclass(frozen=True)

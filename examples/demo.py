@@ -40,7 +40,7 @@ from wsi_patching.core.regions_of_interest import AttachROIs, RectROIProvider
 from wsi_patching.core.wsi_grid import WSIGrid
 from wsi_patching.pngencoder import PNGEncoder
 from wsi_patching.tissue_classifier import DummyTissueClassifier
-from wsi_patching.webdatasetwriter import WebDatasetWriter
+from wsi_patching.writers.webdatasetwriter import WebDatasetWriter
 
 
 def main(argv=None):
@@ -81,7 +81,7 @@ def main(argv=None):
         .then(RegionReadAndBatch(batch_size=args.batch, num_workers=args.num_workers))
         .then(DummyTissueClassifier())
         .then(PNGEncoder())
-        .then(WebDatasetWriter())
+        .to(WebDatasetWriter())
     )
 
     start_time = time.time()
