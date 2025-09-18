@@ -1,13 +1,13 @@
 import logging
 from multiprocessing.queues import Queue as MPQueue
-from typing import Any, Iterable, Union
+from typing import Any, Union
 
 from wsi_patching.utils.logging_config import init_logging
-from wsi_patching.utils.stage_meta import StageMeta
+from wsi_patching.utils.meta_typing import WriterMeta
 from wsi_patching.utils.types import EndOfQueue, EndOfStream, Patch
 
 
-class WriterBase(metaclass=StageMeta):
+class WriterBase(metaclass=WriterMeta):
     """
     Base class for sink stages (writers). It hides multiprocessing queue handling and
     special control messages (EndOfStream / EndOfQueue).
@@ -51,23 +51,6 @@ class WriterBase(metaclass=StageMeta):
         if not self._is_open:
             self.open()
             self._is_open = True
-
-    # ----- Stage protocol (single-process path) -----
-    def __call__(self, it: Iterable[Any]) -> Iterable[Any]:
-        """
-        Consume the iterable and write all items (single-process path).
-        Returns an empty iterator (writers don't produce downstream items).
-        """
-        self._ensure_open()
-        try:
-            for item in it:
-                self.write(item)
-        finally:
-            try:
-                self.close()
-            except Exception:
-                logging.exception("Writer.close() raised during single-process finalization.", exc_info=True)
-        return iter(())  # writer yields nothing
 
     # ----- Multiprocess consumer entrypoint -----
     def start_writer(self, queue: MPQueue) -> None:

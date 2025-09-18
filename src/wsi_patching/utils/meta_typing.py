@@ -18,6 +18,19 @@ class StageMeta(type):
         return cls
 
 
+class WriterMeta(type):
+    def __new__(mcls, name, bases, ns, **kw):
+        cls = super().__new__(mcls, name, bases, ns)
+        # Defaults
+        in_t = getattr(cls, "input_type", object)
+        write_function = ns.get("write")
+        if write_function and hasattr(write_function, "__annotations__"):
+            ann = write_function.__annotations__
+            in_t = _iter_payload(ann.get("sample", None)) or in_t
+        cls.input_type = in_t
+        return cls
+
+
 # -------- Annotation utilities --------
 def _iter_payload(t: Any) -> Any:
     """Extract T from Iterable[T]; support Union[T1, T2] and | unions."""

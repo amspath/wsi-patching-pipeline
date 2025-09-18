@@ -9,8 +9,8 @@ from pathlib import Path
 from typing import Any, Iterable, Iterator, List, Optional, Union, get_args, get_origin
 
 from wsi_patching.utils.logging_config import init_logging
+from wsi_patching.utils.meta_typing import StageMeta
 from wsi_patching.utils.profiling import PipelineProfileAggregator, Profiler, set_current_profiler
-from wsi_patching.utils.stage_meta import StageMeta
 from wsi_patching.utils.types import EndOfQueue, EndOfStream, Patch
 from wsi_patching.writers.writer import WriterBase
 

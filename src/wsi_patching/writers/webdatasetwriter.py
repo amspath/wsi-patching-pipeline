@@ -1,7 +1,7 @@
 import logging
 import random
 from pathlib import Path
-from typing import Any, Iterable, List, Optional
+from typing import List, Optional
 
 import webdataset as wds
 
@@ -16,9 +16,6 @@ class WebDatasetWriter(WriterBase):
     - Single process: call writer(it) with an iterable of Patch.
     - Multi process: Pipeline.run() will spawn writer.start_writer(queue) for you.
     """
-
-    def __call__(self, it: Iterable[Patch]) -> Iterable[Any]:
-        return super().__call__(it)
 
     def __init__(self, outdir: Path = Path("./output/"), shard_size: int = 200, shuffle_buffer_size: int = 500):
         super().__init__()
