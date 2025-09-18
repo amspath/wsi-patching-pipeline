@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import collections.abc as cabc
 import logging
 import multiprocessing as mp
 import sys
@@ -11,7 +10,9 @@ from typing import Any, Iterable, Iterator, List, Optional, Union, get_args, get
 
 from wsi_patching.utils.logging_config import init_logging
 from wsi_patching.utils.profiling import PipelineProfileAggregator, Profiler, set_current_profiler
-from wsi_patching.utils.types import EncodedPatch, EndOfQueue, EndOfStream
+from wsi_patching.utils.stage_meta import StageMeta
+from wsi_patching.utils.types import EndOfQueue, EndOfStream, Patch
+from wsi_patching.writers.writer import WriterBase
 
 
 # -------- Context --------
@@ -19,32 +20,6 @@ class PipelineContext(dict):
     def require_key(self, key: str):
         if key not in self:
             raise KeyError(f"Missing required context key: '{key}'")
-
-
-# -------- Annotation utilities --------
-def _iter_payload(t: Any) -> Any:
-    """Extract T from Iterable[T]; support Union[T1, T2] and | unions."""
-    if t is None:
-        return object
-    origin = get_origin(t)
-
-    # Iterable[T]
-    if origin in (list, tuple, set, frozenset, iter, Iterable, cabc.Iterable):
-        args = get_args(t)
-        if not args:
-            return object
-        payload = args[0]
-        return _unwrap_union(payload)
-
-    # Already a Union or plain class
-    return _unwrap_union(t)
-
-
-def _unwrap_union(t: Any) -> Any:
-    origin = get_origin(t)
-    if origin is Union or str(origin).endswith("types.UnionType"):
-        return tuple(a for a in get_args(t) if a is not type(None))
-    return t
 
 
 def _type_options(t: Any) -> tuple[type, ...]:
@@ -78,26 +53,9 @@ def _tname(t: Any) -> str:
         return str(t)
 
 
-# -------- Stage base with metaclass --------
-class StageMeta(type):
-    def __new__(mcls, name, bases, ns, **kw):
-        cls = super().__new__(mcls, name, bases, ns)
-        # Defaults
-        in_t = getattr(cls, "input_type", object)
-        out_t = getattr(cls, "output_type", object)
-        call = ns.get("__call__")
-        if call and hasattr(call, "__annotations__"):
-            ann = call.__annotations__
-            in_t = _iter_payload(ann.get("it", None)) or in_t
-            out_t = _iter_payload(ann.get("return", None)) or out_t
-        cls.input_type = in_t
-        cls.output_type = out_t
-        return cls
-
-
 class Stage(metaclass=StageMeta):
-    input_type: Any = object  # auto-filled by metaclass
-    output_type: Any = object  # auto-filled by metaclass
+    input_type: Any = object
+    output_type: Any = object
 
     def __call__(self, it: Iterable[Any]) -> Iterable[Any]:
         raise NotImplementedError
@@ -126,6 +84,7 @@ class Stage(metaclass=StageMeta):
 @dataclass
 class Pipeline(Stage):
     stages: List[Stage]
+    writer: Optional[WriterBase] = None
     prof_agg: Optional["PipelineProfileAggregator"] = None
     _context: PipelineContext = field(default_factory=PipelineContext)
     _runtime_type_asserts: bool = True
@@ -133,10 +92,12 @@ class Pipeline(Stage):
     def __init__(
         self,
         stages: List[Stage],
+        writer: Optional[WriterBase] = None,
         prof_agg: Optional["PipelineProfileAggregator"] = None,
         context: Optional[PipelineContext] = None,
     ):
         self.stages = stages
+        self.writer = writer
         self.prof_agg = prof_agg
         self._context = context or PipelineContext()
         self._preflight_types()
@@ -152,7 +113,10 @@ class Pipeline(Stage):
         return stream
 
     def then(self, nxt: Stage) -> "Pipeline":
-        return Pipeline(self.stages + [nxt], prof_agg=self.prof_agg, context=self._context)
+        return Pipeline(self.stages + [nxt], writer=self.writer, prof_agg=self.prof_agg, context=self._context)
+
+    def to(self, writer: WriterBase) -> "Pipeline":
+        return Pipeline(stages=self.stages, writer=writer, prof_agg=self.prof_agg, context=self._context)
 
     def _preflight_types(self) -> None:
         errors: List[str] = []
@@ -162,6 +126,15 @@ class Pipeline(Stage):
                 errors.append(
                     f"Type mismatch: {type(a).__name__}.out={_tname(a.output_type)} "
                     f"-> {type(b).__name__}.in={_tname(b.input_type)}"
+                )
+
+        if self.writer is not None:
+            if not _is_compatible(
+                getattr(self.stages[-1], "output_type", object), getattr(self.writer, "input_type", object)
+            ):
+                errors.append(
+                    f"Type mismatch: {type(self.stages[-1]).__name__}.out={_tname(self.stages[-1].output_type)} "
+                    f"-> {type(self.writer).__name__}.in={_tname(self.writer.input_type)}"
                 )
         if errors:
             raise TypeError("Pipeline type preflight failed:\n  - " + "\n  - ".join(errors))
@@ -197,8 +170,8 @@ class Pipeline(Stage):
         init_logging()
         logging.info(f"Starting pipeline with {cpu_processes} processes (profile={profile}).")
 
-        writer_stage = self.stages[-1]
-        producer_stages = self.stages[:-1]
+        if self.writer is None:
+            raise RuntimeError("Pipeline has no writer; add one via .to(writer)")
 
         grid = self.stages[0]
         slides = list(getattr(grid, "slides", []))
@@ -206,9 +179,9 @@ class Pipeline(Stage):
             logging.info("[WARN] No slides provided. Nothing to do.")
             return
 
-        for s in producer_stages:
+        for s in self.stages:
             s.export_context(self._context)
-        for s in producer_stages:
+        for s in self.stages:
             s.attach_context(self._context)
             s.validate()
 
@@ -223,9 +196,9 @@ class Pipeline(Stage):
 
         if profile:
             self._ensure_prof_agg()
-            self.prof_agg.reset()  # type: ignore[union-attr]
+            self.prof_agg.reset()
 
-        writer_proc = mp.Process(target=getattr(writer_stage, "start_writer"), args=(q,), name="webdataset-writer")
+        writer_proc = mp.Process(target=self.writer.start_writer, args=(q,), name="writer")
         writer_proc.start()
 
         pending = list(slides)
@@ -234,7 +207,7 @@ class Pipeline(Stage):
         def spawn_for(path: str):
             p = mp.Process(
                 target=_producer_worker,
-                args=(path, producer_stages, q, profile, prof_q),
+                args=(path, self.stages, q, profile, prof_q),
                 name=f"producer-{Path(path).stem}",
             )
             p.start()
@@ -251,6 +224,7 @@ class Pipeline(Stage):
             while pending and len(active) < cpu_processes:
                 active.append(spawn_for(pending.pop(0)))
 
+        # Collect profiling
         if profile and prof_q is not None and self.prof_agg is not None:
             received, expected = 0, len(slides)
             while received < expected:
@@ -282,7 +256,7 @@ def _producer_worker(
 
         # sources ignore input
         for out in pipe(iter(())):
-            if isinstance(out, EncodedPatch):
+            if isinstance(out, Patch):
                 queue.put(out)
     except KeyboardInterrupt:
         pass
