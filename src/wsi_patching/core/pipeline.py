@@ -9,17 +9,10 @@ from pathlib import Path
 from typing import Any, Iterable, Iterator, List, Optional, Union, get_args, get_origin
 
 from wsi_patching.utils.logging_config import init_logging
-from wsi_patching.utils.meta_typing import StageMeta
+from wsi_patching.utils.meta_typing import ContextAware, PipelineContext, StageMeta
 from wsi_patching.utils.profiling import PipelineProfileAggregator, Profiler, set_current_profiler
-from wsi_patching.utils.types import EndOfQueue, EndOfStream, Patch
-from wsi_patching.writers.writer import WriterBase
-
-
-# -------- Context --------
-class PipelineContext(dict):
-    def require_key(self, key: str):
-        if key not in self:
-            raise KeyError(f"Missing required context key: '{key}'")
+from wsi_patching.utils.types import EndOfQueue, EndOfStream
+from wsi_patching.writers.writer_base import WriterBase
 
 
 def _type_options(t: Any) -> tuple[type, ...]:
@@ -53,7 +46,7 @@ def _tname(t: Any) -> str:
         return str(t)
 
 
-class Stage(metaclass=StageMeta):
+class Stage(ContextAware, metaclass=StageMeta):
     input_type: Any = object
     output_type: Any = object
 
@@ -65,19 +58,6 @@ class Stage(metaclass=StageMeta):
 
     def for_slide(self, slide_path: str) -> "Stage":
         return self
-
-    def attach_context(self, ctx: PipelineContext) -> None:
-        self._ctx = ctx  # type: ignore[attr-defined]
-
-    def export_context(self, ctx: PipelineContext) -> None:
-        pass
-
-    def validate(self) -> None:
-        pass
-
-    @property
-    def ctx(self) -> PipelineContext:
-        return getattr(self, "_ctx", PipelineContext())
 
 
 # -------- Pipeline --------
@@ -170,6 +150,16 @@ class Pipeline(Stage):
             self.prof_agg = PipelineProfileAggregator()
 
     def run(self, cpu_processes: int = 4, queue_maxsize: int = 4000, profile: bool = False):
+        """
+        Run the pipeline.
+
+        Args:
+            cpu_processes: Number of parallel processes to use.
+            queue_maxsize: Max size of the writer queue.
+            profile: Whether to enable profiling.
+        Returns:
+            Returns
+        """
         init_logging()
         logging.info(f"Starting pipeline with {cpu_processes} processes (profile={profile}).")
 
@@ -182,9 +172,9 @@ class Pipeline(Stage):
             logging.info("[WARN] No slides provided. Nothing to do.")
             return
 
-        for s in self.stages:
+        for s in self.stages + [self.writer]:
             s.export_context(self._context)
-        for s in self.stages:
+        for s in self.stages + [self.writer]:
             s.attach_context(self._context)
             s.validate()
 
@@ -241,6 +231,7 @@ class Pipeline(Stage):
 
         q.put(EndOfQueue())
         writer_proc.join()
+        return self.writer.get_output()
 
 
 def _producer_worker(
@@ -259,8 +250,7 @@ def _producer_worker(
 
         # sources ignore input
         for out in pipe(iter(())):
-            if isinstance(out, Patch):
-                queue.put(out)
+            queue.put(out)
     except KeyboardInterrupt:
         pass
     except Exception as e:

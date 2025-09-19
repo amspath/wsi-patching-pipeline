@@ -3,11 +3,11 @@ from multiprocessing.queues import Queue as MPQueue
 from typing import Any, Union
 
 from wsi_patching.utils.logging_config import init_logging
-from wsi_patching.utils.meta_typing import WriterMeta
-from wsi_patching.utils.types import EndOfQueue, EndOfStream, Patch
+from wsi_patching.utils.meta_typing import ContextAware, WriterMeta
+from wsi_patching.utils.types import EndOfQueue, EndOfStream
 
 
-class WriterBase(metaclass=WriterMeta):
+class WriterBase(ContextAware, metaclass=WriterMeta):
     """
     Base class for sink stages (writers). It hides multiprocessing queue handling and
     special control messages (EndOfStream / EndOfQueue).
@@ -46,6 +46,13 @@ class WriterBase(metaclass=WriterMeta):
         """Flush and close resources."""
         pass
 
+    def get_output(self) -> Any:
+        """Return the output of the writer, if any. Default: None.
+
+        The output is always returned by the run() method in the pipeline.
+        """
+        return None
+
     # ----- helpers -----
     def _ensure_open(self) -> None:
         if not self._is_open:
@@ -63,7 +70,7 @@ class WriterBase(metaclass=WriterMeta):
         self._ensure_open()
         try:
             while True:
-                msg: Union[Patch, EndOfStream, EndOfQueue] = queue.get()
+                msg: Union[Any, EndOfStream, EndOfQueue] = queue.get()
                 if isinstance(msg, EndOfQueue):
                     logging.info("Writer received EndOfQueue (shutdown).")
                     break

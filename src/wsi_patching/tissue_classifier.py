@@ -26,6 +26,8 @@ class DummyTissueClassifier(Stage):
     def validate(self):
         self.ctx.require_key("use_gpu")
 
+        assert torch.cuda.is_available() or not self.ctx["use_gpu"], "No CUDA available, cannot use GPU mode"
+
     def __call__(self, it: Iterable[CollatedPatchBatch]) -> Iterable[CollatedPatchBatch]:
         for collated_patch_batch in it:
             patches = collated_patch_batch.patches
