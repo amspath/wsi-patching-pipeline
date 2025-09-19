@@ -144,6 +144,7 @@ class RegionReadAndBatch(Stage):
       - read the entire region once (cuCIM read_region with num_workers, else PIL crop)
       - slice region into tile patches
       - accumulate into batches of 'batch_size', yield {"batch": [samples,...]}
+      - Output patch batches are of shape [B, H, W, C]
     """
 
     def __init__(self, batch_size: int = 200, num_workers: int = 8):

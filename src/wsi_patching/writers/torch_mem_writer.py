@@ -77,9 +77,9 @@ class TorchMemoryWriter(WriterBase):
         # patches -> torch.float32 on target device
         images_t = self._to_tensor(batch.patches, device=self._device, dtype=self.dtype)
 
-        # expect BCHW; permute only if user requested NHWC
-        if self.layout == "NHWC":
-            images_t = images_t.permute(0, 2, 3, 1).contiguous()
+        # expect BHWC; permute if user requested NCHW (default)
+        if self.layout == "NCHW":
+            images_t = images_t.permute(0, 3, 1, 2).contiguous()
 
         # basic length check
         if images_t.shape[0] != coords_t.shape[0]:
@@ -100,9 +100,7 @@ class TorchMemoryWriter(WriterBase):
         if not self._images_chunks:
             # empty dataset
             dev = self._device if self._device is not None else torch.device("cpu")
-            empty_imgs = torch.empty(
-                (0, 1, 1, 1) if self.layout == "NCHW" else (0, 1, 1, 1), dtype=self.dtype, device=dev
-            )
+            empty_imgs = torch.empty((0, 1, 1, 1), dtype=self.dtype, device=dev)
             empty_coords = torch.empty((0, 2), dtype=torch.long, device=dev)
             self._dataset = InMemoryPatchDataset(empty_imgs, empty_coords, [], layout=self.layout)
             logging.info("TorchMemoryWriter closed with empty dataset.")
