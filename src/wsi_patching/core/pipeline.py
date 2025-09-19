@@ -9,16 +9,9 @@ from pathlib import Path
 from typing import Any, Iterable, Iterator, List, Optional, Union, get_args, get_origin
 
 from wsi_patching.utils.logging_config import init_logging
-from wsi_patching.utils.meta_typing import StageMeta, WriterMeta
+from wsi_patching.utils.meta_typing import ContextAware, PipelineContext, StageMeta, WriterMeta
 from wsi_patching.utils.profiling import PipelineProfileAggregator, Profiler, set_current_profiler
 from wsi_patching.utils.types import EndOfQueue, EndOfStream
-
-
-# -------- Context --------
-class PipelineContext(dict):
-    def require_key(self, key: str):
-        if key not in self:
-            raise KeyError(f"Missing required context key: '{key}'")
 
 
 def _type_options(t: Any) -> tuple[type, ...]:
@@ -52,7 +45,7 @@ def _tname(t: Any) -> str:
         return str(t)
 
 
-class Stage(metaclass=StageMeta):
+class Stage(ContextAware, metaclass=StageMeta):
     input_type: Any = object
     output_type: Any = object
 
@@ -65,21 +58,8 @@ class Stage(metaclass=StageMeta):
     def for_slide(self, slide_path: str) -> "Stage":
         return self
 
-    def attach_context(self, ctx: PipelineContext) -> None:
-        self._ctx = ctx
 
-    def export_context(self, ctx: PipelineContext) -> None:
-        pass
-
-    def validate(self) -> None:
-        pass
-
-    @property
-    def ctx(self) -> PipelineContext:
-        return getattr(self, "_ctx", PipelineContext())
-
-
-class WriterBase(metaclass=WriterMeta):
+class WriterBase(ContextAware, metaclass=WriterMeta):
     """
     Base class for sink stages (writers). It hides multiprocessing queue handling and
     special control messages (EndOfStream / EndOfQueue).
@@ -130,19 +110,6 @@ class WriterBase(metaclass=WriterMeta):
         if not self._is_open:
             self.open()
             self._is_open = True
-
-    def attach_context(self, ctx: PipelineContext) -> None:
-        self._ctx = ctx
-
-    def export_context(self, ctx: PipelineContext) -> None:
-        pass
-
-    def validate(self) -> None:
-        pass
-
-    @property
-    def ctx(self) -> PipelineContext:
-        return getattr(self, "_ctx", PipelineContext())
 
     # ----- Multiprocess consumer entrypoint -----
     def start_writer(self, queue: MPQueue) -> None:

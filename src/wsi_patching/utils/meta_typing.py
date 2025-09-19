@@ -5,30 +5,56 @@ from typing import Any, Iterable, Union, get_args, get_origin
 class StageMeta(type):
     def __new__(mcls, name, bases, ns, **kw):
         cls = super().__new__(mcls, name, bases, ns)
-        # Defaults
         in_t = getattr(cls, "input_type", object)
         out_t = getattr(cls, "output_type", object)
-        call = ns.get("__call__")
-        if call and hasattr(call, "__annotations__"):
-            ann = call.__annotations__
-            in_t = _iter_payload(ann.get("it", None)) or in_t
-            out_t = _iter_payload(ann.get("return", None)) or out_t
-        cls.input_type = in_t
-        cls.output_type = out_t
+        in_t, out_t = _infer_types_from_annotations(
+            ns.get("__call__"), in_key="it", out_key="return", default_in=in_t, default_out=out_t
+        )
+        cls.input_type, cls.output_type = in_t, out_t
         return cls
 
 
 class WriterMeta(type):
     def __new__(mcls, name, bases, ns, **kw):
         cls = super().__new__(mcls, name, bases, ns)
-        # Defaults
         in_t = getattr(cls, "input_type", object)
-        write_function = ns.get("write")
-        if write_function and hasattr(write_function, "__annotations__"):
-            ann = write_function.__annotations__
-            in_t = _iter_payload(ann.get("sample", None)) or in_t
+        in_t, _ = _infer_types_from_annotations(ns.get("write"), in_key="sample", default_in=in_t, default_out=None)
         cls.input_type = in_t
         return cls
+
+
+def _infer_types_from_annotations(func, in_key=None, out_key=None, default_in=object, default_out=object):
+    in_t, out_t = default_in, default_out
+    if func and hasattr(func, "__annotations__"):
+        ann = func.__annotations__
+        if in_key:
+            in_t = _iter_payload(ann.get(in_key)) or in_t
+        if out_key:
+            out_t = _iter_payload(ann.get(out_key)) or out_t
+    return in_t, out_t
+
+
+class PipelineContext(dict):
+    def require_key(self, key: str):
+        if key not in self:
+            raise KeyError(f"Missing required context key: '{key}'")
+
+
+class ContextAware:
+    """Mixin for pipeline components that want a PipelineContext."""
+
+    def attach_context(self, ctx: PipelineContext) -> None:
+        self._ctx = ctx
+
+    def export_context(self, ctx: PipelineContext) -> None:
+        pass
+
+    def validate(self) -> None:
+        pass
+
+    @property
+    def ctx(self) -> PipelineContext:
+        return getattr(self, "_ctx", PipelineContext())
 
 
 # -------- Annotation utilities --------

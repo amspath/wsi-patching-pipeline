@@ -68,9 +68,6 @@ class TorchMemoryWriter(WriterBase):
     def write(self, batch: CollatedPatchBatch) -> None:
         logging.info(f"[writer] Received batch from wsi: {batch.wsi_id} size: {len(batch.patches)}")
 
-        if batch is None:
-            return
-
         # coords -> torch.long on target device
         coords_t = torch.as_tensor(batch.coords, dtype=torch.long, device=self._device)
 
@@ -115,34 +112,25 @@ class TorchMemoryWriter(WriterBase):
 
         self._dataset = InMemoryPatchDataset(images=images, coords=coords, wsi_ids=self._wsi_ids, layout=self.layout)
         logging.info(
-            "TorchMemoryWriter closed. Final dataset: N=%d, shape=%s, device=%s, layout=%s",
-            len(self._dataset),
-            tuple(self._dataset.images.shape),
-            self._dataset.images.device,
-            self.layout,
+            f"TorchMemoryWriter closed. Final dataset: N={len(self._dataset)}, "
+            f"shape={tuple(self._dataset.images.shape)}, "
+            f"device={self._dataset.images.device}, layout={self.layout}"
         )
 
     def get_output(self) -> torch.utils.data.Dataset:
         if self._dataset is None:
             self.close()
-        return self._dataset  # type: ignore[return-value]
+        return self._dataset
 
     # --- helpers ---
     def _to_tensor(
-        self,
-        arr: Union[np.ndarray, "cp.ndarray"],  # type: ignore[name-defined]
-        device: torch.device,
-        dtype: torch.dtype,
+        self, arr: Union[np.ndarray, "cp.ndarray"], device: torch.device, dtype: torch.dtype
     ) -> torch.Tensor:
         """Convert numpy/cupy BCHW array to torch.Tensor on desired device & dtype (eager)."""
         if isinstance(arr, cp.ndarray):
-            arr = cp.asnumpy(arr)
-
-        if isinstance(arr, np.ndarray):
-            t = torch.from_numpy(arr)
-        else:
-            # last resort: let torch try to wrap (will raise if unsupported)
             t = torch.as_tensor(arr)
+        else:
+            t = torch.from_numpy(arr)
 
         # move/cast in one go
         return t.to(device=device, dtype=dtype, non_blocking=(device.type == "cuda"))
