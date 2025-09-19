@@ -5,8 +5,8 @@ from typing import List, Optional
 
 import webdataset as wds
 
+from wsi_patching.core.pipeline import WriterBase
 from wsi_patching.utils.types import Patch
-from wsi_patching.writers.writer import WriterBase
 
 
 class WebDatasetWriter(WriterBase):
