@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import logging
-import time
 from pathlib import Path
 
 from wsi_patching.core.chunking_and_batching import ReadWindowChunker, RegionReadAndBatch, TilePlanner
@@ -21,15 +19,13 @@ def main():
         WSIGrid(slides=slides, tile_size=256, stride=256, level=0, use_gpu=True)
         .then(AttachROIs(providers=[RectROIProvider(rois_dict)]))
         .then(TilePlanner())
-        .then(ReadWindowChunker(max_window_size=4096))
+        .then(ReadWindowChunker(max_window_size=8192))
         .then(RegionReadAndBatch(batch_size=200, num_workers=4))
         .to(TorchMemoryWriter(layout="NCHW"))
     )
 
-    start_time = time.time()
     torch_dataset = p.run(cpu_processes=2, profile=False)
     print(torch_dataset)
-    logging.info(f"Done in {time.time() - start_time:.1f} seconds.")
 
 
 if __name__ == "__main__":
