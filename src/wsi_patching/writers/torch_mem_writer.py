@@ -6,6 +6,7 @@ if TYPE_CHECKING:
 import numpy as np
 import torch
 
+from wsi_patching.backends.torch_device import get_torch_device
 from wsi_patching.core.pipeline import WriterBase
 from wsi_patching.utils.types import CollatedPatchBatch
 
@@ -62,8 +63,7 @@ class TorchMemoryWriter(WriterBase):
     # --- WriterBase hooks ---
     def open(self) -> None:
         logging.info("TorchMemoryWriter opening...")
-        use_gpu = self.ctx["use_gpu"]
-        self._device = torch.device("cuda") if use_gpu and torch.cuda.is_available() else torch.device("cpu")
+        self._device = get_torch_device(self.ctx["use_gpu"])
         logging.info("TorchMemoryWriter device=%s, layout=%s, dtype=%s", self._device, self.layout, self.dtype)
 
     def write(self, batch: CollatedPatchBatch) -> None:
@@ -129,4 +129,4 @@ class TorchMemoryWriter(WriterBase):
     ) -> torch.Tensor:
         """Convert numpy/cupy BCHW array to torch.Tensor on desired device & dtype (eager)."""
         # move/cast in one go
-        return torch.as_tensor(arr).to(device=device, dtype=dtype, non_blocking=(device.type == "cuda"))
+        return torch.as_tensor(arr).to(device=device, dtype=dtype, non_blocking=(device.type in ("cuda", "mps")))
