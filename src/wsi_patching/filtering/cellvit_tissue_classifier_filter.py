@@ -3,13 +3,13 @@ from dataclasses import replace
 from importlib.resources import as_file, files
 from typing import Iterable, List, Union
 
-import cupy as cp  # optional
 import numpy as np
 import torch
 import torch.nn as nn
-import torchvision.transforms.functional as F
 from torchvision.models import mobilenet_v3_small
 
+from wsi_patching.backends.cupy_numpy import ensure_cupy
+from wsi_patching.backends.torch_device import get_torch_device
 from wsi_patching.core.pipeline import Stage
 from wsi_patching.utils.types import CollatedPatchBatch
 
@@ -20,9 +20,6 @@ class CellVitTissueClassifierFilter(Stage):
       - Expects checkpoint with key "model_state_dict"
       - Class 0 is considered 'tissue' (kept); others are filtered out
       - Adds per-patch predictions & probabilities to batch.meta
-
-    Context (optional but supported):
-      - ctx['use_gpu']: bool -> prefer CUDA if available
     """
 
     def __init__(self):
@@ -41,12 +38,7 @@ class CellVitTissueClassifierFilter(Stage):
         self.ctx.require_key("use_gpu")
         self.ctx.require_key("tile_size")
 
-        assert torch.cuda.is_available() or not self.ctx["use_gpu"], "No CUDA available, cannot use GPU mode"
-
-        if self.ctx["use_gpu"]:
-            self.device: torch.device = torch.device("cuda")
-        else:
-            self.device: torch.device = torch.device("cpu")
+        self._device = get_torch_device(self.ctx["use_gpu"])
 
         if self.ctx["tile_size"] < 32:
             logging.warning("The tissue classifier was not trained on very small patches (<32px). Results may be poor.")
@@ -57,18 +49,12 @@ class CellVitTissueClassifierFilter(Stage):
         for collated_patch_batch in it:
             patches = collated_patch_batch.patches  # (N,H,W,C) uint8, np or cp
 
-            # Torch only accepts NumPy for from_numpy; move to host if needed
-            if isinstance(patches, cp.ndarray):
-                patches_np = cp.asnumpy(patches)
-            else:
-                patches_np = patches
-
             # Forward pass in chunks
             preds_list: List[torch.Tensor] = []
             probs_list: List[torch.Tensor] = []
 
             with torch.inference_mode():
-                t = self._preprocess_batch(patches_np)  # (B,3,S,S) on device
+                t = self._preprocess_batch(patches)  # (B,3,S,S) on device
                 logits = self.model(t)  # (B,4)
                 probs = torch.softmax(logits, dim=1)  # (B,4)
                 preds = torch.argmax(probs, dim=1)  # (B,)
@@ -84,7 +70,7 @@ class CellVitTissueClassifierFilter(Stage):
             new_coords = [c for c, m in zip(collated_patch_batch.coords, keep_mask_np) if m]
 
             if self.ctx["use_gpu"]:
-                keep_mask_backend = cp.asarray(keep_mask_np)
+                keep_mask_backend = ensure_cupy(keep_mask_np)
                 new_patches = patches[keep_mask_backend]
             else:
                 new_patches = patches[keep_mask_np]
@@ -92,25 +78,23 @@ class CellVitTissueClassifierFilter(Stage):
             patch_batch = replace(collated_patch_batch, coords=new_coords, patches=new_patches)
 
             logging.info(
-                f"Yield CellVitTissueClassifier: wsi={patch_batch.wsi_id} in={len(patches_np)} kept={len(new_patches)}"
+                f"Yield CellVitTissueClassifier: wsi={patch_batch.wsi_id} in={len(patches)} kept={len(new_patches)}"
             )
             yield patch_batch
 
     def _preprocess_batch(self, batch_imgs: np.ndarray) -> torch.Tensor:
         """
         batch_imgs: uint8 (B,H,W,C) NumPy
-        returns: float32 (B,3,S,S) Torch tensor on self.device
+        returns: float32 (B,3,S,S) Torch tensor on self._device
         """
         t = torch.as_tensor(batch_imgs).permute(0, 3, 1, 2).float() / 255.0  # (B,3,H,W) on CPU
-        t = t.to(self.device, non_blocking=True)
+        t = t.to(self._device, non_blocking=True)
         t = (t - self.mean) / self.std
         return t
 
     def _lazy_load(self):
         if self.model is not None:
             return
-
-        self.device = torch.device("cuda") if (self.ctx["use_gpu"]) else torch.device("cpu")
 
         model = mobilenet_v3_small(weights=None)
 
@@ -124,14 +108,14 @@ class CellVitTissueClassifierFilter(Stage):
 
         # Get a real filesystem path (works even if package is in a zip)
         with as_file(self._ckpt_resource) as ckpt_path:
-            checkpoint = torch.load(ckpt_path, map_location=self.device)
+            checkpoint = torch.load(ckpt_path, map_location=self._device)
 
         state = checkpoint.get("model_state_dict", checkpoint)
         model.load_state_dict(state, strict=True)
-        self.model = model.to(self.device).eval()
+        self.model = model.to(self._device).eval()
 
         # Move normalization buffers
-        self.mean = self.mean.to(self.device)
-        self.std = self.std.to(self.device)
+        self.mean = self.mean.to(self._device)
+        self.std = self.std.to(self._device)
 
-        logging.info(f"Loaded checkpoint to {self.device}")
+        logging.info(f"Loaded checkpoint to {self._device}")

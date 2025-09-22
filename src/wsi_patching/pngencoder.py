@@ -2,9 +2,9 @@ import io
 import time
 from typing import Iterable
 
-import cupy as cp
 from PIL import Image
 
+from wsi_patching.backends.cupy_numpy import ensure_numpy
 from wsi_patching.core.pipeline import Stage
 from wsi_patching.utils.profiling import get_current_profiler
 from wsi_patching.utils.types import CollatedPatchBatch, Patch
@@ -31,8 +31,7 @@ class PNGEncoder(Stage):
                 else:
                     patch_uint8 = batch.patches[idx]
 
-                if isinstance(patch_uint8, cp.ndarray):
-                    patch_uint8 = patch_uint8.get()
+                patch_uint8 = ensure_numpy(patch_uint8)
 
                 # PNG
                 bio = io.BytesIO()

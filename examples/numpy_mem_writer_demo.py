@@ -10,7 +10,7 @@ def main():
     slides = ["./data/RBIO-GC072-HE-01.tiff", "./data/RBIO-GC072-HE-02.tiff"]
 
     p = (
-        WSIGrid(slides=slides, tile_size=256, stride=256, level=0, use_gpu=False)
+        WSIGrid(slides=slides, tile_size=256, stride=256, level=0, use_gpu=True)
         .then(TilePlanner())
         .then(ReadWindowChunker(max_window_size=8192))
         .then(RegionReadAndBatch(batch_size=800, num_workers=4))

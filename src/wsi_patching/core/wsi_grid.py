@@ -1,9 +1,10 @@
 import logging
 from pathlib import Path
-from typing import Any, Iterable, List, Tuple
+from typing import Any, Iterable, List
 
-from cucim import CuImage
-
+from wsi_patching.backends.cucim_openslide import get_dimensions_for_level, validate_slide_backend
+from wsi_patching.backends.cupy_numpy import validate_xp_backend
+from wsi_patching.backends.torch_device import get_torch_device
 from wsi_patching.core.pipeline import PipelineContext, Stage
 from wsi_patching.utils.types import Slide
 
@@ -28,6 +29,11 @@ class WSIGrid(Stage):
         ctx["level"] = self.level
         ctx["use_gpu"] = self.use_gpu
 
+    def validate(self) -> None:
+        validate_slide_backend(self.use_gpu)
+        validate_xp_backend(self.use_gpu)
+        get_torch_device(self.use_gpu)
+
     def for_slide(self, slide_path: str) -> "Stage":
         return WSIGrid(
             slides=[slide_path], tile_size=self.tile_size, stride=self.stride, use_gpu=self.use_gpu, level=self.level
@@ -36,11 +42,6 @@ class WSIGrid(Stage):
     def __call__(self, _it: Iterable[Any]) -> Iterable[Slide]:
         for path in self.slides:
             wsi_id = Path(path).stem
-            W, H = self._get_level_dims(path, self.level)
+            W, H = get_dimensions_for_level(path, self.level, self.use_gpu)
             logging.info(f"Starting on Slide {wsi_id}")
-            yield Slide(wsi_id=wsi_id, wsi_path=path, dims=(W, H), meta={"backend": "cucim"})
-
-    def _get_level_dims(self, path: str, level: int) -> Tuple[int, int]:
-        img = CuImage(path)
-        W, H = img.resolutions["level_dimensions"][level]
-        return int(W), int(H)
+            yield Slide(wsi_id=wsi_id, wsi_path=path, dims=(W, H), meta={})

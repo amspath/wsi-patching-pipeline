@@ -1,7 +1,8 @@
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Tuple, Union
 
-import cupy as cp
+if TYPE_CHECKING:
+    import cupy as cp
 import numpy as np
 
 Box = Tuple[int, int, int, int]

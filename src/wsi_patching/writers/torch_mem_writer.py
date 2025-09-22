@@ -1,10 +1,12 @@
 import logging
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Union
 
-import cupy as cp  # optional
+if TYPE_CHECKING:
+    import cupy as cp
 import numpy as np
 import torch
 
+from wsi_patching.backends.torch_device import get_torch_device
 from wsi_patching.core.pipeline import WriterBase
 from wsi_patching.utils.types import CollatedPatchBatch
 
@@ -61,12 +63,11 @@ class TorchMemoryWriter(WriterBase):
     # --- WriterBase hooks ---
     def open(self) -> None:
         logging.info("TorchMemoryWriter opening...")
-        use_gpu = self.ctx["use_gpu"]
-        self._device = torch.device("cuda") if use_gpu and torch.cuda.is_available() else torch.device("cpu")
+        self._device = get_torch_device(self.ctx["use_gpu"])
         logging.info("TorchMemoryWriter device=%s, layout=%s, dtype=%s", self._device, self.layout, self.dtype)
 
     def write(self, batch: CollatedPatchBatch) -> None:
-        logging.info(f"[writer] Received batch from wsi: {batch.wsi_id} size: {len(batch.patches)}")
+        logging.info(f"Received batch from wsi: {batch.wsi_id} size: {len(batch.patches)}")
 
         # coords -> torch.long on target device
         coords_t = torch.as_tensor(batch.coords, dtype=torch.long, device=self._device)
@@ -127,10 +128,5 @@ class TorchMemoryWriter(WriterBase):
         self, arr: Union[np.ndarray, "cp.ndarray"], device: torch.device, dtype: torch.dtype
     ) -> torch.Tensor:
         """Convert numpy/cupy BCHW array to torch.Tensor on desired device & dtype (eager)."""
-        if isinstance(arr, cp.ndarray):
-            t = torch.as_tensor(arr)
-        else:
-            t = torch.from_numpy(arr)
-
         # move/cast in one go
-        return t.to(device=device, dtype=dtype, non_blocking=(device.type == "cuda"))
+        return torch.as_tensor(arr).to(device=device, dtype=dtype, non_blocking=(device.type in ("cuda", "mps")))

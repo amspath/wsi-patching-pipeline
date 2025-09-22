@@ -4,6 +4,7 @@ from typing import Iterable
 
 import torch
 
+from wsi_patching.backends.torch_device import get_torch_device
 from wsi_patching.core.pipeline import Stage
 from wsi_patching.utils.types import CollatedPatchBatch
 
@@ -14,10 +15,6 @@ class DummyTissueClassifierFilter(Stage):
       - Convert to tensor (if torch available)
       - Compute a trivial "tissue score" (mean intensity)
       - Attach score & binary label; return the same batch structure
-
-    device:
-      - "cuda" to prefer GPU if available (default)
-      - "cpu" to force CPU path
     """
 
     def __init__(self):
@@ -26,20 +23,18 @@ class DummyTissueClassifierFilter(Stage):
     def validate(self):
         self.ctx.require_key("use_gpu")
 
-        assert torch.cuda.is_available() or not self.ctx["use_gpu"], "No CUDA available, cannot use GPU mode"
+        self._device = get_torch_device(self.ctx["use_gpu"])
 
     def __call__(self, it: Iterable[CollatedPatchBatch]) -> Iterable[CollatedPatchBatch]:
         for collated_patch_batch in it:
             patches = collated_patch_batch.patches
 
             # Convert to tensor (B,H,W,C) -> normalize to [0,1]
-            if self.ctx["use_gpu"]:
-                ten = torch.as_tensor(patches, device="cuda").float() / 255.0  # B,H,W,C
-                ten = ten.cuda(non_blocking=True)
-            else:
-                ten = torch.from_numpy(patches).float() / 255.0  # B,H,W,C
-
+            ten = torch.as_tensor(patches, device=self._device).float() / 255.0  # B,H,W,C
             ten = ten.permute(0, 3, 1, 2)  # B,C,H,W
+
+            if self.ctx["use_gpu"]:
+                ten = ten.cuda(non_blocking=True)
 
             # Simple "score": mean over (C,H,W)
             scores = ten.mean(dim=(1, 2, 3)).detach().cpu().numpy()

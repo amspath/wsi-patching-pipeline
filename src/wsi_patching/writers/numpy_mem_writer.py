@@ -1,9 +1,9 @@
 import logging
-from typing import List, Literal, Tuple, Union
+from typing import List, Literal, Tuple
 
-import cupy as cp
 import numpy as np
 
+from wsi_patching.backends.cupy_numpy import ensure_numpy
 from wsi_patching.core.pipeline import WriterBase
 from wsi_patching.utils.types import CollatedPatchBatch
 
@@ -34,13 +34,18 @@ class NumpyMemoryWriter(WriterBase):
         logging.info("NumpyMemoryWriter opening... layout=%s dtype=%s", self.layout, self.dtype)
 
     def write(self, batch: CollatedPatchBatch) -> None:
-        logging.info(f"[writer] Received batch from wsi: {batch.wsi_id} size: {len(batch.patches)}")
+        logging.info(f"Received batch from wsi: {batch.wsi_id} size: {len(batch.patches)}")
 
         # coords -> np.int64
         coords_np = np.asarray(batch.coords, dtype=np.int64)
 
         # patches -> np.float (from numpy or cupy)
-        images_np = self._to_numpy(batch.patches, dtype=self.dtype)
+        images_np = ensure_numpy(batch.patches)
+        images_np = np.asarray(images_np, dtype=self.dtype)
+
+        # ensure contiguous memory for fast slicing
+        if not images_np.flags["C_CONTIGUOUS"]:
+            images_np = np.ascontiguousarray(images_np)
 
         # store as requested layout (assume input is BHWC)
         if self.layout == "NCHW":
@@ -83,18 +88,3 @@ class NumpyMemoryWriter(WriterBase):
             self.close()
         assert self.final_images is not None
         return self.final_images, self.final_coords, self.final_wsi_ids
-
-    # --- helpers ---
-    def _to_numpy(self, arr: Union[np.ndarray, "cp.ndarray"], dtype: np.dtype) -> np.ndarray:
-        """
-        Convert input (numpy or cupy) assumed BCHW to a contiguous NumPy array of given dtype.
-        """
-        if isinstance(arr, cp.ndarray):  # type: ignore[name-defined]
-            arr = cp.asnumpy(arr)
-        out = np.asarray(arr, dtype=dtype)
-
-        # ensure contiguous memory for fast slicing
-        if not out.flags["C_CONTIGUOUS"]:
-            out = np.ascontiguousarray(out)
-
-        return out
