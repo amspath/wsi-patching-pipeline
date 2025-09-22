@@ -1,9 +1,8 @@
 import io
-import logging
 import time
-from dataclasses import dataclass
 from typing import Iterable
 
+import cupy as cp
 from PIL import Image
 
 from wsi_patching.core.pipeline import Stage
@@ -31,6 +30,9 @@ class PNGEncoder(Stage):
                     patch_uint8 = (batch.patches[idx].clip(0, 255)).astype("uint8")
                 else:
                     patch_uint8 = batch.patches[idx]
+
+                if isinstance(patch_uint8, cp.ndarray):
+                    patch_uint8 = patch_uint8.get()
 
                 # PNG
                 bio = io.BytesIO()
