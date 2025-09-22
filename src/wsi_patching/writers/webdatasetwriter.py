@@ -36,7 +36,7 @@ class WebDatasetWriter(WriterBase):
             self._flush_buffer()
 
     def close(self) -> None:
-        if self._buffer:
+        while self._buffer:
             self._flush_buffer()
         if self._sink is not None:
             logging.info(f"WebDatasetWriter processed {self.write_count} samples. Closing sink...")
