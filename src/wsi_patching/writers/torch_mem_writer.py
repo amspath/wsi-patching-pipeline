@@ -67,7 +67,7 @@ class TorchMemoryWriter(WriterBase):
         logging.info("TorchMemoryWriter device=%s, layout=%s, dtype=%s", self._device, self.layout, self.dtype)
 
     def write(self, batch: CollatedPatchBatch) -> None:
-        logging.info(f"[writer] Received batch from wsi: {batch.wsi_id} size: {len(batch.patches)}")
+        logging.info(f"Received batch from wsi: {batch.wsi_id} size: {len(batch.patches)}")
 
         # coords -> torch.long on target device
         coords_t = torch.as_tensor(batch.coords, dtype=torch.long, device=self._device)

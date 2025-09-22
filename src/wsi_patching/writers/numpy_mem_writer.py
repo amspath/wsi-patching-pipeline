@@ -34,7 +34,7 @@ class NumpyMemoryWriter(WriterBase):
         logging.info("NumpyMemoryWriter opening... layout=%s dtype=%s", self.layout, self.dtype)
 
     def write(self, batch: CollatedPatchBatch) -> None:
-        logging.info(f"[writer] Received batch from wsi: {batch.wsi_id} size: {len(batch.patches)}")
+        logging.info(f"Received batch from wsi: {batch.wsi_id} size: {len(batch.patches)}")
 
         # coords -> np.int64
         coords_np = np.asarray(batch.coords, dtype=np.int64)

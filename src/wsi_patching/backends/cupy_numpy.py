@@ -10,6 +10,11 @@ from typing import Union
 import numpy as np
 
 
+def validate_xp_backend(use_gpu: bool) -> None:
+    if use_gpu and not _cupy_available:
+        raise ImportError("CuPy is not available. Please install CuPy to use GPU backend.")
+
+
 def ensure_numpy(arr: Union[np.ndarray, "cp.ndarray"]) -> np.ndarray:
     """Ensure the input array is a NumPy ndarray. If it's a CuPy array, convert it to NumPy."""
     if _cupy_available and isinstance(arr, cp.ndarray):

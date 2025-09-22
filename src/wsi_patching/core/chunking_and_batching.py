@@ -1,11 +1,11 @@
 import logging
-from typing import TYPE_CHECKING, Iterable, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Iterable, List, Tuple, Union
 
 if TYPE_CHECKING:
     import cupy as cp
 import numpy as np
-from cucim import CuImage
 
+from wsi_patching.backends.cucim_openslide import read_region
 from wsi_patching.backends.cupy_numpy import get_xp_backend
 from wsi_patching.core.pipeline import Stage
 from wsi_patching.core.regions_of_interest import ROI, BoxROI, WholeSlideProvider
@@ -168,7 +168,9 @@ class RegionReadAndBatch(Stage):
 
         for task in it:
             x0, y0, w, h = task.region
-            region_img = _read_region(task.wsi_path, x0, y0, w, h, level, self.num_workers)
+            region_img = read_region(
+                task.wsi_path, x0, y0, w, h, level, use_gpu=self.ctx["use_gpu"], num_workers_cucim=self.num_workers
+            )
 
             coords: List[Tuple[int, int]] = []
             patches: List[Union[np.ndarray, "cp.ndarray"]] = []
@@ -193,22 +195,6 @@ class RegionReadAndBatch(Stage):
         batch_array = np.stack(patches, axis=0)
         patches_xp = xp.asarray(batch_array, dtype=self.dtype)
         return CollatedPatchBatch(wsi_id=task.wsi_id, coords=coords, patches=patches_xp, meta=task.meta)
-
-
-def _read_region(path: str, x: int, y: int, w: int, h: int, level: int, num_workers: int = 8) -> Optional[np.ndarray]:
-    """
-    Return HxWxC uint8 array for the requested region at the given level.
-    Prefer cuCIM; fallback to PIL (level 0 only).
-    """
-    img = CuImage(path)
-    region = img.read_region(location=(x, y), size=(w, h), level=level, num_workers=num_workers)
-    # Ensure HxWxC uint8
-    arr = np.asarray(region)
-    if arr.ndim == 2:
-        arr = np.stack([arr, arr, arr], axis=-1)
-    if arr.dtype != np.uint8:
-        arr = np.clip(arr, 0, 255).astype(np.uint8)
-    return arr
 
 
 def _align_to_grid(v: int, stride: int, origin: int = 0) -> int:
