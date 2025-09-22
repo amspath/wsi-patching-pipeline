@@ -17,7 +17,7 @@ def main():
         .to(TorchMemoryWriter(layout="NCHW"))
     )
 
-    torch_dataset = p.run(cpu_processes=2, profile=False)
+    torch_dataset = p.run(cpu_processes=2, profile=False, verbosity_level="INFO")
     print(torch_dataset)
 
 

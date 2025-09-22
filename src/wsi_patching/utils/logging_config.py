@@ -1,10 +1,14 @@
 import logging
 import sys
 
+from typing_extensions import Literal
 
-def init_logging():
+LogLevel = int | Literal["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG", "NOTSET"]
+
+
+def init_logging(verbosity_level: LogLevel) -> None:
     logging.basicConfig(
-        level=logging.INFO,
-        format="[%(asctime)s] [%(processName)s] %(message)s",
+        level=verbosity_level,
+        format="[%(asctime)s] [%(processName)s] [%(name)s] %(message)s",
         handlers=[logging.StreamHandler(sys.stdout)],
     )

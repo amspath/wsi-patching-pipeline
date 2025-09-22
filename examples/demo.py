@@ -81,7 +81,7 @@ def main(argv=None):
     )
 
     start_time = time.time()
-    p.run(cpu_processes=args.procs, profile=args.profile)
+    p.run(cpu_processes=args.procs, profile=args.profile, verbosity_level="INFO")
     logging.info(f"Done in {time.time() - start_time:.1f} seconds.")
 
     if args.profile:

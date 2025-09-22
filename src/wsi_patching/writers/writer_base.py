@@ -2,7 +2,7 @@ import logging
 from multiprocessing.queues import Queue as MPQueue
 from typing import Any, Union
 
-from wsi_patching.utils.logging_config import init_logging
+from wsi_patching.utils.logging_config import LogLevel, init_logging
 from wsi_patching.utils.meta_typing import ContextAware, WriterMeta
 from wsi_patching.utils.types import EndOfQueue, EndOfStream
 
@@ -28,6 +28,10 @@ class WriterBase(ContextAware, metaclass=WriterMeta):
 
     def __init__(self) -> None:
         self._is_open = False
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        cls.log = logging.getLogger(f"{cls.__name__}")
 
     # ----- lifecycle hooks for subclasses -----
     def open(self) -> None:
@@ -60,19 +64,19 @@ class WriterBase(ContextAware, metaclass=WriterMeta):
             self._is_open = True
 
     # ----- Multiprocess consumer entrypoint -----
-    def start_writer(self, queue: MPQueue) -> None:
+    def start_writer(self, queue: MPQueue, verbosity_level: LogLevel) -> None:
         """
         Multi-process: consume from a queue. Handles EndOfStream/EndOfQueue for you.
         Subclasses SHOULD NOT override this; implement open/write/on_end_of_stream/close instead.
         """
-        init_logging()
-        logging.info("Writer process started.")
+        init_logging(verbosity_level)
+        self.log.info("Writer process started.")
         self._ensure_open()
         try:
             while True:
                 msg: Union[Any, EndOfStream, EndOfQueue] = queue.get()
                 if isinstance(msg, EndOfQueue):
-                    logging.info("Writer received EndOfQueue (shutdown).")
+                    self.log.info("Writer received EndOfQueue (shutdown).")
                     break
                 if isinstance(msg, EndOfStream):
                     self.on_end_of_stream()
@@ -81,9 +85,9 @@ class WriterBase(ContextAware, metaclass=WriterMeta):
         except KeyboardInterrupt:
             pass
         except Exception:
-            logging.exception("Unhandled exception in writer process:", exc_info=True)
+            self.log.exception("Unhandled exception in writer process:", exc_info=True)
         finally:
             try:
                 self.close()
             except Exception:
-                logging.exception("Writer.close() raised during shutdown.", exc_info=True)
+                self.log.exception("Writer.close() raised during shutdown.", exc_info=True)

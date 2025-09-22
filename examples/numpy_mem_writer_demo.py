@@ -17,7 +17,7 @@ def main():
         .to(NumpyMemoryWriter(layout="NCHW"))
     )
 
-    np_patch_array, np_coords_array, list_of_wsi_ids = p.run(cpu_processes=2, profile=False)
+    np_patch_array, np_coords_array, list_of_wsi_ids = p.run(cpu_processes=2, profile=False, verbosity_level="INFO")
     print(
         (
             f"NumPy dataset: patches shape={np_patch_array.shape}, "

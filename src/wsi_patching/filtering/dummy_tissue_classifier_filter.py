@@ -1,4 +1,3 @@
-import logging
 from dataclasses import replace
 from typing import Iterable
 
@@ -49,6 +48,6 @@ class DummyTissueClassifierFilter(Stage):
                 patches=patches[mask],
             )
 
-            logging.info(f"Yielding batch from wsi: {patch_batch.wsi_id} size: {len(patch_batch.patches)}")
+            self.log.info(f"Yielding batch from wsi: {patch_batch.wsi_id} size: {len(patch_batch.patches)}")
 
             yield patch_batch

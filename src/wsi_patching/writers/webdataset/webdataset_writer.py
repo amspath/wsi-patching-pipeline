@@ -25,7 +25,7 @@ class WebDatasetWriter(WriterBase):
         self._sink: Optional[wds.ShardWriter] = None
 
     def open(self) -> None:
-        logging.info("WebDatasetWriter opening...")
+        self.log.info("Opening...")
         self.outdir.mkdir(parents=True, exist_ok=True)
         # allocate sink in the writer process
         self._sink = wds.ShardWriter(self.shard_pattern, maxcount=self.shard_size, verbose=0)
@@ -39,18 +39,18 @@ class WebDatasetWriter(WriterBase):
         while self._buffer:
             self._flush_buffer()
         if self._sink is not None:
-            logging.info(f"WebDatasetWriter processed {self.write_count} samples. Closing sink...")
+            self.log.info(f"Processed {self.write_count} samples. Closing sink...")
             self._sink.close()
             self._sink = None
 
     def _flush_buffer(self) -> None:
         if not self._buffer or self._sink is None:
             return
-        logging.info(f"Flushing buffer of size: {len(self._buffer)}")
+        self.log.info(f"Flushing buffer of size: {len(self._buffer)}")
         random.shuffle(self._buffer)
         # Write up to shard_size at a time for better mixing; leftover stays buffered.
         for _ in range(min(self.shard_size, len(self._buffer))):
             s = self._buffer.pop()
             self.write_count += 1
             self._sink.write({"__key__": s.key, "png": s.patch, "json": s.meta})
-        logging.info(f"Buffer size after flush: {len(self._buffer)}")
+        self.log.info(f"Buffer size after flush: {len(self._buffer)}")

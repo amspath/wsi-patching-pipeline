@@ -1,4 +1,3 @@
-import logging
 from dataclasses import replace
 from importlib.resources import as_file, files
 from typing import Iterable, List, Union
@@ -41,7 +40,9 @@ class CellVitTissueClassifierFilter(Stage):
         self._device = get_torch_device(self.ctx["use_gpu"])
 
         if self.ctx["tile_size"] < 32:
-            logging.warning("The tissue classifier was not trained on very small patches (<32px). Results may be poor.")
+            self.log.warning(
+                "The tissue classifier was not trained on very small patches (<32px). Results may be poor."
+            )
 
     def __call__(self, it: Iterable[CollatedPatchBatch]) -> Iterable[CollatedPatchBatch]:
         self._lazy_load()
@@ -77,9 +78,7 @@ class CellVitTissueClassifierFilter(Stage):
 
             patch_batch = replace(collated_patch_batch, coords=new_coords, patches=new_patches)
 
-            logging.info(
-                f"Yield CellVitTissueClassifier: wsi={patch_batch.wsi_id} in={len(patches)} kept={len(new_patches)}"
-            )
+            self.log.info(f"Yielding: wsi={patch_batch.wsi_id} in={len(patches)} kept={len(new_patches)}")
             yield patch_batch
 
     def _preprocess_batch(self, batch_imgs: np.ndarray) -> torch.Tensor:
@@ -118,4 +117,4 @@ class CellVitTissueClassifierFilter(Stage):
         self.mean = self.mean.to(self._device)
         self.std = self.std.to(self._device)
 
-        logging.info(f"Loaded checkpoint to {self._device}")
+        self.log.info(f"Loaded checkpoint to {self._device}")

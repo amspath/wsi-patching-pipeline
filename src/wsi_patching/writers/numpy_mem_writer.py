@@ -1,4 +1,3 @@
-import logging
 from typing import List, Literal, Tuple
 
 import numpy as np
@@ -25,16 +24,14 @@ class NumpyMemoryWriter(WriterBase):
 
         self.final_images, self.final_coords, self.final_wsi_ids = None, None, None
 
-        logging.info(
-            "[NumpyMemoryWriter] Initialized. NOTE: Memory heavy — stores all patches as float32 NumPy arrays in RAM."
-        )
+        self.log.info("Initialized. NOTE: Memory heavy — stores all patches as float32 NumPy arrays in RAM.")
 
     # --- WriterBase hooks ---
     def open(self) -> None:
-        logging.info("NumpyMemoryWriter opening... layout=%s dtype=%s", self.layout, self.dtype)
+        self.log.info("Opening... layout=%s dtype=%s", self.layout, self.dtype)
 
     def write(self, batch: CollatedPatchBatch) -> None:
-        logging.info(f"Received batch from wsi: {batch.wsi_id} size: {len(batch.patches)}")
+        self.log.info(f"Received batch from wsi: {batch.wsi_id} size: {len(batch.patches)}")
 
         # coords -> np.int64
         coords_np = np.asarray(batch.coords, dtype=np.int64)
@@ -65,7 +62,7 @@ class NumpyMemoryWriter(WriterBase):
             self.final_images = np.empty((0, 1, 1, 1), dtype=self.dtype)
             self.final_coords = np.empty((0, 2), dtype=np.int64)
             self.final_wsi_ids = []
-            logging.info("NumpyMemoryWriter closed with empty dataset.")
+            self.log.info("Closed with empty dataset.")
             return
 
         self.final_images = np.concatenate(self._images_chunks, axis=0)
@@ -75,8 +72,8 @@ class NumpyMemoryWriter(WriterBase):
         self._images_chunks.clear()
         self._coords_chunks.clear()
 
-        logging.info(
-            "NumpyMemoryWriter closed. Final dataset: N=%d, shape=%s, layout=%s, dtype=%s",
+        self.log.info(
+            "Closed. Final dataset: N=%d, shape=%s, layout=%s, dtype=%s",
             len(self.final_images),
             tuple(self.final_images.shape),
             self.layout,

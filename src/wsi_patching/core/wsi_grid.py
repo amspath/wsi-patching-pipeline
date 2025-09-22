@@ -1,4 +1,3 @@
-import logging
 from pathlib import Path
 from typing import Any, Iterable, List
 
@@ -43,5 +42,5 @@ class WSIGrid(Stage):
         for path in self.slides:
             wsi_id = Path(path).stem
             W, H = get_dimensions_for_level(path, self.level, self.use_gpu)
-            logging.info(f"Starting on Slide {wsi_id}")
+            self.log.info(f"Starting on Slide {wsi_id}")
             yield Slide(wsi_id=wsi_id, wsi_path=path, dims=(W, H), meta={})
