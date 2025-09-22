@@ -37,7 +37,4 @@ pipeline = (
 # More will come
 - [ ] More readme stuff
 - [ ] Tests
-- [ ] Abstract writer to easily extend and write different writers
-- [ ] More basic stuff (i.e. numpy encoder, basic xml ROI reader, cellvit tissue classifier, etc)
-- [ ] Functionality for just running the pipeline on a single tiff and getting a list of patches (instead of saving to a dataset)
-- [ ] More examples
+- [ ] More basic stuff (basic xml ROI reader, cellvit tissue classifier, etc)
