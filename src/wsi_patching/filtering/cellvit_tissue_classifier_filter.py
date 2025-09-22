@@ -26,7 +26,7 @@ class CellVitTissueClassifierFilter(Stage):
     """
 
     def __init__(self):
-        self.input_size = 224
+        self.model_train_size = 224
 
         self.model: Union[nn.Module, None] = None
 
@@ -48,13 +48,8 @@ class CellVitTissueClassifierFilter(Stage):
         else:
             self.device: torch.device = torch.device("cpu")
 
-        if self.ctx["tile_size"] != self.input_size:
-            logging.warning(
-                (
-                    "CellVitTissueClassifier: tile_size does not match != model input size. ",
-                    f"Preprocessing will automatically resize tiles to {self.input_size} for tissue classification.",
-                )
-            )
+        if self.ctx["tile_size"] < 32:
+            logging.warning("The tissue classifier was not trained on very small patches (<32px). Results may be poor.")
 
     def __call__(self, it: Iterable[CollatedPatchBatch]) -> Iterable[CollatedPatchBatch]:
         self._lazy_load()
@@ -108,7 +103,6 @@ class CellVitTissueClassifierFilter(Stage):
         """
         t = torch.as_tensor(batch_imgs).permute(0, 3, 1, 2).float() / 255.0  # (B,3,H,W) on CPU
         t = t.to(self.device, non_blocking=True)
-        t = F.resize(t, [self.input_size, self.input_size], antialias=True)  # (B,3,S,S)
         t = (t - self.mean) / self.std
         return t
 
