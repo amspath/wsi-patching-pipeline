@@ -1,10 +1,12 @@
 import logging
-from typing import Iterable, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Iterable, List, Optional, Tuple, Union
 
-import cupy as cp
+if TYPE_CHECKING:
+    import cupy as cp
 import numpy as np
 from cucim import CuImage
 
+from wsi_patching.backends.cupy_numpy import get_xp_backend
 from wsi_patching.core.pipeline import Stage
 from wsi_patching.core.regions_of_interest import ROI, BoxROI, WholeSlideProvider
 from wsi_patching.utils.types import CollatedPatchBatch, RegionTask, Slide, SlideWithROIs, TilePlan
@@ -160,7 +162,7 @@ class RegionReadAndBatch(Stage):
         self.ctx.require_key("use_gpu")
 
     def __call__(self, it: Iterable[RegionTask]) -> Iterable[CollatedPatchBatch]:
-        xp = cp if self.ctx["use_gpu"] else np
+        xp = get_xp_backend(self.ctx["use_gpu"])
         tile_size = int(self.ctx["tile_size"])
         level = int(self.ctx["level"])
 

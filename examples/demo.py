@@ -70,7 +70,7 @@ def main(argv=None):
     rois_dict = {Path(s).stem: [(0, 0, 8000, 8000)] for s in slides}
 
     p = (
-        WSIGrid(slides=slides, tile_size=224, stride=224, level=0, use_gpu=True)
+        WSIGrid(slides=slides, tile_size=224, stride=224, level=0, use_gpu=False)
         .then(AttachROIs(providers=[RectROIProvider(rois_dict)]))
         .then(TilePlanner())
         .then(ReadWindowChunker(max_window_size=224 * 40))

@@ -1,7 +1,8 @@
 import logging
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Union
 
-import cupy as cp  # optional
+if TYPE_CHECKING:
+    import cupy as cp
 import numpy as np
 import torch
 
@@ -127,10 +128,5 @@ class TorchMemoryWriter(WriterBase):
         self, arr: Union[np.ndarray, "cp.ndarray"], device: torch.device, dtype: torch.dtype
     ) -> torch.Tensor:
         """Convert numpy/cupy BCHW array to torch.Tensor on desired device & dtype (eager)."""
-        if isinstance(arr, cp.ndarray):
-            t = torch.as_tensor(arr)
-        else:
-            t = torch.from_numpy(arr)
-
         # move/cast in one go
-        return t.to(device=device, dtype=dtype, non_blocking=(device.type == "cuda"))
+        return torch.as_tensor(arr).to(device=device, dtype=dtype, non_blocking=(device.type == "cuda"))
