@@ -12,7 +12,7 @@ def main():
     p = (
         WSIGrid(slides=slides, tile_size=256, stride=256, level=0, use_gpu=True)
         .then(TilePlanner())
-        .then(ReadWindowChunker(max_window_size=8192))
+        .then(ReadWindowChunker())
         .then(RegionReadAndBatch(batch_size=800, num_workers=4))
         .to(TorchMemoryWriter(layout="NCHW"))
     )

@@ -73,7 +73,7 @@ def main(argv=None):
         WSIGrid(slides=slides, tile_size=224, stride=224, level=0, use_gpu=True)
         .then(AttachROIs(providers=[RectROIProvider(rois_dict)]))
         .then(TilePlanner())
-        .then(ReadWindowChunker(max_window_size=224 * 40))
+        .then(ReadWindowChunker())
         .then(RegionReadAndBatch(batch_size=args.batch, num_workers=args.num_workers))
         .then(CellVitTissueClassifierFilter())
         .then(PNGEncoder())

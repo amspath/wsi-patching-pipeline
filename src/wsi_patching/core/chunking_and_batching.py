@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Iterable, List, Tuple, Union
+from typing import TYPE_CHECKING, Iterable, List, Optional, Tuple, Union
 
 if TYPE_CHECKING:
     import cupy as cp
@@ -97,17 +97,27 @@ class ReadWindowChunker(Stage):
     of size up to max_window_size; emit a window only if it contains tiles.
     """
 
-    def __init__(self, max_window_size: int = 4096, align_to_stride: bool = True):
-        self.max_window_size = int(max_window_size)
+    def __init__(self, max_window_size: Optional[int] = None, align_to_stride: bool = True):
+        self.max_window_size = max_window_size
         self.align_to_stride = bool(align_to_stride)
 
     def validate(self) -> None:
         self.ctx.require_key("tile_size")
         self.ctx.require_key("stride")
 
+        if self.max_window_size is None:
+            self.max_window_size = 20 * int(self.ctx["tile_size"])
+            self.log.info(f"Defaulting max_window_size to 20*tile_size={self.max_window_size}")
+
         if self.max_window_size % self.ctx["tile_size"] != 0:
             raise ValueError(
                 "ReadWindowChunker: max_window_size must be a multiple of tile_size to avoid unnecessary padding"
+            )
+
+        if self.max_window_size > 10000:
+            self.log.warning(
+                f"ReadWindowChunker: max_window_size {self.max_window_size} is quite large, "
+                "this may lead to high memory usage and OOM errors. Consider reducing it."
             )
 
     def __call__(self, it: Iterable[TilePlan]) -> Iterable[RegionTask]:
