@@ -1,4 +1,3 @@
-import logging
 from typing import TYPE_CHECKING, Iterable, List, Tuple, Union
 
 if TYPE_CHECKING:
@@ -57,7 +56,7 @@ class TilePlanner(Stage):
                 if tiles:
                     yield TilePlan(s.wsi_id, s.wsi_path, s.dims, idx, (bx, by, bw, bh), tiles, meta=s.meta)
                 else:
-                    logging.warning(
+                    self.log.warning(
                         f"TilePlanner: no tiles found for slide {s.wsi_id} ROI {idx} bounds {bx, by, bw, bh}"
                     )
 
@@ -119,7 +118,7 @@ class ReadWindowChunker(Stage):
             bx, by, bw, bh = plan.roi_bounds
             W, H = plan.dims
             if not plan.tiles:
-                logging.warning(f"ReadWindowChunker: no tiles in plan for slide {plan.wsi_id} ROI {plan.roi_index}")
+                self.log.warning(f"ReadWindowChunker: no tiles in plan for slide {plan.wsi_id} ROI {plan.roi_index}")
                 continue
 
             x_start = _align_to_grid(max(0, bx), stride) if self.align_to_stride else bx

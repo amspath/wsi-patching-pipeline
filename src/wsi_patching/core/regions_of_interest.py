@@ -1,4 +1,3 @@
-import logging
 from dataclasses import dataclass
 from typing import Dict, Iterable, List, Tuple
 
@@ -103,10 +102,10 @@ class AttachROIs(Stage):
                 try:
                     all_rois.extend(prov.for_slide(s))
                 except Exception as e:
-                    logging.info(f"[AttachROIs] {type(prov).__name__} failed: {e}")
+                    self.log.info(f"{type(prov).__name__} failed: {e}")
 
             if not all_rois:
                 all_rois = WholeSlideProvider().for_slide(s)
-                logging.warning(f"No ROIs found for slide {s.wsi_id}; using whole slide.")
+                self.log.warning(f"No ROIs found for slide {s.wsi_id}; using whole slide.")
 
             yield SlideWithROIs(**s.__dict__, rois=all_rois)

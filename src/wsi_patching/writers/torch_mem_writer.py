@@ -53,21 +53,19 @@ class TorchMemoryWriter(WriterBase):
         self._dataset: Optional[InMemoryPatchDataset] = None
         self._device: Optional[torch.device] = None
 
-        logging.info(
-            "[TorchMemoryWriter] Initialized. NOTE: Memory heavy — stores all patches as float32 tensors in RAM/VRAM."
-        )
+        self.log.info("Initialized. NOTE: Memory heavy — stores all patches as float32 tensors in RAM/VRAM.")
 
     def validate(self) -> None:
         self.ctx.require_key("use_gpu")
 
     # --- WriterBase hooks ---
     def open(self) -> None:
-        logging.info("TorchMemoryWriter opening...")
+        self.log.info("TorchMemoryWriter opening...")
         self._device = get_torch_device(self.ctx["use_gpu"])
-        logging.info("TorchMemoryWriter device=%s, layout=%s, dtype=%s", self._device, self.layout, self.dtype)
+        self.log.info("TorchMemoryWriter device=%s, layout=%s, dtype=%s", self._device, self.layout, self.dtype)
 
     def write(self, batch: CollatedPatchBatch) -> None:
-        logging.info(f"Received batch from wsi: {batch.wsi_id} size: {len(batch.patches)}")
+        self.log.info(f"Received batch from wsi: {batch.wsi_id} size: {len(batch.patches)}")
 
         # coords -> torch.long on target device
         coords_t = torch.as_tensor(batch.coords, dtype=torch.long, device=self._device)
@@ -101,7 +99,7 @@ class TorchMemoryWriter(WriterBase):
             empty_imgs = torch.empty((0, 1, 1, 1), dtype=self.dtype, device=dev)
             empty_coords = torch.empty((0, 2), dtype=torch.long, device=dev)
             self._dataset = InMemoryPatchDataset(empty_imgs, empty_coords, [], layout=self.layout)
-            logging.info("TorchMemoryWriter closed with empty dataset.")
+            self.log.info("Closed with empty dataset.")
             return
 
         images = torch.cat(self._images_chunks, dim=0)
@@ -112,8 +110,8 @@ class TorchMemoryWriter(WriterBase):
         self._coords_chunks.clear()
 
         self._dataset = InMemoryPatchDataset(images=images, coords=coords, wsi_ids=self._wsi_ids, layout=self.layout)
-        logging.info(
-            f"TorchMemoryWriter closed. Final dataset: N={len(self._dataset)}, "
+        self.log.info(
+            f"Closed. Final dataset: N={len(self._dataset)}, "
             f"shape={tuple(self._dataset.images.shape)}, "
             f"device={self._dataset.images.device}, layout={self.layout}"
         )

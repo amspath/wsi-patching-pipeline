@@ -8,7 +8,7 @@ from multiprocessing.queues import Queue as MPQueue
 from pathlib import Path
 from typing import Any, Iterable, Iterator, List, Optional, Union, get_args, get_origin
 
-from wsi_patching.utils.logging_config import init_logging
+from wsi_patching.utils.logging_config import LogLevel, init_logging
 from wsi_patching.utils.meta_typing import ContextAware, PipelineContext, StageMeta
 from wsi_patching.utils.profiling import PipelineProfileAggregator, Profiler, set_current_profiler
 from wsi_patching.utils.types import EndOfQueue, EndOfStream
@@ -49,6 +49,10 @@ def _tname(t: Any) -> str:
 class Stage(ContextAware, metaclass=StageMeta):
     input_type: Any = object
     output_type: Any = object
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        cls.log = logging.getLogger(f"{cls.__name__}")
 
     def __call__(self, it: Iterable[Any]) -> Iterable[Any]:
         raise NotImplementedError
@@ -149,7 +153,13 @@ class Pipeline(Stage):
         if self.prof_agg is None:
             self.prof_agg = PipelineProfileAggregator()
 
-    def run(self, cpu_processes: int = 4, queue_maxsize: int = 4000, profile: bool = False):
+    def run(
+        self,
+        cpu_processes: int = 4,
+        queue_maxsize: int = 4000,
+        profile: bool = False,
+        verbosity_level: LogLevel = "WARNING",
+    ):
         """
         Run the pipeline.
 
@@ -157,11 +167,12 @@ class Pipeline(Stage):
             cpu_processes: Number of parallel processes to use.
             queue_maxsize: Max size of the writer queue.
             profile: Whether to enable profiling.
+            verbosity_level: Logging verbosity level.
         Returns:
             Returns
         """
-        init_logging()
-        logging.info(f"Starting pipeline with {cpu_processes} processes (profile={profile}).")
+        init_logging(verbosity_level)
+        self.log.info(f"Starting pipeline with {cpu_processes} processes (profile={profile}).")
 
         if self.writer is None:
             raise RuntimeError("Pipeline has no writer; add one via .to(writer)")
@@ -169,7 +180,7 @@ class Pipeline(Stage):
         grid = self.stages[0]
         slides = list(getattr(grid, "slides", []))
         if not slides:
-            logging.info("[WARN] No slides provided. Nothing to do.")
+            self.log.info("[WARN] No slides provided. Nothing to do.")
             return
 
         for s in self.stages + [self.writer]:
@@ -191,7 +202,7 @@ class Pipeline(Stage):
             self._ensure_prof_agg()
             self.prof_agg.reset()
 
-        writer_proc = mp.Process(target=self.writer.start_writer, args=(q,), name="writer")
+        writer_proc = mp.Process(target=self.writer.start_writer, args=(q, verbosity_level), name="writer")
         writer_proc.start()
 
         pending = list(slides)
@@ -200,7 +211,7 @@ class Pipeline(Stage):
         def spawn_for(path: str):
             p = mp.Process(
                 target=_producer_worker,
-                args=(path, self.stages, q, profile, prof_q),
+                args=(path, self.stages, q, profile, prof_q, verbosity_level),
                 name=f"producer-{Path(path).stem}",
             )
             p.start()
@@ -235,9 +246,14 @@ class Pipeline(Stage):
 
 
 def _producer_worker(
-    slide_path: str, stage_specs: List[Stage], queue: MPQueue, profile: bool, prof_queue: Optional[MPQueue]
+    slide_path: str,
+    stage_specs: List[Stage],
+    queue: MPQueue,
+    profile: bool,
+    prof_queue: Optional[MPQueue],
+    verbosity_level: LogLevel = "WARNING",
 ):
-    init_logging()
+    init_logging(verbosity_level)
     logging.info("Starting processing.")
     profiler: Optional[Profiler] = None
     try:
