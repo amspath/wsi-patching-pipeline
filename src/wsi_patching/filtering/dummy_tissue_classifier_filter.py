@@ -8,7 +8,7 @@ from wsi_patching.core.pipeline import Stage
 from wsi_patching.utils.types import CollatedPatchBatch
 
 
-class DummyTissueClassifier(Stage):
+class DummyTissueClassifierFilter(Stage):
     """
     Simulates a batched GPU op. For each batch:
       - Convert to tensor (if torch available)

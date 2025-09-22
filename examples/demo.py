@@ -38,8 +38,8 @@ from pathlib import Path
 from wsi_patching.core.chunking_and_batching import ReadWindowChunker, RegionReadAndBatch, TilePlanner
 from wsi_patching.core.regions_of_interest import AttachROIs, RectROIProvider
 from wsi_patching.core.wsi_grid import WSIGrid
+from wsi_patching.filtering.dummy_tissue_classifier_filter import DummyTissueClassifierFilter
 from wsi_patching.pngencoder import PNGEncoder
-from wsi_patching.tissue_classifier import DummyTissueClassifier
 from wsi_patching.writers.webdatasetwriter import WebDatasetWriter
 
 
@@ -79,7 +79,7 @@ def main(argv=None):
         .then(TilePlanner())
         .then(ReadWindowChunker(max_window_size=4096))
         .then(RegionReadAndBatch(batch_size=args.batch, num_workers=args.num_workers))
-        .then(DummyTissueClassifier())
+        .then(DummyTissueClassifierFilter())
         .then(PNGEncoder())
         .to(WebDatasetWriter())
     )
