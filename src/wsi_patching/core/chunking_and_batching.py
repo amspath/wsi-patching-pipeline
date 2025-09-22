@@ -145,11 +145,14 @@ class RegionReadAndBatch(Stage):
       - slice region into tile patches
       - accumulate into batches of 'batch_size', yield {"batch": [samples,...]}
       - Output patch batches are of shape [B, H, W, C]
+      - Output patches are of type dtype (default np.uint8) and are within range [0, 255]
+      - Changing dtype to e.g. np.float32 is allowed, but no normalization is applied
     """
 
-    def __init__(self, batch_size: int = 200, num_workers: int = 8):
+    def __init__(self, batch_size: int = 200, num_workers: int = 8, dtype: str = np.uint8):
         self.batch_size = int(batch_size)
         self.num_workers = int(num_workers)
+        self.dtype = dtype
 
     def validate(self) -> None:
         self.ctx.require_key("tile_size")
@@ -157,7 +160,7 @@ class RegionReadAndBatch(Stage):
         self.ctx.require_key("use_gpu")
 
     def __call__(self, it: Iterable[RegionTask]) -> Iterable[CollatedPatchBatch]:
-        xp = cp if self.ctx.require_key("use_gpu") else np
+        xp = cp if self.ctx["use_gpu"] else np
         tile_size = int(self.ctx["tile_size"])
         level = int(self.ctx["level"])
 
@@ -186,7 +189,7 @@ class RegionReadAndBatch(Stage):
 
     def _make_batch(self, task, coords, patches, xp):
         batch_array = np.stack(patches, axis=0)
-        patches_xp = xp.asarray(batch_array)
+        patches_xp = xp.asarray(batch_array, dtype=self.dtype)
         return CollatedPatchBatch(wsi_id=task.wsi_id, coords=coords, patches=patches_xp, meta=task.meta)
 
 

@@ -36,7 +36,7 @@ class WebDatasetWriter(WriterBase):
             self._flush_buffer()
 
     def close(self) -> None:
-        if self._buffer:
+        while self._buffer:
             self._flush_buffer()
         if self._sink is not None:
             logging.info(f"WebDatasetWriter processed {self.write_count} samples. Closing sink...")
@@ -46,11 +46,11 @@ class WebDatasetWriter(WriterBase):
     def _flush_buffer(self) -> None:
         if not self._buffer or self._sink is None:
             return
-        logging.info(f"[writer] Flushing buffer of size: {len(self._buffer)}")
+        logging.info(f"Flushing buffer of size: {len(self._buffer)}")
         random.shuffle(self._buffer)
         # Write up to shard_size at a time for better mixing; leftover stays buffered.
         for _ in range(min(self.shard_size, len(self._buffer))):
             s = self._buffer.pop()
             self.write_count += 1
             self._sink.write({"__key__": s.key, "png": s.patch, "json": s.meta})
-        logging.info(f"[writer] Buffer size after flush: {len(self._buffer)}")
+        logging.info(f"Buffer size after flush: {len(self._buffer)}")

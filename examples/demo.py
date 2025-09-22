@@ -38,9 +38,9 @@ from pathlib import Path
 from wsi_patching.core.chunking_and_batching import ReadWindowChunker, RegionReadAndBatch, TilePlanner
 from wsi_patching.core.regions_of_interest import AttachROIs, RectROIProvider
 from wsi_patching.core.wsi_grid import WSIGrid
+from wsi_patching.filtering.cellvit_tissue_classifier_filter import CellVitTissueClassifierFilter
 from wsi_patching.pngencoder import PNGEncoder
-from wsi_patching.tissue_classifier import DummyTissueClassifier
-from wsi_patching.writers.webdatasetwriter import WebDatasetWriter
+from wsi_patching.writers.webdataset.webdataset_writer import WebDatasetWriter
 
 
 def main(argv=None):
@@ -64,22 +64,18 @@ def main(argv=None):
         "./data/RBIO-GC072-HE-02.tiff",
         "./data/RBIO-GC072-HE-03.tiff",
         "./data/RBIO-GC072-HE-04.tiff",
-        "./data/RBIO-GC072-HE-05.tiff",
-        "./data/RBIO-GC072-HE-06.tiff",
-        "./data/RBIO-GC072-HE-07.tiff",
-        "./data/RBIO-GC072-HE-08.tiff",
     ]
 
     # Example ROI dict (compat with old code)
-    rois_dict = {Path(s).stem: [(0, 0, 4000, 4000)] for s in slides}
+    rois_dict = {Path(s).stem: [(0, 0, 8000, 8000)] for s in slides}
 
     p = (
-        WSIGrid(slides=slides, tile_size=256, stride=256, level=0, use_gpu=True)
+        WSIGrid(slides=slides, tile_size=224, stride=224, level=0, use_gpu=True)
         .then(AttachROIs(providers=[RectROIProvider(rois_dict)]))
         .then(TilePlanner())
-        .then(ReadWindowChunker(max_window_size=4096))
+        .then(ReadWindowChunker(max_window_size=224 * 40))
         .then(RegionReadAndBatch(batch_size=args.batch, num_workers=args.num_workers))
-        .then(DummyTissueClassifier())
+        .then(CellVitTissueClassifierFilter())
         .then(PNGEncoder())
         .to(WebDatasetWriter())
     )

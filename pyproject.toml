@@ -8,7 +8,14 @@ version = "0.1.0"
 description = "High Performance Patching Library for Digital Pathology AI dataset creation."
 requires-python = ">=3.9"
 authors = [{ name = "Robin van Hoorn", email = "r.d.vanhoorn@amsterdamumc.nl" }]
-dependencies = ["numpy", "pandas", "webdataset", "pillow", "torch"]
+dependencies = [
+    "numpy",
+    "pandas",
+    "webdataset",
+    "pillow",
+    "torch",
+    "torchvision",
+]
 
 [project.optional-dependencies]
 gpu = ["cucim", "cupy-cuda12x"]
