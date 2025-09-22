@@ -40,7 +40,7 @@ from wsi_patching.core.regions_of_interest import AttachROIs, RectROIProvider
 from wsi_patching.core.wsi_grid import WSIGrid
 from wsi_patching.filtering.cellvit_tissue_classifier_filter import CellVitTissueClassifierFilter
 from wsi_patching.pngencoder import PNGEncoder
-from wsi_patching.writers.webdatasetwriter import WebDatasetWriter
+from wsi_patching.writers.webdataset.webdataset_writer import WebDatasetWriter
 
 
 def main(argv=None):
@@ -60,14 +60,10 @@ def main(argv=None):
 
     # Example usage (adjust 'slides' to your real paths)
     slides = [
-        "./data/RBIO-GC072-HE-01.tiff"
-        # "./data/RBIO-GC072-HE-02.tiff",
-        # "./data/RBIO-GC072-HE-03.tiff",
-        # "./data/RBIO-GC072-HE-04.tiff",
-        # "./data/RBIO-GC072-HE-05.tiff",
-        # "./data/RBIO-GC072-HE-06.tiff",
-        # "./data/RBIO-GC072-HE-07.tiff",
-        # "./data/RBIO-GC072-HE-08.tiff",
+        "./data/RBIO-GC072-HE-01.tiff",
+        "./data/RBIO-GC072-HE-02.tiff",
+        "./data/RBIO-GC072-HE-03.tiff",
+        "./data/RBIO-GC072-HE-04.tiff",
     ]
 
     # Example ROI dict (compat with old code)
