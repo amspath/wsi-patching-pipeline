@@ -38,8 +38,6 @@ class TorchMemoryWriter(WriterBase):
     Eagerly tensorizes to float32 on CPU/GPU (based on ctx['use_gpu']).
     """
 
-    input_type = CollatedPatchBatch
-
     def __init__(self, layout: Literal["NCHW", "NHWC"] = "NCHW", dtype: torch.dtype = torch.float32) -> None:
         super().__init__()
         self.layout = layout
@@ -64,14 +62,14 @@ class TorchMemoryWriter(WriterBase):
         self._device = get_torch_device(self.ctx["use_gpu"])
         self.log.info("TorchMemoryWriter device=%s, layout=%s, dtype=%s", self._device, self.layout, self.dtype)
 
-    def write(self, batch: CollatedPatchBatch) -> None:
-        self.log.info(f"Received batch from wsi: {batch.wsi_id} size: {len(batch.patches)}")
+    def write(self, sample: CollatedPatchBatch) -> None:
+        self.log.info(f"Received batch from wsi: {sample.wsi_id} size: {len(sample.patches)}")
 
         # coords -> torch.long on target device
-        coords_t = torch.as_tensor(batch.coords, dtype=torch.long, device=self._device)
+        coords_t = torch.as_tensor(sample.coords, dtype=torch.long, device=self._device)
 
         # patches -> torch.float32 on target device
-        images_t = self._to_tensor(batch.patches, device=self._device, dtype=self.dtype)
+        images_t = self._to_tensor(sample.patches, device=self._device, dtype=self.dtype)
 
         # expect BHWC; permute if user requested NCHW (default)
         if self.layout == "NCHW":
@@ -81,13 +79,13 @@ class TorchMemoryWriter(WriterBase):
         if images_t.shape[0] != coords_t.shape[0]:
             raise ValueError(
                 f"Batch length mismatch: images N={images_t.shape[0]} vs coords N={coords_t.shape[0]} "
-                f"(wsi_id={batch.wsi_id})"
+                f"(wsi_id={sample.wsi_id})"
             )
 
         # accumulate
         self._images_chunks.append(images_t)
         self._coords_chunks.append(coords_t)
-        self._wsi_ids.extend([batch.wsi_id] * images_t.shape[0])
+        self._wsi_ids.extend([sample.wsi_id] * images_t.shape[0])
 
     def close(self) -> None:
         if self._dataset is not None:

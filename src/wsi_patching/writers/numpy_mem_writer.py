@@ -20,9 +20,10 @@ class NumpyMemoryWriter(WriterBase):
 
         self._images_chunks: List[np.ndarray] = []
         self._coords_chunks: List[np.ndarray] = []
-        self._wsi_ids: List[str] = []
 
-        self.final_images, self.final_coords, self.final_wsi_ids = None, None, None
+        self.wsi_ids: List[str] = []
+
+        self.final_images, self.final_coords = None, None
 
         self.log.info("Initialized. NOTE: Memory heavy — stores all patches as float32 NumPy arrays in RAM.")
 
@@ -30,19 +31,15 @@ class NumpyMemoryWriter(WriterBase):
     def open(self) -> None:
         self.log.info("Opening... layout=%s dtype=%s", self.layout, self.dtype)
 
-    def write(self, batch: CollatedPatchBatch) -> None:
-        self.log.info(f"Received batch from wsi: {batch.wsi_id} size: {len(batch.patches)}")
+    def write(self, sample: CollatedPatchBatch) -> None:
+        self.log.info(f"Received batch from wsi: {sample.wsi_id} size: {len(sample.patches)}")
 
         # coords -> np.int64
-        coords_np = np.asarray(batch.coords, dtype=np.int64)
+        coords_np = np.asarray(sample.coords, dtype=np.int64)
 
         # patches -> np.float (from numpy or cupy)
-        images_np = ensure_numpy(batch.patches)
+        images_np = ensure_numpy(sample.patches)
         images_np = np.asarray(images_np, dtype=self.dtype)
-
-        # ensure contiguous memory for fast slicing
-        if not images_np.flags["C_CONTIGUOUS"]:
-            images_np = np.ascontiguousarray(images_np)
 
         # store as requested layout (assume input is BHWC)
         if self.layout == "NCHW":
@@ -52,7 +49,7 @@ class NumpyMemoryWriter(WriterBase):
         # accumulate
         self._images_chunks.append(images_np)
         self._coords_chunks.append(coords_np)
-        self._wsi_ids.extend([batch.wsi_id] * images_np.shape[0])
+        self.wsi_ids.extend([sample.wsi_id] * images_np.shape[0])
 
     def close(self) -> None:
         if self.final_images is not None:
@@ -61,7 +58,6 @@ class NumpyMemoryWriter(WriterBase):
         if not self._images_chunks:
             self.final_images = np.empty((0, 1, 1, 1), dtype=self.dtype)
             self.final_coords = np.empty((0, 2), dtype=np.int64)
-            self.final_wsi_ids = []
             self.log.info("Closed with empty dataset.")
             return
 
@@ -84,4 +80,4 @@ class NumpyMemoryWriter(WriterBase):
         if self.final_images is None:
             self.close()
         assert self.final_images is not None
-        return self.final_images, self.final_coords, self.final_wsi_ids
+        return self.final_images, self.final_coords, self.wsi_ids
