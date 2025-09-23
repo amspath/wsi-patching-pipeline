@@ -11,6 +11,8 @@ class StageMeta(type):
             ns.get("__call__"), in_key="it", out_key="return", default_in=in_t, default_out=out_t
         )
         cls.input_type, cls.output_type = in_t, out_t
+        if cls.input_type is object or cls.output_type is object:
+            raise ValueError(f"{name}: __call__ must have type annotations for both 'it' and return")
         return cls
 
 
@@ -20,6 +22,8 @@ class WriterMeta(type):
         in_t = getattr(cls, "input_type", object)
         in_t, _ = _infer_types_from_annotations(ns.get("write"), in_key="sample", default_in=in_t, default_out=None)
         cls.input_type = in_t
+        if cls.input_type is object:
+            raise ValueError(f"{name}: write() must annotate its 'sample' parameter type")
         return cls
 
 

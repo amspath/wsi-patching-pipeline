@@ -14,6 +14,10 @@ class Profiler:
             self._stats[stage_name] = {"wall_time_sec": 0.0, "yields": 0}
 
     def add_time(self, stage_name: str, dt: float, yielded: bool):
+        """Record time spent. If `yielded` is True, increment yield count.
+
+        Yield represents whether the computation eventually produced an output item for the stage generator.
+        """
         if not self.enabled:
             return
         self._ensure(stage_name)

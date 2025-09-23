@@ -21,6 +21,7 @@ dependencies = [
 
 [project.optional-dependencies]
 gpu = ["cucim", "cupy-cuda12x"]
+dev = ["ruff", "pytest"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/wsi_patching"]
@@ -37,3 +38,13 @@ quote-style = "double"
 indent-style = "space"
 skip-magic-trailing-comma = true
 docstring-code-format = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests/unit"]
+addopts = [
+    "-ra",              # short test summary info
+    "--strict-markers",
+    "--strict-config",
+    "--maxfail=1",
+    "-q",
+]
