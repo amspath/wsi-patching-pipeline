@@ -25,7 +25,7 @@ class DummyCP:
 def enable_dummy_cupy(monkeypatch):
     """Flip the module into 'CuPy available' mode using our stub."""
     monkeypatch.setattr(mod, "_cupy_available", True, raising=True)
-    monkeypatch.setattr(mod, "cp", DummyCP, raising=True)
+    monkeypatch.setattr(mod, "cp", DummyCP, raising=False)
 
 
 # ------------------- tests -------------------
