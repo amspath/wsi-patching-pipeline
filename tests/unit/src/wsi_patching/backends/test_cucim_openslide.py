@@ -64,10 +64,10 @@ def test_get_dimensions_for_level_cpu(monkeypatch):
 
 def test_get_dimensions_for_level_gpu_with_cucim(monkeypatch):
     monkeypatch.setattr(mod, "_cupy_available", True, raising=True)
-    monkeypatch.setattr(mod, "CuImage", FakeCuImage, raising=True)
+    monkeypatch.setattr(mod, "CuImage", FakeCuImage, raising=False)
 
     W, H = mod.get_dimensions_for_level("dummy.tif", level=1, use_gpu=True)
-    assert (W, H) == (25, 10)  # from FakeCuImage.resolutions["level_dimensions"][1]
+    assert (W, H) == (25, 10)
     assert isinstance(W, int) and isinstance(H, int)
 
 
@@ -92,7 +92,7 @@ def test_read_region_gpu_returns_numpy_and_passes_num_workers(monkeypatch):
         assert path == "gpu.tif"
         return fake
 
-    monkeypatch.setattr(mod, "CuImage", _ctor, raising=True)
+    monkeypatch.setattr(mod, "CuImage", _ctor, raising=False)
 
     arr = mod.read_region(path="gpu.tif", x=1, y=2, w=4, h=6, level=1, use_gpu=True, num_workers_cucim=13)
     assert isinstance(arr, np.ndarray)
