@@ -207,8 +207,8 @@ class RegionReadAndBatch(Stage):
 
 
 def _align_to_grid(v: int, stride: int, origin: int = 0) -> int:
-    """Return the smallest grid value >= v on grid defined by origin & stride."""
+    """Return the smallest grid value <= v on grid defined by origin & stride."""
     if stride <= 0:
-        return v
+        raise ValueError("Stride must be positive")
     r = (v - origin) % stride
-    return v if r == 0 else v + (stride - r)
+    return v if r == 0 else v - r

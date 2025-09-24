@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from typing import List
 from unittest.mock import patch
+
 import numpy as np
 import pytest
 import torch
@@ -83,7 +84,7 @@ def test_filter_empty_iterable_produces_no_output():
 
 
 @patch(
-    "wsi_patching.filtering.dummy_tissue_classifier_filter.get_torch_device", new=lambda use_gpu: torch.device("cuda")
+    "wsi_patching.filtering.dummy_tissue_classifier_filter.get_torch_device", new=lambda use_gpu: torch.device("cpu")
 )
 @patch.object(torch.Tensor, "cuda", new=lambda self, non_blocking=True: self)
 def test_filter_gpu_branch_noop_cuda():

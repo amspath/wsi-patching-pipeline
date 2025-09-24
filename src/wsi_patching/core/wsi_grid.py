@@ -38,7 +38,7 @@ class WSIGrid(Stage):
             slides=[slide_path], tile_size=self.tile_size, stride=self.stride, use_gpu=self.use_gpu, level=self.level
         )
 
-    def __call__(self, _it: Iterable[Any]) -> Iterable[Slide]:
+    def __call__(self, it: Iterable[Any]) -> Iterable[Slide]:
         for path in self.slides:
             wsi_id = Path(path).stem
             W, H = get_dimensions_for_level(path, self.level, self.use_gpu)
