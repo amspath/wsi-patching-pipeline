@@ -22,10 +22,6 @@ class WriterBase(ContextAware, metaclass=WriterMeta):
     Multi-process usage: writer.start_writer(queue) will block and consume messages from producers.
     """
 
-    # By default, accept anything; concrete writers should annotate 'write' to set input_type
-    input_type: Any = object
-    output_type: Any = object
-
     def __init__(self) -> None:
         self._is_open = False
 

@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Union
 
 
 class Profiler:
@@ -7,13 +7,17 @@ class Profiler:
     def __init__(self, enabled: bool, slide_id: str):
         self.enabled = bool(enabled)
         self.slide_id = slide_id
-        self._stats: Dict[str, Dict[str, float | int]] = {}
+        self._stats: Dict[str, Dict[str, Union[float, int]]] = {}
 
     def _ensure(self, stage_name: str):
         if stage_name not in self._stats:
             self._stats[stage_name] = {"wall_time_sec": 0.0, "yields": 0}
 
     def add_time(self, stage_name: str, dt: float, yielded: bool):
+        """Record time spent. If `yielded` is True, increment yield count.
+
+        Yield represents whether the computation eventually produced an output item for the stage generator.
+        """
         if not self.enabled:
             return
         self._ensure(stage_name)
@@ -42,7 +46,7 @@ class PipelineProfileAggregator:
     def ingest_msg(self, msg: Dict[str, Any]) -> None:
         """Ingest a single producer summary message."""
         slide_id = msg.get("slide_id", "<unknown>")
-        stages: Dict[str, Dict[str, float | int]] = msg.get("stages", {})
+        stages: Dict[str, Dict[str, Union[float, int]]] = msg.get("stages", {})
 
         self._agg["by_slide"][slide_id] = {}
         for stage_name, stats in stages.items():
@@ -76,7 +80,7 @@ class PipelineProfileAggregator:
             print("[profile] No profile data (did you run with profile=True?)")
             return
 
-        def fmt(stats: Dict[str, float | int]) -> str:
+        def fmt(stats: Dict[str, Union[float, int]]) -> str:
             return (
                 f"{int(stats['yields']):10d} {float(stats['wall_time_sec']):12.3f} "
                 f"{float(stats['avg_ms_per_yield']):16.3f}"

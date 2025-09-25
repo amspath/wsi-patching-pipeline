@@ -1,9 +1,10 @@
 import logging
 import sys
+from typing import Union
 
 from typing_extensions import Literal
 
-LogLevel = int | Literal["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG", "NOTSET"]
+LogLevel = Union[int, Literal["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG", "NOTSET"]]
 
 
 def init_logging(verbosity_level: LogLevel) -> None:

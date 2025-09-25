@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "wsi-patching"
 version = "0.1.0"
 description = "High Performance Patching Library for Digital Pathology AI dataset creation."
-requires-python = ">=3.9"
+requires-python = ">=3.8"
 authors = [{ name = "Robin van Hoorn", email = "r.d.vanhoorn@amsterdamumc.nl" }]
 dependencies = [
     "numpy",
@@ -17,10 +17,12 @@ dependencies = [
     "torchvision",
     "openslide-python",
     "openslide-bin",
+    'importlib_resources>=5; python_version<"3.9"',
 ]
 
 [project.optional-dependencies]
 gpu = ["cucim", "cupy-cuda12x"]
+dev = ["ruff", "pytest"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/wsi_patching"]
@@ -37,3 +39,13 @@ quote-style = "double"
 indent-style = "space"
 skip-magic-trailing-comma = true
 docstring-code-format = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests/unit"]
+addopts = [
+    "-ra",              # short test summary info
+    "--strict-markers",
+    "--strict-config",
+    "--maxfail=1",
+    "-q",
+]
