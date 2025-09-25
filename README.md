@@ -13,7 +13,7 @@ A pragmatic pipeline for streaming whole-slide image (WSI) patches with region p
 
 ## 1) Install
 
-Python ≥3.9 is recommended. Linux is strongly recommended for cuCIM.
+Python ≥3.8 is recommended.
 ```
 # in a fresh venv or conda env
 pip install -e .        # For cpu only (not all functionality is supported for cpu only)
