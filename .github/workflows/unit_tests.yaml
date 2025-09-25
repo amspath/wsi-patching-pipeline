@@ -3,14 +3,9 @@ name: Unit tests
 on:
   push:
     branches: [main]
-    paths: &unit_paths
-      - src/wsi_patching/**
-      - tests/unit/**
-      - .github/workflows/unit_tests.yaml
 
   pull_request:
     branches: [main]
-    paths: *unit_paths
 
 
 jobs:
