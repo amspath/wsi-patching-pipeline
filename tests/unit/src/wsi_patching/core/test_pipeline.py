@@ -1,4 +1,4 @@
-from typing import Any, Iterable, List
+from typing import Any, Iterable, List, Union
 
 import pytest
 
@@ -10,7 +10,7 @@ from wsi_patching.utils.types import EndOfStream
 class SourceStage(Stage):
     """Source that ignores input, yields a fixed sequence. Pretend it has slides (used by Pipeline.run)."""
 
-    def __init__(self, values: List[int], slides: List[str] | None = None):
+    def __init__(self, values: List[int], slides: Union[List[str], None] = None):
         self.values = values
         self.slides = slides or []
 
@@ -55,7 +55,7 @@ class FakeQueue:
     def put(self, x: Any):
         self.items.append(x)
 
-    def get(self, timeout: float | None = None):
+    def get(self, timeout: Union[float, None] = None):
         if not self.items:
             raise RuntimeError("Queue empty")
         return self.items.pop(0)
