@@ -38,7 +38,7 @@ class PNGEncoder(Stage):
                 Image.fromarray(patch_uint8).save(bio, format="PNG")
                 png_bytes = bio.getvalue()
                 # JSON
-                meta = {"wsi_id": batch.wsi_id, "coord": batch.coords[idx], **batch.meta}
+                meta = {"coord": batch.coords[idx], **batch.meta[idx]}
 
                 dt = time.perf_counter() - t0
                 if prof is not None:

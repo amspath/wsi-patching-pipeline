@@ -47,26 +47,20 @@ class RegionTask:
 
 
 @dataclass
-class PatchSample:
-    wsi_id: str
-    coord: Tuple[int, int]
-    patch: np.ndarray  # H x W x C uint8
-    meta: Dict[str, Any] = field(default_factory=dict)
-
-
-@dataclass
 class CollatedPatchBatch:
     wsi_id: str
     coords: List[Tuple[int, int]]
     patches: Union[np.ndarray, "cp.ndarray"]  # np if use_gpu=False else cp.ndarray
-    meta: Dict[str, Any] = field(default_factory=dict)
+
+    # Per patch metadata
+    meta: List[Dict[str, Any]]
 
 
 @dataclass(frozen=True)
 class Patch:
     key: str
     patch: object
-    meta: dict
+    meta: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

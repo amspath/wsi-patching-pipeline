@@ -54,7 +54,15 @@ class TilePlanner(Stage):
                     y += stride
 
                 if tiles:
-                    yield TilePlan(s.wsi_id, s.wsi_path, s.dims, idx, (bx, by, bw, bh), tiles, meta=s.meta)
+                    yield TilePlan(
+                        wsi_id=s.wsi_id,
+                        wsi_path=s.wsi_path,
+                        dims=s.dims,
+                        roi_index=idx,
+                        roi_bounds=(bx, by, bw, bh),
+                        tiles=tiles,
+                        meta={**s.meta, "roi_bounds": (bx, by, bw, bh)},
+                    )
                 else:
                     self.log.warning(
                         f"TilePlanner: no tiles found for slide {s.wsi_id} ROI {idx} bounds {bx, by, bw, bh}"
@@ -203,7 +211,9 @@ class RegionReadAndBatch(Stage):
     def _make_batch(self, task, coords, patches, xp):
         batch_array = np.stack(patches, axis=0)
         patches_xp = xp.asarray(batch_array, dtype=self.dtype)
-        return CollatedPatchBatch(wsi_id=task.wsi_id, coords=coords, patches=patches_xp, meta=task.meta)
+        return CollatedPatchBatch(
+            wsi_id=task.wsi_id, coords=coords, patches=patches_xp, meta=[task.meta for _ in coords]
+        )
 
 
 def _align_to_grid(v: int, stride: int, origin: int = 0) -> int:
