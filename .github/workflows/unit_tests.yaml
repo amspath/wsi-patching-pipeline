@@ -14,8 +14,10 @@ jobs:
   pytest:
     runs-on: ubuntu-latest
     strategy:
-      matrix:
-        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
+  matrix:
+    python-version: ${{ fromJson( github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
+      && '["3.8","3.9","3.10","3.11","3.12"]'
+      || '["3.8","3.12"]' ) }}
 
     steps:
       - name: Checkout
