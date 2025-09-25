@@ -3,9 +3,14 @@ name: Unit tests
 on:
   push:
     branches: [main]
+    paths: &unit_paths
+      - src/wsi_patching/**
+      - tests/unit/**
+      - .github/workflows/unit_tests.yaml
 
   pull_request:
     branches: [main]
+    paths: *unit_paths
 
 
 jobs:
@@ -13,9 +18,11 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ${{ fromJson( github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
-          && '["3.8","3.9","3.10","3.11","3.12"]'
-          || '["3.8","3.12"]' ) }}
+        python-version: ${{ 
+          ((github.ref == 'refs/heads/main') || startsWith(github.ref, 'refs/tags/')))
+            && fromJson('["3.8","3.9","3.10","3.11","3.12"]')
+            || fromJson('["3.8","3.12"]')
+        }}
 
     steps:
       - name: Checkout
