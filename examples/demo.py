@@ -77,7 +77,7 @@ def main(argv=None):
         .then(RegionReadAndBatch(batch_size=args.batch, num_workers=args.num_workers))
         .then(CellVitTissueClassifierFilter())
         .then(PNGEncoder())
-        .to(WebDatasetWriter())
+        .to(WebDatasetWriter(shard_size=300, shuffle_buffer_size=500))
     )
 
     start_time = time.time()

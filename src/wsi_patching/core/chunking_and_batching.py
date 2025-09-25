@@ -211,9 +211,10 @@ class RegionReadAndBatch(Stage):
     def _make_batch(self, task, coords, patches, xp):
         batch_array = np.stack(patches, axis=0)
         patches_xp = xp.asarray(batch_array, dtype=self.dtype)
-        return CollatedPatchBatch(
-            wsi_id=task.wsi_id, coords=coords, patches=patches_xp, meta=[task.meta for _ in coords]
-        )
+        cpb = CollatedPatchBatch(task.wsi_id, xp.asarray(coords), patches_xp, meta_cols={})
+        for k, v in task.meta.items():
+            cpb.add_col(k, np.array([v] * len(coords), dtype=object))
+        return cpb
 
 
 def _align_to_grid(v: int, stride: int, origin: int = 0) -> int:

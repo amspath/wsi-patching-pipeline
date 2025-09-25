@@ -2,6 +2,7 @@ import random
 from pathlib import Path
 from typing import List, Optional
 
+import orjson
 import webdataset as wds
 
 from wsi_patching.core.pipeline import WriterBase
@@ -51,5 +52,5 @@ class WebDatasetWriter(WriterBase):
         for _ in range(min(self.shard_size, len(self._buffer))):
             s = self._buffer.pop()
             self.write_count += 1
-            self._sink.write({"__key__": s.key, "png": s.patch, "json": s.meta})
+            self._sink.write({"__key__": s.key, "png": s.patch, "meta": orjson.dumps(s.meta)})
         self.log.info(f"Buffer size after flush: {len(self._buffer)}")

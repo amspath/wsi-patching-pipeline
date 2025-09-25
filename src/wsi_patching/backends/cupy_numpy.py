@@ -8,6 +8,7 @@ except ImportError:
 from typing import Union
 
 import numpy as np
+import torch
 
 
 def validate_xp_backend(use_gpu: bool) -> None:
@@ -37,6 +38,16 @@ def ensure_cupy(arr: Union[np.ndarray, "cp.ndarray"]) -> "cp.ndarray":
         raise TypeError(f"Input must be a numpy.ndarray or cupy.ndarray, got {type(arr)}")
 
 
+def ensure_array_matches_use_gpu(
+    arr: Union[np.ndarray, "cp.ndarray"], use_gpu: bool
+) -> Union[np.ndarray, "cp.ndarray"]:
+    """Ensure that the array type matches the use_gpu flag. Convert if necessary."""
+    if use_gpu:
+        return ensure_cupy(arr)
+    else:
+        return ensure_numpy(arr)
+
+
 def get_xp_backend(use_gpu: bool):
     """Return either numpy or cupy to use as 'xp.asarray', etc."""
     if use_gpu:
@@ -45,3 +56,12 @@ def get_xp_backend(use_gpu: bool):
         return cp
     else:
         return np
+
+
+def xp_from_tensor(t: torch.Tensor, use_gpu: bool):
+    """Convert a Torch tensor to either a NumPy or CuPy array, depending on use_gpu."""
+    detached = t.detach()
+    if use_gpu:
+        return cp.from_dlpack(detached)
+    else:
+        return detached.cpu().numpy()
