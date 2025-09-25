@@ -3,6 +3,10 @@ name: Unit tests
 on:
   push:
     branches: [ main ]
+  paths: # Only test if relevant files changed
+      - 'src/**'    
+      - 'tests/**'
+      - '.github/workflows/unit_tests.yaml'
   pull_request:
     branches: [ main ]
 
