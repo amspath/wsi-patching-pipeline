@@ -1,5 +1,4 @@
 from dataclasses import replace
-from importlib.resources import as_file, files
 from typing import Iterable, List, Union
 
 import numpy as np
@@ -11,6 +10,11 @@ from wsi_patching.backends.cupy_numpy import ensure_cupy
 from wsi_patching.backends.torch_device import get_torch_device
 from wsi_patching.core.pipeline import Stage
 from wsi_patching.utils.types import CollatedPatchBatch
+
+try:
+    from importlib.resources import as_file, files  # Python 3.9+
+except Exception:  # Python 3.8 fallback
+    from importlib_resources import as_file, files  # backport package
 
 
 class CellVitTissueClassifierFilter(Stage):

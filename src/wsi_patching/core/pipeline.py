@@ -1,12 +1,10 @@
-from __future__ import annotations
-
 import logging
 import multiprocessing as mp
 import sys
 from dataclasses import dataclass, field
 from multiprocessing.queues import Queue as MPQueue
 from pathlib import Path
-from typing import Any, Iterable, Iterator, List, Optional, Union, get_args, get_origin
+from typing import Any, Iterable, Iterator, List, Optional, Tuple, Union
 
 from wsi_patching.utils.logging_config import LogLevel, init_logging
 from wsi_patching.utils.meta_typing import ContextAware, PipelineContext, StageMeta
@@ -14,8 +12,14 @@ from wsi_patching.utils.profiling import PipelineProfileAggregator, Profiler, se
 from wsi_patching.utils.types import EndOfQueue, EndOfStream
 from wsi_patching.writers.writer_base import WriterBase
 
+try:
+    # Consistent across 3.8/3.9 and supports typing_extensions constructs
+    from typing_extensions import get_args, get_origin
+except ImportError:  # 3.10+ or environments without typing_extensions
+    from typing import get_args, get_origin
 
-def _type_options(t: Any) -> tuple[type, ...]:
+
+def _type_options(t: Any) -> Tuple[type, ...]:
     """Normalize to tuple of types; (object,) means 'anything'."""
     if t is object or t is None:
         return (object,)

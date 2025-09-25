@@ -15,7 +15,7 @@ from wsi_patching.utils.meta_typing import PipelineContext
 class SlideStub:
     wsi_id: str
     wsi_path: str
-    dims: tuple[int, int]  # (W, H)
+    dims: Tuple[int, int]  # (W, H)
     meta: dict
 
 

@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Tuple
 
 import pytest
 
@@ -17,7 +18,7 @@ from wsi_patching.core.regions_of_interest import (
 class SlideStub:
     wsi_id: str
     wsi_path: str
-    dims: tuple[int, int]  # (W, H)
+    dims: Tuple[int, int]  # (W, H)
     meta: dict
 
 
