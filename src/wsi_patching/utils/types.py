@@ -74,27 +74,14 @@ class CollatedPatchBatch:
     def add_col(self, name: str, values: np.ndarray) -> None:
         """Add a new metadata column.
 
-        ENSURE that 'values' is a numpy array of length N.
-        ENSURE that the dtype of values is 'object', and the values within the array are not of type np.ndarray.
-                    This allows for easier jsonification in the downstream writer.
-
-
         Raises ValueError if length mismatch.
         Raises ValueError if name already exists.
-        Raises TypeError if values if dtype is not object.
-        Raises TypeError if individual values within the array are of type np.ndarray.
-                One can get around this by doing the following:
-                    arr = np.empty(N, dtype=object)
-                    arr[:] = your_list_of_lists_or_tuples
+        Raises ValueError if values is of type object.
         """
         if values.shape[0] != self.coords.shape[0]:
             raise ValueError("add_col: first dimension must equal number of rows")
         if name in self.meta_cols:
             raise ValueError(f"add_col: column '{name}' already exists")
-        if values.dtype != np.dtype(object):
-            raise TypeError("add_col: values must be of dtype 'object'")
-        if type(values[0]) is np.ndarray:
-            raise TypeError("add_col: individual values within the array must not be of type np.ndarray")
 
         self.meta_cols[name] = values
 

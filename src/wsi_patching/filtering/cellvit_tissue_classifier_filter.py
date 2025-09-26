@@ -1,4 +1,3 @@
-from dataclasses import replace
 from typing import Iterable, List, Union
 
 import numpy as np
@@ -6,7 +5,6 @@ import torch
 import torch.nn as nn
 from torchvision.models import mobilenet_v3_small
 
-from wsi_patching.backends.cupy_numpy import ensure_cupy, xp_from_tensor
 from wsi_patching.backends.torch_device import get_torch_device
 from wsi_patching.core.pipeline import Stage
 from wsi_patching.utils.types import CollatedPatchBatch
@@ -71,10 +69,14 @@ class CellVitTissueClassifierFilter(Stage):
             # Class 0 == tissue -> keep
             keep_mask_np = preds_all == 0
 
+            probs_all = torch.cat(probs_list, dim=0).detach().cpu().numpy()  # (N,4)
+            collated_patch_batch.add_col("cellvit_tissue_classifier_probs", np.round(probs_all, 2))
+
             collated_patch_batch.filter(keep_mask_np, use_gpu=self.ctx["use_gpu"])
 
             self.log.info(
-                f"Yielding: wsi={collated_patch_batch.wsi_id} in={len(patches)} kept={len(collated_patch_batch.patches)}"
+                f"Yielding: wsi={collated_patch_batch.wsi_id} in={len(patches)} "
+                f"kept={len(collated_patch_batch.patches)}"
             )
             yield collated_patch_batch
 

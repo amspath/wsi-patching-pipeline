@@ -211,11 +211,9 @@ class RegionReadAndBatch(Stage):
     def _make_batch(self, task, coords, patches, xp):
         batch_array = np.stack(patches, axis=0)
         patches_xp = xp.asarray(batch_array, dtype=self.dtype)
-        cpb = CollatedPatchBatch(task.wsi_id, xp.asarray(coords), patches_xp, meta_cols={})
+        cpb = CollatedPatchBatch(task.wsi_id, np.asarray(coords), patches_xp, meta_cols={})
         for k, v in task.meta.items():
-            arr = np.empty(len(coords), dtype=object)
-            arr.fill(v)
-            cpb.add_col(k, arr)
+            cpb.add_col(k, np.array([v] * len(coords)))
         return cpb
 
 

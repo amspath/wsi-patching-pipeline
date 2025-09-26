@@ -36,6 +36,9 @@ class WebDatasetWriter(WriterBase):
             self._flush_buffer()
 
     def close(self) -> None:
+        if self._buffer is not None:
+            self.log.info(f"Closing... Flushing remaining {len(self._buffer)} samples in buffer.")
+            self.log.info(f"Meta example: {self._buffer[0].meta}")
         while self._buffer:
             self._flush_buffer()
         if self._sink is not None:
@@ -52,5 +55,7 @@ class WebDatasetWriter(WriterBase):
         for _ in range(min(self.shard_size, len(self._buffer))):
             s = self._buffer.pop()
             self.write_count += 1
-            self._sink.write({"__key__": s.key, "png": s.patch, "meta": orjson.dumps(s.meta)})
+            self._sink.write(
+                {"__key__": s.key, "png": s.patch, "meta": orjson.dumps(s.meta, option=orjson.OPT_SERIALIZE_NUMPY)}
+            )
         self.log.info(f"Buffer size after flush: {len(self._buffer)}")
