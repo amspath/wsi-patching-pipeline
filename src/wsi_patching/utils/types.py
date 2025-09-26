@@ -48,23 +48,6 @@ class RegionTask:
     meta: Dict[str, Any] = field(default_factory=dict)
 
 
-@dataclass(frozen=True)
-class Patch:
-    key: str
-    patch: object
-    meta: Dict[str, Any] = field(default_factory=dict)
-
-
-@dataclass(frozen=True)
-class EndOfStream:
-    pass
-
-
-@dataclass(frozen=True)
-class EndOfQueue:
-    pass
-
-
 @dataclass
 class CollatedPatchBatch:
     """A batch of patches from a single WSI, with coordinates and optional metadata.
@@ -89,13 +72,37 @@ class CollatedPatchBatch:
     meta_cols: Dict[str, np.ndarray]  # each first dim == N
 
     def add_col(self, name: str, values: np.ndarray) -> None:
+        """Add a new metadata column.
+
+        ENSURE that 'values' is a numpy array of length N.
+        ENSURE that the dtype of values is 'object', and the values within the array are not of type np.ndarray.
+                    This allows for easier jsonification in the downstream writer.
+
+
+        Raises ValueError if length mismatch.
+        Raises ValueError if name already exists.
+        Raises TypeError if values if dtype is not object.
+        Raises TypeError if individual values within the array are of type np.ndarray.
+                One can get around this by doing the following:
+                    arr = np.empty(N, dtype=object)
+                    arr[:] = your_list_of_lists_or_tuples
+        """
         if values.shape[0] != self.coords.shape[0]:
             raise ValueError("add_col: first dimension must equal number of rows")
+        if name in self.meta_cols:
+            raise ValueError(f"add_col: column '{name}' already exists")
+        if values.dtype != np.dtype(object):
+            raise TypeError("add_col: values must be of dtype 'object'")
+        if type(values[0]) is np.ndarray:
+            raise TypeError("add_col: individual values within the array must not be of type np.ndarray")
+
         self.meta_cols[name] = values
 
     def filter(self, mask: np.ndarray, use_gpu: bool) -> None:
-        """
-        In-place compaction. `mask` is a boolean array (same backend) of length N.
+        """In-place compaction. `mask` is a numpy boolean array of length N.
+
+        Raises TypeError if mask is not boolean.
+        Raises ValueError if length mismatch.
         """
         xp = get_xp_backend(use_gpu=use_gpu)
 
@@ -122,19 +129,22 @@ class CollatedPatchBatch:
             raise IndexError(f"index {i} out of range for N={n}")
         coord = self.coords[i]
         patch = self.patches[i]
-        meta = {k: _to_jsonable(v[i]) for k, v in self.meta_cols.items()}
+        meta = {k: v[i] for k, v in self.meta_cols.items()}
         return self.wsi_id, coord, patch, meta
 
 
-def _to_jsonable(x: Any):
-    # Fast path for NumPy stuff
-    if isinstance(x, np.generic):
-        return x.item()
-    # numpy arrays
-    if isinstance(x, np.ndarray):
-        return x.tolist()
-    # Already JSON-friendly? return as-is
-    if isinstance(x, (str, int, float, bool)) or x is None:
-        return x
-    # Fallback: stringify (or raise if you prefer)
-    return str(x)
+@dataclass(frozen=True)
+class Patch:
+    key: str
+    patch: object
+    meta: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class EndOfStream:
+    pass
+
+
+@dataclass(frozen=True)
+class EndOfQueue:
+    pass

@@ -213,7 +213,9 @@ class RegionReadAndBatch(Stage):
         patches_xp = xp.asarray(batch_array, dtype=self.dtype)
         cpb = CollatedPatchBatch(task.wsi_id, xp.asarray(coords), patches_xp, meta_cols={})
         for k, v in task.meta.items():
-            cpb.add_col(k, np.array([v] * len(coords), dtype=object))
+            arr = np.empty(len(coords), dtype=object)
+            arr.fill(v)
+            cpb.add_col(k, arr)
         return cpb
 
 
