@@ -43,4 +43,9 @@ class WSIGrid(Stage):
             wsi_id = Path(path).stem
             W, H = get_dimensions_for_level(path, self.level, self.use_gpu)
             self.log.info(f"Starting on Slide {wsi_id}")
-            yield Slide(wsi_id=wsi_id, wsi_path=path, dims=(W, H), meta={})
+            yield Slide(
+                wsi_id=wsi_id,
+                wsi_path=path,
+                dims=(W, H),
+                meta={"slide.wsi_id": wsi_id, "slide.level": self.level, "slide.path": path},
+            )

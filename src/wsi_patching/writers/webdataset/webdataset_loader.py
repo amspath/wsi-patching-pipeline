@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
 import numpy as np
+import orjson
 import torch
 import webdataset as wds
 from torch.utils.data import DataLoader
@@ -61,13 +62,13 @@ class WebDatasetLoader:
         if self.shuffle_size and self.shuffle_size > 0:
             ds = ds.shuffle(self.shuffle_size)
 
-        # Decode PNG to RGB8 (numpy HWC uint8) and JSON to dict
-        ds = ds.decode("torch").to_tuple("__key__", "png", "json")
+        # Decode PNG to RGB8 (numpy HWC uint8) and meta to dict
+        ds = ds.decode("torch").to_tuple("__key__", "png", "meta")
 
         # Map to a simple dict the rest of the code can rely on
         def _map(sample):
             key, img, meta = sample  # img: HWC uint8 (numpy), meta: dict
-            return {"key": key, "image": img, "meta": meta}
+            return {"key": key, "image": img, "meta": orjson.loads(meta.decode("utf-8"))}
 
         ds = ds.map(_map)
         return ds

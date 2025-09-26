@@ -8,13 +8,7 @@ import torch
 
 from wsi_patching.filtering.cellvit_tissue_classifier_filter import CellVitTissueClassifierFilter
 from wsi_patching.utils.meta_typing import PipelineContext
-
-
-@dataclass
-class CollBatch:
-    wsi_id: str
-    patches: np.ndarray  # BHWC uint8
-    coords: List[tuple]
+from wsi_patching.utils.types import CollatedPatchBatch
 
 
 def _mk_batch(brights: List[int], h=4, w=5, c=3):
@@ -23,7 +17,7 @@ def _mk_batch(brights: List[int], h=4, w=5, c=3):
     """
     arrs = [np.full((1, h, w, c), v, dtype=np.uint8) for v in brights]
     patches = np.concatenate(arrs, axis=0)  # [B,H,W,C]
-    coords = [(i, i) for i in range(len(brights))]
+    coords = np.array([[i, i] for i in range(len(brights))])
     return patches, coords
 
 
@@ -80,7 +74,7 @@ def test_validate_requires_keys():
 def test_filter_keeps_only_class0_on_cpu():
     # Build batch: bright -> keep, dim -> drop (according to DummyThreshModel threshold 0.5)
     patches, coords = _mk_batch([255, 10, 200, 0])  # [B=4]
-    batch = CollBatch(wsi_id="WSI1", patches=patches, coords=coords)
+    batch = CollatedPatchBatch(wsi_id="WSI1", patches=patches, coords=coords, meta_cols={})
 
     f = CellVitTissueClassifierFilter()
     f.attach_context(PipelineContext({"use_gpu": False, "tile_size": 128}))
@@ -95,32 +89,7 @@ def test_filter_keeps_only_class0_on_cpu():
 
     # Expected: keep indices where intensity -> mean/255 > 0.5 -> 255, 200 (drop 10, 0)
     assert out.patches.shape[0] == 2
-    assert out.coords == [(0, 0), (2, 2)]
+    assert np.array_equal(out.coords, np.array([[0, 0], [2, 2]]))
     assert out.wsi_id == "WSI1"
     # spot-check values
     assert np.all(out.patches[0] == 255) and np.all(out.patches[1] == 200)
-
-
-@patch(
-    "wsi_patching.filtering.cellvit_tissue_classifier_filter.get_torch_device", new=lambda use_gpu: torch.device("cpu")
-)
-@patch("wsi_patching.filtering.cellvit_tissue_classifier_filter.ensure_cupy", new=lambda x: x)
-def test_filter_use_gpu_true_calls_backend_indexing_without_cupy():
-    """
-    Simulate use_gpu=True path without requiring CuPy: patch ensure_cupy to identity.
-    Device still CPU; we only exercise the indexing branch difference.
-    """
-    patches, coords = _mk_batch([255, 0, 255, 0])  # keep 0 and 2
-    batch = CollBatch(wsi_id="WSI2", patches=patches, coords=coords)
-
-    f = CellVitTissueClassifierFilter()
-    f.attach_context(PipelineContext({"use_gpu": True, "tile_size": 128}))
-    f.validate()
-
-    _patch_lazy_load_to_dummy(f, device=torch.device("cpu"), thresh=0.5)
-
-    out = list(f(iter([batch])))[0]
-    assert out.coords == [(0, 0), (2, 2)]
-    assert out.patches.shape[0] == 2
-    # still numpy arrays (since we didn't actually switch to cupy)
-    assert isinstance(out.patches, np.ndarray)

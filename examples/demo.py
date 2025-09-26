@@ -67,7 +67,7 @@ def main(argv=None):
     ]
 
     # Example ROI dict (compat with old code)
-    rois_dict = {Path(s).stem: [(0, 0, 8000, 8000)] for s in slides}
+    rois_dict = {Path(s).stem: [(0, 0, 4000, 4000)] for s in slides}
 
     p = (
         WSIGrid(slides=slides, tile_size=224, stride=224, level=0, use_gpu=True)
@@ -77,7 +77,7 @@ def main(argv=None):
         .then(RegionReadAndBatch(batch_size=args.batch, num_workers=args.num_workers))
         .then(CellVitTissueClassifierFilter())
         .then(PNGEncoder())
-        .to(WebDatasetWriter())
+        .to(WebDatasetWriter(shard_size=300, shuffle_buffer_size=500))
     )
 
     start_time = time.time()

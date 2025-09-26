@@ -1,4 +1,3 @@
-from dataclasses import replace
 from typing import Iterable, List, Union
 
 import numpy as np
@@ -6,7 +5,6 @@ import torch
 import torch.nn as nn
 from torchvision.models import mobilenet_v3_small
 
-from wsi_patching.backends.cupy_numpy import ensure_cupy
 from wsi_patching.backends.torch_device import get_torch_device
 from wsi_patching.core.pipeline import Stage
 from wsi_patching.utils.types import CollatedPatchBatch
@@ -14,7 +12,7 @@ from wsi_patching.utils.types import CollatedPatchBatch
 try:
     from importlib.resources import as_file, files  # Python 3.9+
 except Exception:  # Python 3.8 fallback
-    from importlib_resources import as_file, files  # backport package
+    from importlib_resources import as_file, files  # type: ignore
 
 
 class CellVitTissueClassifierFilter(Stage):
@@ -66,24 +64,21 @@ class CellVitTissueClassifierFilter(Stage):
                 preds_list.append(preds)
                 probs_list.append(probs)
 
-            preds_all = torch.cat(preds_list, dim=0)  # (N,)
+            preds_all = torch.cat(preds_list, dim=0).detach().cpu().numpy()  # (N,)
 
             # Class 0 == tissue -> keep
-            keep_mask_np = preds_all.detach().cpu().numpy() == 0  # boolean (N,)
+            keep_mask_np = preds_all == 0
 
-            # Filter coords & patches while preserving backend type
-            new_coords = [c for c, m in zip(collated_patch_batch.coords, keep_mask_np) if m]
+            probs_all = torch.cat(probs_list, dim=0).detach().cpu().numpy()  # (N,4)
+            collated_patch_batch.add_col("cellvit_tissue_classifier_probs", np.round(probs_all, 2))
 
-            if self.ctx["use_gpu"]:
-                keep_mask_backend = ensure_cupy(keep_mask_np)
-                new_patches = patches[keep_mask_backend]
-            else:
-                new_patches = patches[keep_mask_np]
+            collated_patch_batch.filter(keep_mask_np, use_gpu=self.ctx["use_gpu"])
 
-            patch_batch = replace(collated_patch_batch, coords=new_coords, patches=new_patches)
-
-            self.log.info(f"Yielding: wsi={patch_batch.wsi_id} in={len(patches)} kept={len(new_patches)}")
-            yield patch_batch
+            self.log.info(
+                f"Yielding: wsi={collated_patch_batch.wsi_id} in={len(patches)} "
+                f"kept={len(collated_patch_batch.patches)}"
+            )
+            yield collated_patch_batch
 
     def _preprocess_batch(self, batch_imgs: np.ndarray) -> torch.Tensor:
         """

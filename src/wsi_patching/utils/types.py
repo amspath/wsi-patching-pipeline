@@ -1,6 +1,8 @@
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Dict, List, Tuple, Union
 
+from wsi_patching.backends.cupy_numpy import ensure_array_matches_use_gpu, get_xp_backend
+
 if TYPE_CHECKING:
     import cupy as cp
 import numpy as np
@@ -47,26 +49,82 @@ class RegionTask:
 
 
 @dataclass
-class PatchSample:
-    wsi_id: str
-    coord: Tuple[int, int]
-    patch: np.ndarray  # H x W x C uint8
-    meta: Dict[str, Any] = field(default_factory=dict)
-
-
-@dataclass
 class CollatedPatchBatch:
+    """A batch of patches from a single WSI, with coordinates and optional metadata.
+
+    Optimized for fast addition of columns in the meta data and in-place filtering.
+
+    Example usage:
+    ```
+    batch = CollatedPatchBatch(wsi_id, coords_np, patches_np, {"area": areas_np})
+    batch.add_col("probs", probs_np)                       # (N, C)
+    mask = (batch.meta_cols["area"] > 2500)                # boolean np.ndarray
+    batch.filter(mask)                                     # in-place
+    wsi_id, coord, patch, meta = batch.get(0)              # get first sample
+    ```
+    """
+
     wsi_id: str
-    coords: List[Tuple[int, int]]
-    patches: Union[np.ndarray, "cp.ndarray"]  # np if use_gpu=False else cp.ndarray
-    meta: Dict[str, Any] = field(default_factory=dict)
+    coords: np.ndarray  # (N, 2)
+    patches: Union[np.ndarray, "cp.ndarray"]  # (N, ...)
+
+    # Meta columns, each entry in the dict is an array of length N
+    meta_cols: Dict[str, np.ndarray]  # each first dim == N
+
+    def add_col(self, name: str, values: np.ndarray) -> None:
+        """Add a new metadata column.
+
+        Raises ValueError if length mismatch.
+        Raises ValueError if name already exists.
+        Raises ValueError if values is of type object.
+        """
+        if values.shape[0] != self.coords.shape[0]:
+            raise ValueError("add_col: first dimension must equal number of rows")
+        if name in self.meta_cols:
+            raise ValueError(f"add_col: column '{name}' already exists")
+
+        self.meta_cols[name] = values
+
+    def filter(self, mask: np.ndarray, use_gpu: bool) -> None:
+        """In-place compaction. `mask` is a numpy boolean array of length N.
+
+        Raises TypeError if mask is not boolean.
+        Raises ValueError if length mismatch.
+        """
+        xp = get_xp_backend(use_gpu=use_gpu)
+
+        if mask.dtype != xp.bool_:
+            raise TypeError("filter: mask must be boolean (np.bool_ / cp.bool_)")
+        if mask.shape[0] != self.coords.shape[0]:
+            raise ValueError("filter: mask length mismatch")
+
+        # Vectorized compaction (one pass per column)
+        self.coords = np.compress(mask, self.coords, axis=0)
+        self.patches = xp.compress(ensure_array_matches_use_gpu(mask, use_gpu), self.patches, axis=0)
+        for k, v in self.meta_cols.items():
+            self.meta_cols[k] = np.compress(mask, v, axis=0)
+
+    def get(self, i: int):
+        """
+        Return a single sample:
+        coords: shape (2,)
+        patch:  shape (...)
+        meta:   dict[str, Any] with per-column row values
+        """
+        n = self.coords.shape[0]
+        if i < -n or i >= n:
+            raise IndexError(f"index {i} out of range for N={n}")
+        coord = self.coords[i]
+        patch = self.patches[i]
+        meta = {k: v[i] for k, v in self.meta_cols.items()}
+        return self.wsi_id, coord, patch, meta
 
 
 @dataclass(frozen=True)
 class Patch:
     key: str
     patch: object
-    meta: dict
+    meta: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

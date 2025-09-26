@@ -23,13 +23,15 @@ class PNGEncoder(Stage):
         for batch in it:
             for idx in range(len(batch.coords)):
                 t0 = time.perf_counter()
-                key = f"{batch.wsi_id}-{batch.coords[idx][0]}-{batch.coords[idx][1]}"
+
+                wsi_id, coord, patch, meta = batch.get(idx)
+                key = f"{wsi_id}-{coord[0]}-{coord[1]}"
 
                 # If not uint8, convert now
-                if batch.patches.dtype != "uint8":
-                    patch_uint8 = (batch.patches[idx].clip(0, 255)).astype("uint8")
+                if patch.dtype != "uint8":
+                    patch_uint8 = (patch.clip(0, 255)).astype("uint8")
                 else:
-                    patch_uint8 = batch.patches[idx]
+                    patch_uint8 = patch
 
                 patch_uint8 = ensure_numpy(patch_uint8)
 
@@ -38,7 +40,7 @@ class PNGEncoder(Stage):
                 Image.fromarray(patch_uint8).save(bio, format="PNG")
                 png_bytes = bio.getvalue()
                 # JSON
-                meta = {"wsi_id": batch.wsi_id, "coord": batch.coords[idx], **batch.meta}
+                meta = {"coord": coord, **meta}
 
                 dt = time.perf_counter() - t0
                 if prof is not None:
