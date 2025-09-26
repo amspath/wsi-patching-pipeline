@@ -17,7 +17,9 @@ class AttachROIs(Stage):
             all_rois = []
             for prov in self.providers:
                 try:
-                    all_rois.extend(prov.for_slide(s))
+                    slide_rois = prov.for_slide(s)
+                    all_rois.extend(slide_rois)
+                    self.log.info(f"{type(prov).__name__} found {len(slide_rois)} ROIs for slide {s.wsi_id}")
                 except Exception as e:
                     self.log.info(f"{type(prov).__name__} failed: {e}")
 
