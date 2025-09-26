@@ -36,7 +36,7 @@ class WebDatasetWriter(WriterBase):
             self._flush_buffer()
 
     def close(self) -> None:
-        if self._buffer is not None:
+        if self._buffer:
             self.log.info(f"Closing... Flushing remaining {len(self._buffer)} samples in buffer.")
             self.log.info(f"Meta example: {self._buffer[0].meta}")
         while self._buffer:

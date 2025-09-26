@@ -28,7 +28,7 @@ def _count_members(tar_path: Path):
 
     with tarfile.open(tar_path, "r") as tf:
         names = [m.name for m in tf.getmembers() if m.isfile()]
-    return (sum(n.endswith(".png") for n in names), sum(n.endswith(".json") for n in names))
+    return (sum(n.endswith(".png") for n in names), sum(n.endswith(".meta") for n in names))
 
 
 def test_open_creates_outdir_and_sink(tmp_path: Path):

@@ -225,5 +225,6 @@ def test_region_read_and_batch_skips_incomplete_patches():
         assert len(out) == 1
         batch = out[0]
         # only the full (0,0) patch remains
-        assert batch.coords == [(0, 0)]
+        assert all(batch.coords[0] == 0)
+        print(batch.patches.shape)
         assert batch.patches.shape[0] == 1

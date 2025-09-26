@@ -2,6 +2,7 @@ from io import BytesIO
 from pathlib import Path
 
 import numpy as np
+import orjson
 import pytest
 import torch
 
@@ -25,7 +26,9 @@ def _write_shard(tmpdir: Path, items):
     shard = tmpdir / "shard-000000.tar"
     with wds.ShardWriter(str(tmpdir / "shard-%06d.tar"), maxcount=1000, verbose=0) as sink:
         for key, img_bytes, meta in items:
-            sink.write({"__key__": key, "png": img_bytes, "json": meta})
+            sink.write(
+                {"__key__": key, "png": img_bytes, "meta": orjson.dumps(meta, option=orjson.OPT_SERIALIZE_NUMPY)}
+            )
     # Some versions write an empty first shard on open; ensure we produced at least one shard file
     assert shard.exists()
 
