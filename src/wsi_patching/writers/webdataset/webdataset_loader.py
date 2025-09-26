@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
 import numpy as np
+import orjson
 import torch
 import webdataset as wds
 from torch.utils.data import DataLoader
@@ -67,7 +68,7 @@ class WebDatasetLoader:
         # Map to a simple dict the rest of the code can rely on
         def _map(sample):
             key, img, meta = sample  # img: HWC uint8 (numpy), meta: dict
-            return {"key": key, "image": img, "meta": meta}
+            return {"key": key, "image": img, "meta": orjson.loads(meta.decode("utf-8"))}
 
         ds = ds.map(_map)
         return ds
