@@ -1,5 +1,7 @@
 from typing import TYPE_CHECKING, Iterable, List, Optional, Tuple, Union
 
+from wsi_patching.regions_of_interest.roi_providers import WholeSlideProvider
+
 if TYPE_CHECKING:
     import cupy as cp
 import numpy as np
@@ -7,7 +9,7 @@ import numpy as np
 from wsi_patching.backends.cucim_openslide import read_region
 from wsi_patching.backends.cupy_numpy import get_xp_backend
 from wsi_patching.core.pipeline import Stage
-from wsi_patching.core.regions_of_interest import ROI, BoxROI, WholeSlideProvider
+from wsi_patching.regions_of_interest.rois import ROI, BoxROI
 from wsi_patching.utils.types import CollatedPatchBatch, RegionTask, Slide, SlideWithROIs, TilePlan
 
 

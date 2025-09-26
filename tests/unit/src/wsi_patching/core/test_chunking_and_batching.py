@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 
 from wsi_patching.core.chunking_and_batching import ReadWindowChunker, RegionReadAndBatch, TilePlanner, _align_to_grid
-from wsi_patching.core.regions_of_interest import BoxROI
+from wsi_patching.regions_of_interest.rois import BoxROI
 from wsi_patching.utils.meta_typing import PipelineContext
 
 
