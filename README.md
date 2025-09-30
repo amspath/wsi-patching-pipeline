@@ -57,7 +57,7 @@ This library is setup such that you can easily build your own components to suit
 ```python
 from wsi_patching.custom_component import Stage, PipelineContext
 
-class CustomerStage(Stage):
+class CustomStage(Stage):
         def __init__(self, ...):
                 ...
         
@@ -81,7 +81,7 @@ class CustomerStage(Stage):
 ```python
 from wsi_patching.custom_component import WriterBase
 
-class CustomerWriter(WriterBase):
+class CustomWriter(WriterBase):
         def __init__(self, ...):
                 ...
 
