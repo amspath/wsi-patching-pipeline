@@ -63,11 +63,11 @@ def main(argv=None):
     slides = ["data/RT14-09099_HE.tiff"]
 
     # Example ROI dict (compat with old code)
-    rois_dict = {"RT14-09099_HE": "data/RT14-09099_HE.xml"}
+    annotation_dict = {"RT14-09099_HE": "data/RT14-09099_HE.xml"}
 
     p = (
         WSIGrid(slides=slides, tile_size=224, stride=224, level=0, use_gpu=True)
-        .then(AttachROIs(providers=[RectROIfromXMLProvider(rois_dict)]))
+        .then(AttachROIs(providers=[RectROIfromXMLProvider(annotation_dict)]))
         .then(TilePlanner())
         .then(ReadWindowChunker())
         .then(RegionReadAndBatch(batch_size=args.batch, num_workers=args.num_workers))

@@ -1,8 +1,6 @@
-from dataclasses import dataclass
-import logging
-from typing import Dict, List, Tuple
-
 import xml.etree.ElementTree as ET
+from dataclasses import dataclass
+from typing import Dict, List, Tuple
 
 from wsi_patching.regions_of_interest.rois import ROI, BoxROI
 from wsi_patching.utils.types import SlideBase
