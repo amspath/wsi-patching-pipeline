@@ -4,6 +4,7 @@ import sys
 from dataclasses import dataclass, field
 from multiprocessing.queues import Queue as MPQueue
 from pathlib import Path
+from threading import Thread
 from typing import Any, Iterable, Iterator, List, Optional, Tuple, Union
 
 from wsi_patching.utils.logging_config import LogLevel, init_logging
@@ -167,17 +168,6 @@ class Pipeline(Stage):
         profile: bool = False,
         verbosity_level: LogLevel = "WARNING",
     ):
-        """
-        Run the pipeline.
-
-        Args:
-            cpu_processes: Number of parallel processes to use.
-            queue_maxsize: Max size of the writer queue.
-            profile: Whether to enable profiling.
-            verbosity_level: Logging verbosity level.
-        Returns:
-            Returns
-        """
         init_logging(verbosity_level)
         self.log.info(f"Starting pipeline with {cpu_processes} processes (profile={profile}).")
 
@@ -190,12 +180,14 @@ class Pipeline(Stage):
             self.log.info("[WARN] No slides provided. Nothing to do.")
             return
 
+        # export/attach/validate
         for s in self.stages + [self.writer]:
             s.export_context(self._context)
         for s in self.stages + [self.writer]:
             s.attach_context(self._context)
             s.validate()
 
+        # processes for producers; thread for writer
         if mp.get_start_method(allow_none=True) != "spawn":
             try:
                 mp.set_start_method("spawn", force=True)
@@ -209,9 +201,17 @@ class Pipeline(Stage):
             self._ensure_prof_agg()
             self.prof_agg.reset()
 
-        writer_proc = mp.Process(target=self.writer.start_writer, args=(q, verbosity_level), name="writer")
-        writer_proc.start()
+        # --- writer as THREAD ---
+        # Uses thread to avoid CUDA context issues on in memory output
+        writer_thread = Thread(
+            target=self.writer.start_writer,
+            args=(q, verbosity_level),
+            name="writer",
+            daemon=False,  # ensure clean join
+        )
+        writer_thread.start()
 
+        # --- spawn producer PROCESSES ---
         pending = list(slides)
         active: List[mp.Process] = []
 
@@ -235,7 +235,7 @@ class Pipeline(Stage):
             while pending and len(active) < cpu_processes:
                 active.append(spawn_for(pending.pop(0)))
 
-        # Collect profiling
+        # collect profiling
         if profile and prof_q is not None and self.prof_agg is not None:
             received, expected = 0, len(slides)
             while received < expected:
@@ -247,8 +247,11 @@ class Pipeline(Stage):
                     self.prof_agg.ingest_msg(msg)
                     received += 1
 
+        # signal end of stream and join writer thread
         q.put(EndOfQueue())
-        writer_proc.join()
+        writer_thread.join()
+
+        # now self.writer is the SAME object that consumed data
         return self.writer.get_output()
 
 
@@ -286,3 +289,11 @@ def _producer_worker(
                 logging.info("Failed to send profile message.", file=sys.stderr)
         set_current_profiler(None)
         queue.put(EndOfStream())
+
+
+def _writer_worker(writer: WriterBase, q: MPQueue, res_q: MPQueue, verbosity_level: LogLevel):
+    # consume items, build output inside child
+    writer.start_writer(q, verbosity_level)
+
+    # send the final result back to parent
+    res_q.put(writer.get_output())

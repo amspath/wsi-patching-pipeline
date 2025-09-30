@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from typing import Iterable, Optional, Tuple
 
 from wsi_patching.backends.cupy_numpy import get_xp_backend
@@ -9,7 +7,7 @@ from wsi_patching.utils.types import CollatedPatchBatch
 
 class MacenkoNormalizer(Stage):
     """
-    Backend-agnostic Macenko stage using your `get_xp_backend`.
+    Macenko Normalization stage.
 
     - Fits (H, max_sat) on the first batch (stays on that batch's backend)
     - Applies to all subsequent batches without leaving the backend
@@ -19,17 +17,15 @@ class MacenkoNormalizer(Stage):
     def __init__(
         self, alpha: float = 1.0, beta: float = 0.15, light_intensity: int = 255, pixel_limit: Optional[int] = 500_000
     ) -> None:
-        super().__init__()
         self.alpha = float(alpha)
         self.beta = float(beta)
         self.I0 = int(light_intensity)
         self.pixel_limit = pixel_limit
 
         self._fitted = False
-        self._H = None  # xp.ndarray (3,2)
+        self._H_mat = None  # xp.ndarray (3,2)
         self._max_sat = None  # xp.ndarray (2,1)
         self._xp = None  # module: numpy or cupy
-        self._wsi_id: Optional[str] = None
 
     def validate(self):
         self.ctx.require_key("use_gpu")
@@ -45,16 +41,15 @@ class MacenkoNormalizer(Stage):
             flat = patches.reshape(-1, 3)
             OD = _to_OD(flat, self.I0, self._xp)  # (N*H*W, 3)
 
-            C, *_ = self._xp.linalg.lstsq(self.H_mat, OD.T, rcond=None)
+            C, *_ = self._xp.linalg.lstsq(self._H_mat, OD.T, rcond=None)
 
-            denom = self._xp.clip(self.max_sat.reshape(-1, 1), 1e-6, None)
+            denom = self._xp.clip(self._max_sat.reshape(-1, 1), 1e-6, None)
             C_norm = self._xp.clip(C / denom, 0.0, 1.0)
 
-            OD_hat = (self.H_mat @ C_norm).T  # (N*H*W, 3)
+            OD_hat = (self._H_mat @ C_norm).T  # (N*H*W, 3)
             normalized = _from_OD(OD_hat, self.I0, self._xp).reshape(N, Hh, Ww, 3)
 
             batch.patches = normalized
-            batch.add_col("macenko_normalized", self._xp.ones((normalized.shape[0],), dtype=bool))
 
             self.log.info(f"MacenkoNormalizer: yielded batch for wsi='{batch.wsi_id}' size={normalized.shape[0]}")
             yield batch
@@ -65,17 +60,16 @@ class MacenkoNormalizer(Stage):
 
         self._xp = get_xp_backend(self.ctx["use_gpu"])
 
-        H_mat, max_sat = self._macenko_fit_from_batch_xp(
-            patches_u8_nhwc=batch.patches, alpha=self.alpha, beta=self.beta, I0=self.I0, pixel_limit=self.pixel_limit
-        )
+        H_mat, max_sat = self._macenko_fit_from_batch_xp(patches_u8_nhwc=batch.patches)
 
-        self._H = H_mat
+        self._H_mat = H_mat
         self._max_sat = max_sat
         self._fitted = True
 
         self.log.info(
-            f"MacenkoNormalizer: fitted on wsi='{self._wsi_id}' "
-            f"(alpha={self.alpha}, beta={self.beta}, I0={self.I0}, pixel_limit={self.pixel_limit}, xp={self._xp.__name__})"
+            f"MacenkoNormalizer: fitted on wsi='{batch.wsi_id}' "
+            f"(alpha={self.alpha}, beta={self.beta}, I0={self.I0}, "
+            f"pixel_limit={self.pixel_limit}"
         )
 
     def _macenko_fit_from_batch_xp(self, patches_u8_nhwc) -> Tuple:
