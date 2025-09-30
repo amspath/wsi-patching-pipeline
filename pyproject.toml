@@ -5,12 +5,11 @@ build-backend = "hatchling.build"
 [project]
 name = "wsi-patching"
 version = "0.1.0"
-description = "High Performance Patching Library for Digital Pathology AI dataset creation."
+description = "A High Performance Patching Library for Digital Pathology AI dataset creation."
 requires-python = ">=3.8"
 authors = [{ name = "Robin van Hoorn", email = "r.d.vanhoorn@amsterdamumc.nl" }]
 dependencies = [
     "numpy",
-    "pandas",
     "webdataset",
     "pillow",
     "torch",
