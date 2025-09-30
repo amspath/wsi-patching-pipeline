@@ -6,7 +6,6 @@ from PIL import Image
 
 from wsi_patching.backends.cupy_numpy import ensure_numpy
 from wsi_patching.core.pipeline import Stage
-from wsi_patching.utils.profiling import get_current_profiler
 from wsi_patching.utils.types import CollatedPatchBatch, Patch
 
 
@@ -19,7 +18,7 @@ class PNGEncoder(Stage):
     """
 
     def __call__(self, it: Iterable[CollatedPatchBatch]) -> Iterable[Patch]:
-        prof = get_current_profiler()
+        prof = self.get_current_profiler()
         for batch in it:
             for idx in range(len(batch.coords)):
                 t0 = time.perf_counter()

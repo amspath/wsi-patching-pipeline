@@ -7,8 +7,8 @@ import numpy as np
 import torch
 
 from wsi_patching.backends.torch_device import get_torch_device
-from wsi_patching.core.pipeline import WriterBase
 from wsi_patching.utils.types import CollatedPatchBatch
+from wsi_patching.writers.writer_base import WriterBase
 
 
 class InMemoryPatchDataset(torch.utils.data.Dataset):

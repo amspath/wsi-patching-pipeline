@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from wsi_patching.core.chunking_and_batching import ReadWindowChunker, RegionReadAndBatch, TilePlanner
-from wsi_patching.core.wsi_grid import WSIGrid
-from wsi_patching.writers.torch_mem_writer import TorchMemoryWriter
+from wsi_patching.core import ReadWindowChunker, RegionReadAndBatch, TilePlanner, WSIGrid
+from wsi_patching.writers import TorchMemoryWriter
 
 
 def main():

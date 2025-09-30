@@ -3,8 +3,8 @@ from typing import List, Literal, Tuple
 import numpy as np
 
 from wsi_patching.backends.cupy_numpy import ensure_numpy
-from wsi_patching.core.pipeline import WriterBase
 from wsi_patching.utils.types import CollatedPatchBatch
+from wsi_patching.writers.writer_base import WriterBase
 
 
 class NumpyMemoryWriter(WriterBase):
