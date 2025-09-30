@@ -8,7 +8,7 @@ from typing import Any, Iterable, Iterator, List, Optional, Tuple, Union
 
 from wsi_patching.utils.logging_config import LogLevel, init_logging
 from wsi_patching.utils.meta_typing import ContextAware, PipelineContext, StageMeta
-from wsi_patching.utils.profiling import PipelineProfileAggregator, Profiler, set_current_profiler
+from wsi_patching.utils.profiling import PipelineProfileAggregator, Profiler, get_current_profiler, set_current_profiler
 from wsi_patching.utils.types import EndOfQueue, EndOfStream
 from wsi_patching.writers.writer_base import WriterBase
 
@@ -66,6 +66,9 @@ class Stage(ContextAware, metaclass=StageMeta):
 
     def for_slide(self, slide_path: str) -> "Stage":
         return self
+
+    def get_current_profiler(self) -> Optional[Profiler]:
+        return get_current_profiler()
 
 
 # -------- Pipeline --------

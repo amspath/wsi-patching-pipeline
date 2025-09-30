@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from wsi_patching.core.chunking_and_batching import ReadWindowChunker, RegionReadAndBatch, TilePlanner
-from wsi_patching.core.wsi_grid import WSIGrid
-from wsi_patching.writers.numpy_mem_writer import NumpyMemoryWriter
+from wsi_patching.core import ReadWindowChunker, RegionReadAndBatch, TilePlanner, WSIGrid
+from wsi_patching.writers import NumpyMemoryWriter
 
 
 def main():

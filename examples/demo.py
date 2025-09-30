@@ -2,31 +2,6 @@
 """
 Minimal streaming WSI patch pipeline with region-prefetch (cuCIM if available),
 per-WSI multiprocessing producers, and a single async WebDataset writer.
-
-Pipeline (as used in main()):
-    WSIGrid -> FilterByROI -> Regionize -> RegionReadAndBatch -> DummyTissueClassifier -> PNGEncoder -> WebDatasetWriter
-
-Notes
------
-- This is a barebones, runnable skeleton designed to match the requested API and flow.
-- cuCIM is optional at runtime. If unavailable, we fall back to Pillow for small images (level=0 only).
-  For real WSIs, install cuCIM and pass real slide paths.
-- Multiprocessing model:
-    * One producer process per slide (or up to cpu_processes concurrently)
-    * One writer process drains a bounded MP queue and writes tar shards continuously
-- GPU ops:
-    * DummyTissueClassifier simulates a batched GPU step if torch+CUDA are available.
-    * It waits for batches (default size 200) emitted by RegionReadAndBatch, then returns the batch.
-- WebDataset writer:
-    * The writer process owns the only ShardWriter.
-    * Samples are written as they arrive; no ordering guarantees.
-
-Profiling
----------
-- Enable via Pipeline.run(..., profile=True).
-- Each producer process profiles its stages (writer excluded) and sends a summary
-  to the parent via a dedicated queue.
-- After run(), call Pipeline.get_profile() for a dict or Pipeline.print_profile() for a summary.
 """
 
 from __future__ import annotations
@@ -35,13 +10,11 @@ import logging
 import time
 from pathlib import Path
 
-from wsi_patching.core.chunking_and_batching import ReadWindowChunker, RegionReadAndBatch, TilePlanner
-from wsi_patching.core.wsi_grid import WSIGrid
-from wsi_patching.filtering.cellvit_tissue_classifier_filter import CellVitTissueClassifierFilter
-from wsi_patching.pngencoder import PNGEncoder
-from wsi_patching.regions_of_interest.attach_rois import AttachROIs
-from wsi_patching.regions_of_interest.roi_providers import RectROIProvider
-from wsi_patching.writers.webdataset.webdataset_writer import WebDatasetWriter
+from wsi_patching.core import ReadWindowChunker, RegionReadAndBatch, TilePlanner, WSIGrid
+from wsi_patching.encoders import PNGEncoder
+from wsi_patching.filtering import CellVitTissueClassifierFilter
+from wsi_patching.regions_of_interest import AttachROIs, RectROIProvider
+from wsi_patching.writers import WebDatasetWriter
 
 
 def main(argv=None):
