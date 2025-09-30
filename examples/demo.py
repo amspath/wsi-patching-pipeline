@@ -36,10 +36,11 @@ import time
 from pathlib import Path
 
 from wsi_patching.core.chunking_and_batching import ReadWindowChunker, RegionReadAndBatch, TilePlanner
-from wsi_patching.core.regions_of_interest import AttachROIs, RectROIProvider
 from wsi_patching.core.wsi_grid import WSIGrid
 from wsi_patching.filtering.cellvit_tissue_classifier_filter import CellVitTissueClassifierFilter
 from wsi_patching.pngencoder import PNGEncoder
+from wsi_patching.regions_of_interest.attach_rois import AttachROIs
+from wsi_patching.regions_of_interest.roi_providers import RectROIProvider
 from wsi_patching.writers.webdataset.webdataset_writer import WebDatasetWriter
 
 
