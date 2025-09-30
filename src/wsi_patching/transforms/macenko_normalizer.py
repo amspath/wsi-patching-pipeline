@@ -27,6 +27,11 @@ class MacenkoNormalizer(Stage):
         self._max_sat = None  # xp.ndarray (2,1)
         self._xp = None  # module: numpy or cupy
 
+        self.log.info(
+            "MacenkoNormalizer fits on the first batch of each image. If the first batch is background-only, "
+            "fitting will likely result in unwanted behavior. Use with caution."
+        )
+
     def validate(self):
         self.ctx.require_key("use_gpu")
 
@@ -82,7 +87,8 @@ class MacenkoNormalizer(Stage):
         OD = _to_OD(flat, self.I0, self._xp)  # (M, 3)
 
         # Background mask: keep pixels where all OD >= beta
-        keep = ~(self._xp.any(OD < self.beta, axis=1))
+        od_norm = self._xp.linalg.norm(OD, axis=1)
+        keep = od_norm >= self.beta
         OD = OD[keep]
         if OD.size == 0:
             raise RuntimeError("Macenko fit: all pixels filtered as background.")
@@ -117,6 +123,9 @@ class MacenkoNormalizer(Stage):
         if H_mat[0, 0] < H_mat[0, 1]:
             H_mat = H_mat[:, [1, 0]]
 
+        # Normalize columns:
+        H_mat = H_mat / self._xp.clip(self._xp.linalg.norm(H_mat, axis=0, keepdims=True), 1e-12, None)
+
         # Least squares for C on fit pixels to get per-stain 99th percentile
         C, *_ = self._xp.linalg.lstsq(H_mat, OD.T, rcond=None)
         max_sat = self._xp.percentile(C, 99.0, axis=1, keepdims=True).astype(self._xp.float32)
@@ -141,14 +150,9 @@ def _to_OD(flat_rgb_u8, I0: int, xp):
         flat_rgb_u8: Array of shape (N, 3), dtype uint8 or float-like in [0, 255].
         I0: Reference/white intensity (typically 255).
     """
-    rgb_float = flat_rgb_u8.astype(xp.float32, copy=False)
-    white_intensity = float(I0)
-
-    # Clamp to avoid log(0) and keep within sensor range
-    rgb_float = xp.clip(rgb_float, 1.0, white_intensity)
-
-    optical_density = -xp.log((rgb_float + 1e-6) / white_intensity)
-    return optical_density
+    rgb = flat_rgb_u8.astype(xp.float32, copy=False)
+    rgb = xp.clip(rgb, 1.0, float(I0))
+    return -xp.log(rgb / float(I0))
 
 
 def _from_OD(OD, I0: int, xp):
