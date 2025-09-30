@@ -1,10 +1,7 @@
-#!/usr/bin/env python3
 """
 Minimal streaming WSI patch pipeline with region-prefetch (cuCIM if available),
 per-WSI multiprocessing producers, and a single async WebDataset writer.
 """
-
-from __future__ import annotations
 
 import logging
 import time
