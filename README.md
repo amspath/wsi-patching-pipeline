@@ -55,23 +55,23 @@ This library is setup such that you can easily build your own components to suit
 
 #### Creating a stage component:
 ```python
-from wsi_patching.custom_component import Stage
+from wsi_patching.custom_component import Stage, PipelineContext
 
 class CustomerStage(Stage):
         def __init__(self, ...):
                 ...
         
         def export_context(self, ctx: "PipelineContext") -> None:
-                # Seed/override global grid parameters for other stages to read, i.e.
+                # Optional: Seed/override global grid parameters for other stages to read, i.e.
                 ctx["tile_size"] = self.tile_size
 
         def validate(self) -> None:
-                # Validate your class before starting processing, i.e.
+                # Optional: Validate your class before starting processing, i.e.
                 self.ctx.require_key("use_gpu")
                 if self.ctx['some_key'] < self.some_init_param:
                         ...
         
-        def __call__(self, it: Iterable[<PreviousStageOutputType>]) -> Iterable[NextStageInputType]:
+        def __call__(self, it: Iterable[<PreviousStageOutputType>]) -> Iterable[<NextStageInputType>]:
                 # The logic of your stage. You should specifiy the type of your call function. 
                 # These should align with the preceeding and succeeding stages (checked at initialization).
                 ...
