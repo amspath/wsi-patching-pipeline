@@ -3,16 +3,8 @@ import pytest
 import torch
 
 from wsi_patching.utils.meta_typing import PipelineContext
+from wsi_patching.utils.types import CollatedPatchBatch
 from wsi_patching.writers.torch_mem_writer import InMemoryPatchDataset, TorchMemoryWriter
-
-
-class DummyBatch:
-    """Minimal stand-in for CollatedPatchBatch (attributes only)."""
-
-    def __init__(self, wsi_id, patches, coords):
-        self.wsi_id = wsi_id
-        self.patches = patches  # expected BHWC (writer permutes to NCHW if requested)
-        self.coords = coords  # (N, 2) ints
 
 
 def _mk_bhwc(n, h, w, c, dtype=np.float32):
@@ -26,10 +18,10 @@ def test_inmemory_dataset_len_and_getitem():
     coords = torch.tensor([[0, 0], [1, 2], [3, 4]], dtype=torch.long)
     ids = ["A", "A", "B"]
 
-    ds = InMemoryPatchDataset(imgs, coords, ids, layout="NCHW")
+    ds = InMemoryPatchDataset(imgs, coords, ids, layout="NCHW", metadata=[{}, {}, {}])
     assert len(ds) == 3
     item = ds[1]
-    assert set(item.keys()) == {"image", "coord", "wsi_id"}
+    assert set(item.keys()) == {"image", "coord", "wsi_id", "meta"}
     assert torch.equal(item["coord"], coords[1])
     assert item["wsi_id"] == "A"
 
@@ -69,7 +61,7 @@ def test_single_batch_roundtrip(monkeypatch, layout):
     w = TorchMemoryWriter(layout=layout, dtype=torch.float32)
     _attach_cpu_ctx_and_open(w, monkeypatch)
 
-    w.write(DummyBatch("S1", patches, coords))
+    w.write(CollatedPatchBatch("S1", coords, patches, meta_cols={}))
     w.close()
     ds = w.get_output()
 
@@ -98,13 +90,15 @@ def test_length_mismatch_raises(monkeypatch):
     _attach_cpu_ctx_and_open(w, monkeypatch)
 
     with pytest.raises(ValueError) as ei:
-        w.write(DummyBatch("X", patches, coords))
+        w.write(CollatedPatchBatch("X", coords, patches, meta_cols={}))
     assert "Batch length mismatch" in str(ei.value)
 
 
 def test_multiple_batches_concat_and_ids(monkeypatch):
-    b1 = DummyBatch("A", _mk_bhwc(2, 2, 2, 1), np.array([[1, 2], [3, 4]], dtype=np.int64))
-    b2 = DummyBatch("B", _mk_bhwc(3, 2, 2, 1), np.array([[5, 6], [7, 8], [9, 10]], dtype=np.int64))
+    b1 = CollatedPatchBatch("A", np.array([[1, 2], [3, 4]], dtype=np.int64), _mk_bhwc(2, 2, 2, 1), meta_cols={})
+    b2 = CollatedPatchBatch(
+        "B", np.array([[5, 6], [7, 8], [9, 10]], dtype=np.int64), _mk_bhwc(3, 2, 2, 1), meta_cols={}
+    )
 
     w = TorchMemoryWriter(layout="NCHW")
     _attach_cpu_ctx_and_open(w, monkeypatch)

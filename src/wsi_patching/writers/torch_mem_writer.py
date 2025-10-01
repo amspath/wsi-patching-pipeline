@@ -1,4 +1,3 @@
-import logging
 from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Union
 
 if TYPE_CHECKING:
@@ -15,7 +14,12 @@ class InMemoryPatchDataset(torch.utils.data.Dataset):
     """In-memory dataset"""
 
     def __init__(
-        self, images: torch.Tensor, coords: torch.Tensor, wsi_ids: List[str], layout: Literal["NCHW", "NHWC"] = "NCHW"
+        self,
+        images: torch.Tensor,
+        coords: torch.Tensor,
+        wsi_ids: List[str],
+        metadata: List[Dict[str, Any]],
+        layout: Literal["NCHW", "NHWC"] = "NCHW",
     ) -> None:
         assert images.ndim == 4, f"images must be 4D tensor, got {images.shape}"
         assert coords.ndim == 2 and coords.shape[1] == 2, f"coords must be [N,2], got {coords.shape}"
@@ -23,13 +27,19 @@ class InMemoryPatchDataset(torch.utils.data.Dataset):
         self.images = images
         self.coords = coords
         self.wsi_ids = wsi_ids
+        self.metadata = metadata
         self.layout = layout
 
     def __len__(self) -> int:
         return self.images.shape[0]
 
     def __getitem__(self, idx: int) -> Dict[str, Any]:
-        return {"image": self.images[idx], "coord": self.coords[idx], "wsi_id": self.wsi_ids[idx]}
+        return {
+            "image": self.images[idx],
+            "coord": self.coords[idx],
+            "wsi_id": self.wsi_ids[idx],
+            "meta": self.metadata[idx],
+        }
 
 
 class TorchMemoryWriter(WriterBase):
@@ -47,6 +57,7 @@ class TorchMemoryWriter(WriterBase):
         self._images_chunks: List[torch.Tensor] = []
         self._coords_chunks: List[torch.Tensor] = []
         self._wsi_ids: List[str] = []
+        self._metadata: List[Dict[str, Any]] = []
 
         self._dataset: Optional[InMemoryPatchDataset] = None
         self._device: Optional[torch.device] = None
@@ -85,6 +96,7 @@ class TorchMemoryWriter(WriterBase):
         # accumulate
         self._images_chunks.append(images_t)
         self._coords_chunks.append(coords_t)
+        self._metadata.extend(sample.get_all_meta())
         self._wsi_ids.extend([sample.wsi_id] * images_t.shape[0])
 
     def close(self) -> None:
@@ -97,7 +109,7 @@ class TorchMemoryWriter(WriterBase):
             dev = self._device if self._device is not None else torch.device("cpu")
             empty_imgs = torch.empty((0, 1, 1, 1), dtype=self.dtype, device=dev)
             empty_coords = torch.empty((0, 2), dtype=torch.long, device=dev)
-            self._dataset = InMemoryPatchDataset(empty_imgs, empty_coords, [], layout=self.layout)
+            self._dataset = InMemoryPatchDataset(empty_imgs, empty_coords, [], [], layout=self.layout)
             self.log.info("Closed with empty dataset.")
             return
 
@@ -108,7 +120,9 @@ class TorchMemoryWriter(WriterBase):
         self._images_chunks.clear()
         self._coords_chunks.clear()
 
-        self._dataset = InMemoryPatchDataset(images=images, coords=coords, wsi_ids=self._wsi_ids, layout=self.layout)
+        self._dataset = InMemoryPatchDataset(
+            images=images, coords=coords, wsi_ids=self._wsi_ids, metadata=self._metadata, layout=self.layout
+        )
         self.log.info(
             f"Closed. Final dataset: N={len(self._dataset)}, "
             f"shape={tuple(self._dataset.images.shape)}, "

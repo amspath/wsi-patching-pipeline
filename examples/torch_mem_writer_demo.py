@@ -1,4 +1,5 @@
 from wsi_patching.core import ReadWindowChunker, RegionReadAndBatch, TilePlanner, WSIGrid
+from wsi_patching.filtering import PenArtifactFilter
 from wsi_patching.regions_of_interest import AttachROIs, RectROIfromXMLProvider
 from wsi_patching.transforms import MacenkoNormalizer
 from wsi_patching.writers import TorchMemoryWriter
@@ -12,10 +13,11 @@ def main():
 
     p = (
         WSIGrid(slides=slides, tile_size=256, stride=256, level=0, use_gpu=True)
-        .then(AttachROIs(RectROIfromXMLProvider(rois=roi_xml)))
+        .then(AttachROIs(providers=[RectROIfromXMLProvider(rois=roi_xml)]))
         .then(TilePlanner())
         .then(ReadWindowChunker())
         .then(RegionReadAndBatch(batch_size=800, num_workers=4))
+        .then(PenArtifactFilter())
         .then(MacenkoNormalizer())
         .to(TorchMemoryWriter(layout="NCHW"))
     )
