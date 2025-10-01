@@ -1,3 +1,5 @@
+from typing import Tuple
+
 import numpy as np
 import pytest
 
@@ -21,9 +23,9 @@ def beer_lambert_forward(H_true, C, I0=255):
     Returns uint8 RGB intensities in [0,255] of shape (3, P)
     """
     OD = H_true @ C  # (3, P)
-    I = I0 * np.exp(-OD)  # (3, P)
-    I = np.clip(I, 0, 255)
-    return I.astype(np.uint8)
+    rgb_uint8 = I0 * np.exp(-OD)  # (3, P)
+    rgb_uint8 = np.clip(rgb_uint8, 0, 255)
+    return rgb_uint8.astype(np.uint8)
 
 
 def synth_patches_from_stains(H_true, n_patches=4, patch_hw=(32, 32), I0=255, conc_scale=1.5, seed=123):
@@ -38,8 +40,8 @@ def synth_patches_from_stains(H_true, n_patches=4, patch_hw=(32, 32), I0=255, co
         # 2 stains, H*W pixels
         C = rng.gamma(shape=2.0, scale=conc_scale, size=(2, H * W))
         # (3, H*W) uint8
-        I = beer_lambert_forward(H_true, C, I0=I0)
-        img = I.T.reshape(H, W, 3).astype(np.uint8)
+        rgb_uint8 = beer_lambert_forward(H_true, C, I0=I0)
+        img = rgb_uint8.T.reshape(H, W, 3).astype(np.uint8)
         patches.append(img)
     patches = np.stack(patches, axis=0)  # (N, H, W, 3)
     return patches
@@ -71,7 +73,7 @@ def subspace_is_close(H_est, H_true, tol_deg=2.0):
 
 def make_golden_concentrations(
     n_tissue_per_stain: int, n_white: int, conc_values_stain1: np.ndarray, conc_values_stain2: np.ndarray
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Returns (C_all, idx_s1, idx_s2)
     C_all: (2, P) in the order [all stain1-only pixels | all stain2-only pixels | all whites]
@@ -115,7 +117,6 @@ def make_golden_patch_from_H(
       'idx_s1', 'idx_s2' (indices of tissue pixels),
       'expected_max_sat': shape (2,)
     """
-    rng = np.random.default_rng(seed)
     # Make reproducible, non-uniform concentrations with known percentiles
     # Use sorted values so the percentile is deterministic
     conc_values_stain1 = np.linspace(c_min, c_max, n_tissue_per_stain)
@@ -137,8 +138,8 @@ def make_golden_patch_from_H(
         # push OD-norm well below beta for whites
         OD[:, white_cols] = OD[:, white_cols] * 0.0 + (beta * 0.2)  # small OD along all channels
 
-    I = I0 * np.exp(-OD)  # (3, P)
-    I = np.clip(I, 0, 255).astype(np.uint8)
+    rgb_uint8 = I0 * np.exp(-OD)  # (3, P)
+    rgb_uint8 = np.clip(rgb_uint8, 0, 255).astype(np.uint8)
 
     # Lay out pixels on a rectangle (single patch)
     side = int(np.ceil(np.sqrt(P)))
@@ -147,13 +148,13 @@ def make_golden_patch_from_H(
     if total > P:
         pad_white = total - P
         I_pad = np.full((3, pad_white), I0, dtype=np.uint8)
-        I = np.concatenate([I, I_pad], axis=1)
+        rgb_uint8 = np.concatenate([rgb_uint8, I_pad], axis=1)
         C_pad = np.zeros((2, pad_white), dtype=float)
         C_all = np.concatenate([C_all, C_pad], axis=1)
 
     Hh = side
     Ww = side
-    img = I.T.reshape(Hh, Ww, 3)
+    img = rgb_uint8.T.reshape(Hh, Ww, 3)
     patch = img[np.newaxis, ...]  # (1, H, W, 3)
 
     # Compute expected max_sat as alpha-percentiles of the TRUE tissue concentrations only
