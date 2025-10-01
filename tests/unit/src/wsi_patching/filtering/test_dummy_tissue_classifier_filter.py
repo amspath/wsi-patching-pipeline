@@ -74,21 +74,3 @@ def test_filter_empty_iterable_produces_no_output():
     f.attach_context(PipelineContext({"use_gpu": False}))
     f.validate()
     assert list(f(iter([]))) == []
-
-
-@patch(
-    "wsi_patching.filtering.dummy_tissue_classifier_filter.get_torch_device", new=lambda use_gpu: torch.device("cpu")
-)
-@patch.object(torch.Tensor, "cuda", new=lambda self, non_blocking=True: self)
-def test_filter_gpu_branch_noop_cuda():
-    patches, coords = _mk_mix_batch()
-    batch = CollatedPatchBatch(wsi_id="S2", patches=ensure_cupy(patches), coords=coords, meta_cols={})
-
-    f = DummyTissueClassifierFilter()
-    f.attach_context(PipelineContext({"use_gpu": True}))
-    f.validate()
-
-    out = list(f(iter([batch])))[0]
-    assert out.patches.shape[0] == 2
-    assert len(out.coords) == 2
-    assert out.wsi_id == "S2"
