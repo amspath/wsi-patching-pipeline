@@ -99,6 +99,4 @@ class CustomWriter(WriterBase):
 ```
 
 # More will come
-- [ ] Macenko tile normalization
-- [ ] More filters
 - [ ] Retrained MobileNet classifier for tissue detection with proper documentation

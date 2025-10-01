@@ -28,7 +28,6 @@ class DummyTissueClassifierFilter(Stage):
         for collated_patch_batch in it:
             patches = collated_patch_batch.patches
 
-            # Convert to tensor (B,H,W,C) -> normalize to [0,1]
             ten = torch.as_tensor(patches, device=self._device).float() / 255.0  # B,H,W,C
             ten = ten.permute(0, 3, 1, 2)  # B,C,H,W
 
@@ -41,7 +40,6 @@ class DummyTissueClassifierFilter(Stage):
             # Create filter mask
             mask = scores > 0.5
 
-            print(type(mask))
             collated_patch_batch.add_col("dummy_tissue_classifier_score", ensure_numpy(scores))
 
             # Filter patch batch with mask
