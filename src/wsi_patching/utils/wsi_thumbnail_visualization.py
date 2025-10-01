@@ -1,3 +1,4 @@
+import math
 from pathlib import Path
 from typing import Iterable, Mapping, Optional, Sequence, Tuple, Union
 
@@ -16,9 +17,7 @@ def visualize_selected_patches(
     stride: Optional[int] = None,
     patch_images: np.ndarray = None,
     thumb_long_side: int = 2000,
-    selected_outline_rgba: Tuple[int, int, int, int] = (0, 220, 0, 255),
-    unselected_fill_rgba: Tuple[int, int, int, int] = (40, 40, 40, 120),
-    show_unselected: bool = True,
+    selected_outline_rgba: Tuple[int, int, int, int] = (0, 220, 0, 100),
     save_path: Union[str, Path, None] = None,
 ) -> Image:
     """
@@ -59,7 +58,6 @@ def visualize_selected_patches(
 
     # Optionally snap to stride grid to avoid tiny round-off mismatches
     coords_arr = [((x // stride) * stride, (y // stride) * stride) for x, y in coords_arr]
-    selected_set = set(coords_arr)
 
     # Map coords -> patch image (if provided)
     coord_to_patch: dict[tuple[int, int], np.ndarray] = {}
@@ -119,18 +117,6 @@ def visualize_selected_patches(
 
     # line width for outlines
     line_w = max(1, int(round(max(tw, th) / 1000)))
-
-    # 1) draw unselected grid cells (optional)
-    if show_unselected:
-        for y in range(min_y, max_y_end, stride):
-            for x in range(min_x, max_x_end, stride):
-                if x + patch_size > W0 or y + patch_size > H0:
-                    continue
-                if (x, y) in selected_set:
-                    continue
-                x0_t, y0_t = int(round(x * sx)), int(round(y * sy))
-                x1_t, y1_t = int(round((x + patch_size) * sx)), int(round((y + patch_size) * sy))
-                draw.rectangle([x0_t, y0_t, x1_t, y1_t], fill=unselected_fill_rgba)
 
     # 2) paste/blend actual patch images (if provided)
     if coord_to_patch:
