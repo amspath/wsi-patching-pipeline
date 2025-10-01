@@ -119,6 +119,15 @@ class CollatedPatchBatch:
         meta = {k: v[i] for k, v in self.meta_cols.items()}
         return self.wsi_id, coord, patch, meta
 
+    def get_all_meta(self) -> List[Dict[str, Any]]:
+        """
+        Return all metadata as a list of dictionaries, one per patch.
+        """
+        meta_list = []
+        for i in range(self.coords.shape[0]):
+            meta_list.append({k: v[i] for k, v in self.meta_cols.items()})
+        return meta_list
+
 
 @dataclass(frozen=True)
 class Patch:
