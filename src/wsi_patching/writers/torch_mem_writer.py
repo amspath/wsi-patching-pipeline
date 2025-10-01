@@ -88,6 +88,7 @@ class TorchMemoryWriter(WriterBase):
         self._wsi_ids.extend([sample.wsi_id] * images_t.shape[0])
 
     def close(self) -> None:
+        self.log.info("===== Closing TorchMemoryWriter...")
         if self._dataset is not None:
             return  # already finalized
 

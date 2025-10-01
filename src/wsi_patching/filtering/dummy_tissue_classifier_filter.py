@@ -1,8 +1,8 @@
-from dataclasses import replace
 from typing import Iterable
 
 import torch
 
+from wsi_patching.backends.cupy_numpy import ensure_numpy
 from wsi_patching.backends.torch_device import get_torch_device
 from wsi_patching.core.pipeline import Stage
 from wsi_patching.utils.types import CollatedPatchBatch
@@ -41,13 +41,14 @@ class DummyTissueClassifierFilter(Stage):
             # Create filter mask
             mask = scores > 0.5
 
+            print(type(mask))
+            collated_patch_batch.add_col("dummy_tissue_classifier_score", ensure_numpy(scores))
+
             # Filter patch batch with mask
-            patch_batch = replace(
-                collated_patch_batch,
-                coords=[c for c, m in zip(collated_patch_batch.coords, mask) if m],
-                patches=patches[mask],
+            collated_patch_batch.filter(mask, use_gpu=self.ctx["use_gpu"])
+
+            self.log.info(
+                f"Yielding batch from wsi: {collated_patch_batch.wsi_id} size: {len(collated_patch_batch.patches)}"
             )
 
-            self.log.info(f"Yielding batch from wsi: {patch_batch.wsi_id} size: {len(patch_batch.patches)}")
-
-            yield patch_batch
+            yield collated_patch_batch
