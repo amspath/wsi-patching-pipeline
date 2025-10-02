@@ -41,8 +41,9 @@ def test_for_slide_returns_single_slide_clone():
     assert g2.level == 1
 
 
+@patch("wsi_patching.core.wsi_grid.Path.exists", return_value=True)
 @patch("wsi_patching.core.wsi_grid.get_dimensions_for_level")
-def test_call_yields_slide_objects_with_dims(mock_dims):
+def test_call_yields_slide_objects_with_dims(mock_dims, mock_exists):
     # Mock per-path dimensions
     def _dims(path, level, use_gpu):
         if path.endswith("A.svs"):

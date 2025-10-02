@@ -121,7 +121,13 @@ def test_producer_worker_puts_items_eos_and_profile(monkeypatch):
     prof_q = FakeQueue()
 
     _producer_worker(
-        slide_path="slide_a.svs", stage_specs=stages, queue=q, profile=True, prof_queue=prof_q, verbosity_level="INFO"
+        slide_path="slide_a.svs",
+        stage_specs=stages,
+        queue=q,
+        profile=True,
+        prof_queue=prof_q,
+        gracefully_handle_producer_errors=False,
+        verbosity_level="INFO",
     )
 
     assert q.items[-1].__class__ is EndOfStream or isinstance(q.items[-1], EndOfStream)
