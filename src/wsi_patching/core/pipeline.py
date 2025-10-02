@@ -167,7 +167,7 @@ class Pipeline(Stage):
         queue_maxsize: int = 4000,
         profile: bool = False,
         verbosity_level: LogLevel = "WARNING",
-        gracefully_handle_producer_errors: bool = True,
+        gracefully_handle_producer_errors: bool = False,
     ):
         init_logging(verbosity_level)
         self.log.info(f"Starting pipeline with {cpu_processes} processes (profile={profile}).")

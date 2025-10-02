@@ -86,7 +86,6 @@ def test_pipeline_then_disallows_after_writer():
 
 
 def test_pipeline_to_keeps_stages_and_sets_writer():
-    p1 = Pipeline([SourceStage([1, 2])])
     ok_writer = DummyWriter(input_type=str)
     p2 = Pipeline([SourceStage([1, 2]), MapToStr()]).to(ok_writer)
     out = list(p2(iter(())))
