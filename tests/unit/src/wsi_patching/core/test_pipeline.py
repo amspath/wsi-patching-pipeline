@@ -2,8 +2,7 @@ from typing import Any, Iterable, List, Union
 
 import pytest
 
-from wsi_patching.core.pipeline import Pipeline, Stage, _producer_worker
-from wsi_patching.utils.types import EndOfStream
+from wsi_patching.core.pipeline import Pipeline, Stage
 
 
 # ----------------- helpers & fakes -----------------
