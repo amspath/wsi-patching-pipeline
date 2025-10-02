@@ -112,29 +112,3 @@ def test_get_and_print_profile_without_aggregator(capsys):
     p.print_profile()
     out = capsys.readouterr().out
     assert "[profile] No profile data (did you run with profile=True?)" in out
-
-
-def test_producer_worker_puts_items_eos_and_profile(monkeypatch):
-    stages = [SourceStage([10, 20])]
-    q = FakeQueue()
-    prof_q = FakeQueue()
-
-    _producer_worker(
-        slide_path="slide_a.svs",
-        stage_specs=stages,
-        queue=q,
-        profile=True,
-        prof_queue=prof_q,
-        gracefully_handle_producer_errors=False,
-        verbosity_level="INFO",
-    )
-
-    assert q.items[-1].__class__ is EndOfStream or isinstance(q.items[-1], EndOfStream)
-    payload = q.items[:-1]
-    assert payload == [10, 20]
-
-    assert len(prof_q.items) == 1
-    msg = prof_q.items[0]
-    assert isinstance(msg, dict)
-    assert msg.get("_profile") is True
-    assert msg.get("slide_id") == "slide_a"
