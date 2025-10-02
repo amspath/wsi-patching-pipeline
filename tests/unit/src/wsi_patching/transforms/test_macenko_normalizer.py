@@ -175,7 +175,7 @@ def make_golden_patch_from_H(
         "idx_s1": idx_s1,
         "idx_s2": idx_s2,
         "expected_max_sat": expected_max_sat,
-        "expected_white_fraction": expected_white_fraction,  # <— new
+        "expected_white_fraction": expected_white_fraction,
     }
 
 
