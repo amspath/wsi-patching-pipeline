@@ -60,7 +60,7 @@ class FakeQueue:
         return self.items.pop(0)
 
 
-# ----------------- tests (unchanged below) -----------------
+# ----------------- tests -----------------
 def test_pipeline_type_preflight_ok():
     p = Pipeline([SourceStage([1, 2]), MapToStr()])
     out = list(p(iter(())))
