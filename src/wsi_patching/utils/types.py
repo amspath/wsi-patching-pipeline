@@ -7,6 +7,7 @@ if TYPE_CHECKING:
     import cupy as cp
 import numpy as np
 
+# Bounding box: (x, y, w, h)
 Box = Tuple[int, int, int, int]
 
 
