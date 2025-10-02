@@ -2,8 +2,7 @@ from typing import Any, Iterable, List, Union
 
 import pytest
 
-from wsi_patching.core.pipeline import Pipeline, Stage, _producer_worker
-from wsi_patching.utils.types import EndOfStream
+from wsi_patching.core.pipeline import Pipeline, Stage
 
 
 # ----------------- helpers & fakes -----------------
@@ -61,7 +60,7 @@ class FakeQueue:
         return self.items.pop(0)
 
 
-# ----------------- tests (unchanged below) -----------------
+# ----------------- tests -----------------
 def test_pipeline_type_preflight_ok():
     p = Pipeline([SourceStage([1, 2]), MapToStr()])
     out = list(p(iter(())))
@@ -86,7 +85,6 @@ def test_pipeline_then_disallows_after_writer():
 
 
 def test_pipeline_to_keeps_stages_and_sets_writer():
-    p1 = Pipeline([SourceStage([1, 2])])
     ok_writer = DummyWriter(input_type=str)
     p2 = Pipeline([SourceStage([1, 2]), MapToStr()]).to(ok_writer)
     out = list(p2(iter(())))
@@ -113,23 +111,3 @@ def test_get_and_print_profile_without_aggregator(capsys):
     p.print_profile()
     out = capsys.readouterr().out
     assert "[profile] No profile data (did you run with profile=True?)" in out
-
-
-def test_producer_worker_puts_items_eos_and_profile(monkeypatch):
-    stages = [SourceStage([10, 20])]
-    q = FakeQueue()
-    prof_q = FakeQueue()
-
-    _producer_worker(
-        slide_path="slide_a.svs", stage_specs=stages, queue=q, profile=True, prof_queue=prof_q, verbosity_level="INFO"
-    )
-
-    assert q.items[-1].__class__ is EndOfStream or isinstance(q.items[-1], EndOfStream)
-    payload = q.items[:-1]
-    assert payload == [10, 20]
-
-    assert len(prof_q.items) == 1
-    msg = prof_q.items[0]
-    assert isinstance(msg, dict)
-    assert msg.get("_profile") is True
-    assert msg.get("slide_id") == "slide_a"

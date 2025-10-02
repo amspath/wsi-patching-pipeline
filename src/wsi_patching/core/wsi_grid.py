@@ -40,6 +40,10 @@ class WSIGrid(Stage):
 
     def __call__(self, it: Iterable[Any]) -> Iterable[Slide]:
         for path in self.slides:
+            if not self.check_slide_exists(path):
+                self.log.error(f"Slide path does not exist: {path}, skipping...")
+                raise FileNotFoundError(f"Slide path does not exist: {path}")
+
             wsi_id = Path(path).stem
             W, H = get_dimensions_for_level(path, self.level, self.use_gpu)
             self.log.info(f"Starting on Slide {wsi_id}")
@@ -49,3 +53,6 @@ class WSIGrid(Stage):
                 dims=(W, H),
                 meta={"slide.wsi_id": wsi_id, "slide.level": self.level, "slide.path": path},
             )
+
+    def check_slide_exists(self, path: str) -> bool:
+        return Path(path).exists()
