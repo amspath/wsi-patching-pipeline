@@ -167,6 +167,7 @@ class Pipeline(Stage):
         queue_maxsize: int = 4000,
         profile: bool = False,
         verbosity_level: LogLevel = "WARNING",
+        gracefully_handle_producer_errors: bool = True,
     ):
         init_logging(verbosity_level)
         self.log.info(f"Starting pipeline with {cpu_processes} processes (profile={profile}).")
@@ -218,7 +219,7 @@ class Pipeline(Stage):
         def spawn_for(path: str):
             p = mp.Process(
                 target=_producer_worker,
-                args=(path, self.stages, q, profile, prof_q, verbosity_level),
+                args=(path, self.stages, q, profile, prof_q, gracefully_handle_producer_errors, verbosity_level),
                 name=f"producer-{Path(path).stem}",
             )
             p.start()
@@ -227,11 +228,39 @@ class Pipeline(Stage):
         for _ in range(min(cpu_processes, len(pending))):
             active.append(spawn_for(pending.pop(0)))
 
+        failed_slides = []
+
+        def abort_all(reason: str):
+            for p in active:
+                if p.is_alive():
+                    p.terminate()
+            # Best-effort: tell writer we're done if it's still alive
+            try:
+                q.put(EndOfQueue())
+            except Exception:
+                pass
+            writer_thread.join(timeout=5.0)
+            self.log.error(reason)
+            raise RuntimeError(reason)
+
         while active:
+            # 1) Writer crash → abort immediately
+            if not writer_thread.is_alive():
+                abort_all("Writer thread crashed; pipeline aborted.")
+
+            # 2) Reap producers; handle failures
             for p in list(active):
                 p.join(timeout=0.1)
                 if not p.is_alive():
                     active.remove(p)
+                    # Non-zero exit means producer failed
+                    if p.exitcode and p.exitcode != 0:
+                        slide_name = p.name.replace("producer-", "")
+                        failed_slides.append(slide_name)
+                        if not gracefully_handle_producer_errors:
+                            abort_all(f"Producer failed on slide '{slide_name}'")
+
+            # 3) Keep queue full
             while pending and len(active) < cpu_processes:
                 active.append(spawn_for(pending.pop(0)))
 
@@ -247,9 +276,15 @@ class Pipeline(Stage):
                     self.prof_agg.ingest_msg(msg)
                     received += 1
 
+        if not writer_thread.is_alive():
+            raise RuntimeError("Writer crashed during shutdown.")
+
         # signal end of stream and join writer thread
         q.put(EndOfQueue())
         writer_thread.join()
+
+        if failed_slides and gracefully_handle_producer_errors:
+            self.log.warning(f"Pipeline completed with errors on slides (skipped): {', '.join(failed_slides)}.")
 
         # now self.writer is the SAME object that consumed data
         return self.writer.get_output()
@@ -261,6 +296,7 @@ def _producer_worker(
     queue: MPQueue,
     profile: bool,
     prof_queue: Optional[MPQueue],
+    gracefully_handle_producer_errors: bool,
     verbosity_level: LogLevel = "WARNING",
 ):
     init_logging(verbosity_level)
@@ -277,10 +313,10 @@ def _producer_worker(
         # sources ignore input
         for out in pipe(iter(())):
             queue.put(out)
-    except KeyboardInterrupt:
-        pass
     except Exception as e:
-        logging.exception(f"Producer error: {e}", exc_info=True)
+        if not gracefully_handle_producer_errors:
+            logging.exception(f"Producer error: {e}", exc_info=True)
+        sys.exit(1)
     finally:
         if profile and prof_queue is not None and profiler is not None:
             try:
@@ -288,12 +324,8 @@ def _producer_worker(
             except Exception:
                 logging.info("Failed to send profile message.", file=sys.stderr)
         set_current_profiler(None)
-        queue.put(EndOfStream())
 
-
-def _writer_worker(writer: WriterBase, q: MPQueue, res_q: MPQueue, verbosity_level: LogLevel):
-    # consume items, build output inside child
-    writer.start_writer(q, verbosity_level)
-
-    # send the final result back to parent
-    res_q.put(writer.get_output())
+        try:
+            queue.put(EndOfStream())
+        except Exception:
+            pass
