@@ -99,7 +99,7 @@ def test_tileplanner_warns_when_no_tiles(caplog):
 
 # ------------------- ReadWindowChunker -------------------
 def test_readwindowchunker_validate_defaults_and_guards(caplog):
-    r = ReadWindowChunker(max_window_size=None, align_to_stride=True)
+    r = ReadWindowChunker(max_window_size=None)
     # seed context
     r.attach_context(PipelineContext({"tile_size": 32, "stride": 16}))
     caplog.set_level("INFO")
@@ -139,7 +139,7 @@ def test_readwindowchunker_groups_tiles_into_windows():
         ],  # group 2 (falls in window starting at x=32)
         meta={},
     )
-    r = ReadWindowChunker(max_window_size=32, align_to_stride=True)
+    r = ReadWindowChunker(max_window_size=32)
     r.attach_context(PipelineContext({"tile_size": 16, "stride": 16}))
     r.validate()
 

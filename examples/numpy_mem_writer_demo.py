@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from wsi_patching.core import ReadWindowChunker, RegionReadAndBatch, TilePlanner, WSIGrid
+from wsi_patching.core import PatchExtractor, WSIGrid
 from wsi_patching.filtering import LowContrastBackgroundFilter, OtsuFilter, PenArtifactFilter
 from wsi_patching.transforms import MacenkoNormalizer
 from wsi_patching.utils import visualize_selected_patches
@@ -15,9 +15,7 @@ def main():
 
     p = (
         WSIGrid(slides=slides, level=0, use_gpu=True)
-        .then(TilePlanner(tile_size=256, stride=256))
-        .then(ReadWindowChunker())
-        .then(RegionReadAndBatch(batch_size=800, num_workers=4))
+        .then(PatchExtractor(tile_size=256, stride=256, max_batch_size=800, num_workers=4))
         .then(LowContrastBackgroundFilter(range_threshold=0.2))
         .then(PenArtifactFilter())
         .then(OtsuFilter(min_tissue_fraction=0.1, tissue_is_darker=True))

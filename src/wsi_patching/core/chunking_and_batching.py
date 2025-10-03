@@ -111,9 +111,8 @@ class ReadWindowChunker(Stage):
     As the library multiprocesses over slides, reading in complete slides for each cpu might be too much memory.
     """
 
-    def __init__(self, max_window_size: Optional[int] = None, align_to_stride: bool = True):
+    def __init__(self, max_window_size: Optional[int] = None):
         self.max_window_size = max_window_size
-        self.align_to_stride = bool(align_to_stride)
 
     def validate(self) -> None:
         self.ctx.require_key("tile_size")
@@ -257,3 +256,79 @@ class RegionReadAndBatch(Stage):
             return xp_module.pad(patch, pad_spec, mode="edge")
         else:
             raise ValueError(f"Unknown edge_policy '{self.edge_policy}'")
+
+
+class PatchExtractor(Stage):
+    """
+    PatchExtractor is a composite stage that combines TilePlanner, ReadWindowChunker, and RegionReadAndBatch.
+
+    It takes slides (with or without ROIs) as input, and outputs batches of image patches.
+    It handles tile planning, region chunking, reading, and batching internally.
+    This is a convenience stage for common use cases where you want to extract patches from slides.
+    """
+
+    def __init__(
+        self,
+        *,
+        tile_size: int,
+        stride: int,
+        tile_selection_mode: Literal["any_overlap", "full_inside_bounds", "center_in_roi"] = "any_overlap",
+        max_batch_size: int = 200,
+        num_workers: int = 8,
+        edge_policy: Literal["drop", "pad_with_zeros", "pad_with_edge"] = "pad_with_zeros",
+        dtype: str = np.uint8,
+        max_window_size: Optional[int] = None,
+    ):
+        """
+        Parameters:
+            tile_size: size of square patches to extract
+            stride: spacing between patch top-left corners of each of the patches
+            tile_selection_mode: how to select tiles with respect to ROIs.
+            max_batch_size: Maximum number of patches per output batch
+            num_workers: number of parallel workers for reading WSI images using cuCIM
+            edge_policy: how to handle tiles that extend beyond the WSI edge.
+            dtype: output patch dtype, e.g. np.uint8 or np.float32
+            max_window_size: maximum size of square read windows. If None, defaults to 20*tile_size.
+        """
+        self.params = dict(
+            tile_size=tile_size,
+            stride=stride,
+            tile_selection_mode=tile_selection_mode,
+            max_window_size=max_window_size,
+            batch_size=max_batch_size,
+            num_workers=num_workers,
+            dtype=dtype,
+            edge_policy=edge_policy,
+        )
+
+        # Internal stages (created now; context attached later)
+        self._tp = TilePlanner(tile_size=tile_size, stride=stride, tile_selection_mode=tile_selection_mode)
+        self._rwc = ReadWindowChunker(max_window_size=max_window_size)
+        self._rbb = RegionReadAndBatch(
+            batch_size=max_batch_size, num_workers=num_workers, dtype=dtype, edge_policy=edge_policy
+        )
+        self._substages: List[Stage] = [self._tp, self._rwc, self._rbb]
+
+    def export_context(self, ctx) -> None:
+        # Ensure keys exist for inner stages
+        ctx["tile_size"] = int(self.params["tile_size"])
+        ctx["stride"] = int(self.params["stride"])
+
+    def attach_context(self, ctx) -> None:
+        super().attach_context(ctx)  # gives self.ctx, self.log
+        # Propagate context to inner stages
+        for s in self._substages:
+            s.attach_context(ctx)
+
+    def validate(self) -> None:
+        # Export context to inner stages, then validate each
+        for s in self._substages:
+            s.export_context(self.ctx)
+        for s in self._substages:
+            s.validate()
+
+    def __call__(self, it: Iterable[Union[Slide, SlideWithROIs]]) -> Iterable[CollatedPatchBatch]:
+        stream = it
+        for s in self._substages:
+            stream = s(stream)
+        return stream
