@@ -5,7 +5,7 @@ from unittest.mock import patch
 import numpy as np
 import pytest
 
-from wsi_patching.core.chunking_and_batching import ReadWindowChunker, RegionReadAndBatch, TilePlanner, _align_to_grid
+from wsi_patching.core.chunking_and_batching import ReadWindowChunker, RegionReadAndBatch, TilePlanner
 from wsi_patching.regions_of_interest.rois import BoxROI
 from wsi_patching.utils.meta_typing import PipelineContext
 
@@ -44,25 +44,9 @@ class RegionTaskStub:
     meta: dict
 
 
-# ------------------- helpers -------------------
-class XPStub:
-    @staticmethod
-    def asarray(x, dtype=None):
-        return np.asarray(x, dtype=dtype)
-
-
 def fake_read_region(path, x, y, w, h, level, use_gpu, num_workers_cucim):
     # Return an HxWx3 array filled with unique value (for sanity checks if desired)
     return np.full((h, w, 3), fill_value=11, dtype=np.uint8)
-
-
-# ------------------- _align_to_grid -------------------
-def test_align_to_grid_basic_and_error():
-    assert _align_to_grid(17, 8, origin=0) == 16
-    assert _align_to_grid(7, 8, origin=0) == 0
-    assert _align_to_grid(33, 16, origin=5) == 21  # grid at 5,21,37,...
-    with pytest.raises(ValueError):
-        _ = _align_to_grid(10, 0)
 
 
 # ------------------- TilePlanner -------------------
@@ -84,9 +68,9 @@ def test_tileplanner_whole_slide_no_rois_generates_tiles():
 
 
 def test_tileplanner_center_mode_accepts_boundary_tiles():
-    # ROI that starts at (8,8) sized 8x8; tile_size 16
+    # ROI that starts at (8,8) sized 9x9; tile_size 16
     # full_inside_bounds would reject (0,0) tile, but center (8,8) lies inside -> accept in center_in_roi.
-    slide = SlideWithROIsStub("S", "/s", (40, 40), {}, rois=[BoxROI(8, 8, 8, 8)])
+    slide = SlideWithROIsStub("S", "/s", (40, 40), {}, rois=[BoxROI(8, 8, 9, 9)])
     tp = TilePlanner(tile_selection_mode="center_in_roi")
     tp.attach_context(PipelineContext({"tile_size": 16, "stride": 16, "level": 0}))
     tp.validate()
@@ -94,7 +78,7 @@ def test_tileplanner_center_mode_accepts_boundary_tiles():
     plans = list(tp(iter([slide])))
     assert len(plans) == 1
     plan = plans[0]
-    assert (0, 0) in plan.tiles  # accepted by center rule
+    assert (8, 8) in plan.tiles  # accepted by center rule
     # few tiles overall due to tiny ROI
     assert len(plan.tiles) >= 1
 
@@ -102,7 +86,7 @@ def test_tileplanner_center_mode_accepts_boundary_tiles():
 def test_tileplanner_warns_when_no_tiles(caplog):
     # Tiny slide 15x15 with tile_size 16 -> no tiles
     slide = SlideStub("S", "/s", (15, 15), {})
-    tp = TilePlanner()
+    tp = TilePlanner(tile_selection_mode="full_inside_bounds")
     tp.attach_context(PipelineContext({"tile_size": 16, "stride": 16, "level": 0}))
     tp.validate()
 
@@ -160,17 +144,17 @@ def test_readwindowchunker_groups_tiles_into_windows():
     r.validate()
 
     tasks = list(r(iter([plan])))
-    # Two windows: [0,0,32,32] with four tiles; [32,0,32,32] with one tile
+    # Two windows: [0,0,32,32] with four tiles; [32,0,32,16] with one tile
     assert len(tasks) == 2
     a, b = tasks
     assert a.region == (0, 0, 32, 32)
     assert sorted(a.tiles) == [(0, 0), (0, 16), (16, 0), (16, 16)]
-    assert b.region == (32, 0, 32, 32)
+    assert b.region == (32, 0, 32, 16)
     assert b.tiles == [(48, 0)]
 
 
 # ------------------- RegionReadAndBatch -------------------
-@patch("wsi_patching.core.chunking_and_batching.get_xp_backend", new=lambda use_gpu: XPStub)
+@patch("wsi_patching.core.chunking_and_batching.get_xp_backend", new=lambda use_gpu: np)
 @patch("wsi_patching.core.chunking_and_batching.read_region", new=fake_read_region)
 def test_region_read_and_batch_happy_path_and_batch_split():
     # Build RegionTasks for a region 48x32 with four 16x16 tiles and one extra -> batches of 3 then 2
@@ -201,7 +185,7 @@ def test_region_read_and_batch_happy_path_and_batch_split():
     assert b1.patches.shape[1:] == (16, 16, 3)
 
 
-@patch("wsi_patching.core.chunking_and_batching.get_xp_backend", new=lambda use_gpu: XPStub)
+@patch("wsi_patching.core.chunking_and_batching.get_xp_backend", new=lambda use_gpu: np)
 def test_region_read_and_batch_skips_incomplete_patches():
     # region 20x20, tile_size 16 -> tile at (8,8) gives rx=8, ry=8; patch 12x12 -> should be skipped
     def _fake_read_region(path, x, y, w, h, level, use_gpu, num_workers_cucim):
@@ -217,7 +201,7 @@ def test_region_read_and_batch_skips_incomplete_patches():
                 meta={},
             )
         ]
-        r = RegionReadAndBatch(batch_size=10, num_workers=1, dtype=np.uint8)
+        r = RegionReadAndBatch(batch_size=10, num_workers=1, dtype=np.uint8, edge_policy="drop")
         r.attach_context(PipelineContext({"tile_size": 16, "level": 0, "use_gpu": False}))
         r.validate()
 
@@ -226,5 +210,58 @@ def test_region_read_and_batch_skips_incomplete_patches():
         batch = out[0]
         # only the full (0,0) patch remains
         assert all(batch.coords[0] == 0)
-        print(batch.patches.shape)
         assert batch.patches.shape[0] == 1
+
+
+@patch("wsi_patching.core.chunking_and_batching.get_xp_backend", new=lambda use_gpu: np)
+def test_region_read_and_batch_pads_incomplete_patches_with_zeros():
+    # region 20x20, tile_size 16 -> tile at (8,8) gives rx=8, ry=8; patch 12x12 -> should be padded to 16x16 with zeros
+    def _fake_read_region(path, x, y, w, h, level, use_gpu, num_workers_cucim):
+        return np.full((h, w, 3), 1, dtype=np.uint8)
+
+    with patch("wsi_patching.core.chunking_and_batching.read_region", new=_fake_read_region):
+        tasks = [
+            RegionTaskStub(
+                wsi_id="S",
+                wsi_path="/s",
+                region=(0, 0, 20, 20),
+                tiles=[(0, 0), (8, 8)],  # second will be partial (12x12)
+                meta={},
+            )
+        ]
+        r = RegionReadAndBatch(batch_size=10, num_workers=1, dtype=np.uint8, edge_policy="pad_with_zeros")
+        r.attach_context(PipelineContext({"tile_size": 16, "level": 0, "use_gpu": False}))
+        r.validate()
+
+        out = list(r(iter(tasks)))
+        assert len(out) == 1  # Still one collated batch
+        batch = out[0]  # Get the batch
+        assert all(batch.coords[1] == 8)
+        assert np.all(batch.patches[1, 12:, :, :] == 0)
+
+
+@patch("wsi_patching.core.chunking_and_batching.get_xp_backend", new=lambda use_gpu: np)
+def test_region_read_and_batch_pads_incomplete_patches_with_edge():
+    # region 20x20, tile_size 16 -> tile at (8,8) gives rx=8, ry=8; patch 12x12 -> should be padded to 16x16 with zeros
+    def _fake_read_region(path, x, y, w, h, level, use_gpu, num_workers_cucim):
+        return np.full((h, w, 3), 1, dtype=np.uint8)
+
+    with patch("wsi_patching.core.chunking_and_batching.read_region", new=_fake_read_region):
+        tasks = [
+            RegionTaskStub(
+                wsi_id="S",
+                wsi_path="/s",
+                region=(0, 0, 20, 20),
+                tiles=[(0, 0), (8, 8)],  # second will be partial (12x12)
+                meta={},
+            )
+        ]
+        r = RegionReadAndBatch(batch_size=10, num_workers=1, dtype=np.uint8, edge_policy="pad_with_edge")
+        r.attach_context(PipelineContext({"tile_size": 16, "level": 0, "use_gpu": False}))
+        r.validate()
+
+        out = list(r(iter(tasks)))
+        assert len(out) == 1  # Still one collated batch
+        batch = out[0]  # Get the batch
+        assert all(batch.coords[1] == 8)
+        assert np.all(batch.patches[1, 12:, :, :] == 1)

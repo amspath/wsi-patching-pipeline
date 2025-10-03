@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Iterable, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Iterable, List, Literal, Optional, Tuple, Union
 
 from wsi_patching.regions_of_interest.roi_providers import WholeSlideProvider
 
@@ -29,7 +29,9 @@ class TilePlanner(Stage):
       - "center_in_roi": accept tile if its center is inside ROI (fallback for non-box in full_inside_bounds).
     """
 
-    def __init__(self, tile_selection_mode: str = "any_overlap"):
+    def __init__(
+        self, tile_selection_mode: Literal["any_overlap", "full_inside_bounds", "center_in_roi"] = "any_overlap"
+    ):
         self.tile_selection_mode = tile_selection_mode
 
     def validate(self) -> None:
@@ -50,9 +52,9 @@ class TilePlanner(Stage):
                 y1 = min(by + bh, H)
                 tiles: List[Tuple[int, int]] = []
                 y = by
-                while y + tile_size <= y1:
+                while y <= y1:
                     x = bx
-                    while x + tile_size <= x1:
+                    while x <= x1:
                         if self._accept_tile(roi, x, y, tile_size):
                             tiles.append((x, y))
                         x += stride
@@ -154,11 +156,10 @@ class ReadWindowChunker(Stage):
                         # Expand window to fully cover the included tiles (so slicing works)
                         max_tx = max(tx for tx, _ in in_window)
                         max_ty = max(ty for _, ty in in_window)
-                        need_wx1 = max_tx + tile_size
-                        need_wy1 = max_ty + tile_size
+                        # Ensure we cover the full tile in the window, except at slide edges
+                        new_wx1 = min(max_tx + tile_size, W)
+                        new_wy1 = min(max_ty + tile_size, H)
 
-                        new_wx1 = min(x_end, need_wx1)
-                        new_wy1 = min(y_end, need_wy1)
                         yield RegionTask(
                             plan.wsi_id, plan.wsi_path, (xx, yy, new_wx1 - xx, new_wy1 - yy), in_window, meta=plan.meta
                         )
@@ -177,7 +178,11 @@ class RegionReadAndBatch(Stage):
     """
 
     def __init__(
-        self, batch_size: int = 200, num_workers: int = 8, dtype: str = np.uint8, edge_policy: str = "pad_with_zeros"
+        self,
+        batch_size: int = 200,
+        num_workers: int = 8,
+        dtype: str = np.uint8,
+        edge_policy: Literal["drop", "pad_with_zeros", "pad_with_edge"] = "pad_with_zeros",
     ):
         self.batch_size = int(batch_size)
         self.num_workers = int(num_workers)
