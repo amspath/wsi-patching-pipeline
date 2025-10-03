@@ -88,7 +88,7 @@ This library is setup such that you can easily build your own components to suit
 
 #### Creating a stage component:
 ```python
-from wsi_patching.custom_component import Stage, PipelineContext
+from wsi_patching.custom_component import Stage, PipelineContext, # <PreviousStageOutputType> and <NextStageInputType> can also be found here
 
 class CustomStage(Stage):
         def __init__(self, ...):
@@ -112,7 +112,7 @@ class CustomStage(Stage):
 
 #### Creating a custom sink component:
 ```python
-from wsi_patching.custom_component import WriterBase
+from wsi_patching.custom_component import WriterBase, # <PreviousStageOutputType> can also be found here
 
 class CustomWriter(WriterBase):
         def __init__(self, ...):
