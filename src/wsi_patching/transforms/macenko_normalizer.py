@@ -56,7 +56,7 @@ class MacenkoNormalizer(Stage):
 
             batch.patches = normalized
 
-            self.log.info(f"MacenkoNormalizer: yielded batch for wsi='{batch.wsi_id}' size={normalized.shape[0]}")
+            self.log.info(f"Yielded batch for wsi='{batch.wsi_id}' size={normalized.shape[0]}")
             yield batch
 
     def fit(self, batch: CollatedPatchBatch) -> None:
@@ -72,7 +72,7 @@ class MacenkoNormalizer(Stage):
         self._fitted = True
 
         self.log.info(
-            f"MacenkoNormalizer: fitted on wsi='{batch.wsi_id}' "
+            f"Fitted on wsi='{batch.wsi_id}' "
             f"(alpha={self.alpha}, beta={self.beta}, I0={self.I0}, "
             f"pixel_limit={self.pixel_limit}"
         )

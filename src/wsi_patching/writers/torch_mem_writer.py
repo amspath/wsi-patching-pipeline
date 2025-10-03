@@ -69,9 +69,9 @@ class TorchMemoryWriter(WriterBase):
 
     # --- WriterBase hooks ---
     def open(self) -> None:
-        self.log.info("TorchMemoryWriter opening...")
+        self.log.info("Opening...")
         self._device = get_torch_device(self.ctx["use_gpu"])
-        self.log.info("TorchMemoryWriter device=%s, layout=%s, dtype=%s", self._device, self.layout, self.dtype)
+        self.log.info("device=%s, layout=%s, dtype=%s", self._device, self.layout, self.dtype)
 
     def write(self, sample: CollatedPatchBatch) -> None:
         self.log.info(f"Received batch from wsi: {sample.wsi_id} size: {len(sample.patches)}")
@@ -100,7 +100,7 @@ class TorchMemoryWriter(WriterBase):
         self._wsi_ids.extend([sample.wsi_id] * images_t.shape[0])
 
     def close(self) -> None:
-        self.log.info("===== Closing TorchMemoryWriter...")
+        self.log.info("Closing ...")
         if self._dataset is not None:
             return  # already finalized
 

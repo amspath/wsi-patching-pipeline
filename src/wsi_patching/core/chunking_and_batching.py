@@ -18,7 +18,7 @@ class TilePlanner(Stage):
     Divide slides (with or without ROIs) into patches on a regular grid.
 
     The TilePlanner emits a TilePlan. Each TilePlan corresponds to a single slide,
-    and has a list of coords corresponding to coordinates of patches to be extracted.
+    and has a list of coordinates corresponding to patches to be extracted.
     If ROIs are attached to the slide, all generated coordinates will lie within the ROIs.
     If no ROIs are attached, the WholeSlideProvider is used to generate a single ROI
     covering the entire slide.
@@ -26,7 +26,7 @@ class TilePlanner(Stage):
     tile_selection_mode:
       - "any_overlap" (default): accept tile if any pixel overlaps ROI.
       - "full_inside_bounds": accept tile only if fully inside ROI bounds rectangle (exact for BoxROI).
-      - "center_in_roi": accept tile if its center is inside ROI (fallback for non-box in full_inside_bounds).
+      - "center_in_roi": accept tile if its center is inside ROI.
     """
 
     def __init__(
@@ -71,9 +71,7 @@ class TilePlanner(Stage):
                         meta={**s.meta, "roi_bounds": (bx, by, bw, bh)},
                     )
                 else:
-                    self.log.warning(
-                        f"TilePlanner: no tiles found for slide {s.wsi_id} ROI {idx} bounds {bx, by, bw, bh}"
-                    )
+                    self.log.warning(f"No tiles found for slide {s.wsi_id} ROI {idx} bounds {bx, by, bw, bh}")
 
     def _accept_tile(self, roi: ROI, tx: int, ty: int, tile_size: int) -> bool:
         mode = self.tile_selection_mode
@@ -95,17 +93,13 @@ class ReadWindowChunker(Stage):
     Packs tiles into rectangular read windows of max_window_size.
 
     The goal here is to batch together coordinates that lie closely together.
-    These can be read as a single large region read from the WSI,
-    and then sliced into individual patches in numpy.
+    These can be read as a single large region read from the WSI, and then sliced into individual patches.
     Since the region read is square, we group together patches that fit in a square.
     Each slide object is split into one or more region tasks dependend on the max_window_size.
     Controlling the max_window_size is a tradeoff between memory use and read efficiency.
     A larger window size means fewer, larger reads, but more memory use.
     A smaller window size means more, smaller reads, and less memory use.
     As the library multiprocesses over slides, reading in complete slides for each cpu might be too much memory.
-
-    Strategy: subdivide the ROI's bounding box into stride-aligned windows
-    of size up to max_window_size; emit a window only if it contains tiles.
     """
 
     def __init__(self, max_window_size: Optional[int] = None, align_to_stride: bool = True):
@@ -127,7 +121,7 @@ class ReadWindowChunker(Stage):
 
         if self.max_window_size > 10000:
             self.log.warning(
-                f"ReadWindowChunker: max_window_size {self.max_window_size} is quite large, "
+                f"max_window_size {self.max_window_size} is quite large, "
                 "this may lead to high memory usage and OOM errors. Consider reducing it."
             )
 
@@ -138,7 +132,7 @@ class ReadWindowChunker(Stage):
             bx, by, bw, bh = plan.roi_bounds
             W, H = plan.dims
             if not plan.tiles:
-                self.log.warning(f"ReadWindowChunker: no tiles in plan for slide {plan.wsi_id} ROI {plan.roi_index}")
+                self.log.warning(f"No tiles in plan for slide {plan.wsi_id} ROI {plan.roi_index}")
                 continue
 
             x_end, y_end = min(bx + bw, W), min(by + bh, H)
@@ -171,6 +165,7 @@ class RegionReadAndBatch(Stage):
       - open slide (per-process, no sharing)
       - read the entire region once (cuCIM read_region with num_workers, else PIL crop)
       - slice region into tile patches
+      - Pad or drop patches at the wsi edge according to edge_policy
       - accumulate into batches of 'batch_size', yield {"batch": [samples,...]}
       - Output patch batches are of shape [B, H, W, C]
       - Output patches are of type dtype (default np.uint8) and are within range [0, 255]
@@ -195,7 +190,7 @@ class RegionReadAndBatch(Stage):
         self.ctx.require_key("use_gpu")
 
         if self.edge_policy not in {"drop", "pad_with_zeros", "pad_with_edge"}:
-            raise ValueError(f"RegionReadAndBatch: unknown edge_policy '{self.edge_policy}'")
+            raise ValueError(f"Unknown edge_policy '{self.edge_policy}'")
 
     def __call__(self, it: Iterable[RegionTask]) -> Iterable[CollatedPatchBatch]:
         xp = get_xp_backend(self.ctx["use_gpu"])
@@ -217,7 +212,6 @@ class RegionReadAndBatch(Stage):
                 if patch.shape[:2] != (tile_size, tile_size):
                     if self.edge_policy == "drop":
                         continue
-                    self.log.info(f"RegionReadAndBatch: patch at edge, applying edge_policy {self.edge_policy}")
                     patch = self._pad_to_tile_size(patch, tile_size, xp)
 
                 coords.append((tx, ty))
