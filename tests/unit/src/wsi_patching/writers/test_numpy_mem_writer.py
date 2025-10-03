@@ -47,7 +47,6 @@ def test_write_single_batch_and_close(layout):
     # dtype conversion and ids replicated per patch
     assert imgs.dtype == np.float32
     assert out_coords.dtype == np.int64
-    print(ids)
     assert ids == ["S1"] * N
 
     # shape/layout checks
