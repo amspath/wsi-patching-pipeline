@@ -310,9 +310,8 @@ class PatchExtractor(Stage):
         self._substages: List[Stage] = [self._tp, self._rwc, self._rbb]
 
     def export_context(self, ctx) -> None:
-        # Ensure keys exist for inner stages
-        ctx["tile_size"] = int(self.params["tile_size"])
-        ctx["stride"] = int(self.params["stride"])
+        for s in self._substages:
+            s.export_context(ctx)
 
     def attach_context(self, ctx) -> None:
         super().attach_context(ctx)  # gives self.ctx, self.log

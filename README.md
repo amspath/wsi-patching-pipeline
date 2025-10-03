@@ -1,7 +1,7 @@
 [![Unit tests](https://github.com/amspath/wsi-patching-pipeline/actions/workflows/unit_tests.yaml/badge.svg)](https://github.com/amspath/wsi-patching-pipeline/actions/workflows/unit_tests.yaml)
 
 # wsi-patching-pipeline
-A pragmatic pipeline for streaming whole-slide image (WSI) patches with region prefetch, per-WSI multiprocessing producers, and a single async WebDataset writer. It’s designed as a runnable skeleton you can extend: swap in your own ROI logic, classifiers, encoders, or sinks by building components on the `custom_stage` module facilities.
+A pragmatic pipeline for streaming whole-slide image (WSI) patches with region prefetch, per-WSI multiprocessing producers, and a single async WebDataset writer. It’s designed as a runnable skeleton you can extend: swap in your own ROI logic, classifiers, encoders, or sinks by building components on the `custom_component` module facilities.
 
 ✨ What you get
 - Streaming, regionized tiling of WSIs (cuCIM preferred; Pillow fallback for small images).
@@ -11,29 +11,40 @@ A pragmatic pipeline for streaming whole-slide image (WSI) patches with region p
 - Built-in isolated stage profiling per slide + aggregated stats.
 
 
-## 1) Install
+## 1) Library install
 
 Python ≥3.8 is recommended.
 ```
-# in a fresh venv or conda env
-pip install -e .        # For cpu only (not all functionality is supported for cpu only)
-pip install -e .[gpu]
+# CPU install (not all functionality is supported for cpu only)
+pip install "wsi-patching @ git+https://github.com/amspath/wsi-patching-pipeline.git"
+
+# GPU install
+pip install "wsi-patching[gpu] @ git+https://github.com/amspath/wsi-patching-pipeline.git"
 ```
 
 > If you run without gpu, the backend will rely on OpenSlide to open images. Openslide requires system libraries. It is your own responsibility to install these. The easiest way to install those is to create your environment through conda and add the required system libraries in there. 
 
-## 2) Checkout the examples
-`demo.py` shows you how to build a basic pipeline for creating a basic WebDataset
+
+## 2) Dev install
+
+Python ≥3.8 is recommended.
+```
+git clone https://github.com/amspath/wsi-patching-pipeline.git
+cd wsi-patching-pipeline
+pip install -e .        # For cpu only
+pip install -e .[gpu]
+```
+
+## 3) Checkout the examples
+`demo.py` shows you how to build a basic pipeline for creating a WebDataset
 ```python
 p = (
-        WSIGrid(slides=slides, tile_size=224, stride=224, level=0, use_gpu=True)
-        .then(AttachROIs(providers=[RectROIProvider(rois_dict)]))
-        .then(TilePlanner())
-        .then(ReadWindowChunker())
-        .then(RegionReadAndBatch(batch_size=args.batch, num_workers=args.num_workers))
-        .then(CellVitTissueClassifierFilter())
-        .then(PNGEncoder())
-        .to(WebDatasetWriter(shard_size=300, shuffle_buffer_size=500))
+    WSIGrid(slides=slides, level=0, use_gpu=True)
+    .then(AttachROIs(providers=[RectROIProvider(rois_dict)]))
+    .then(PatchExtractor(tile_size=224, stride=224, max_batch_size=800))
+    .then(CellVitTissueClassifierFilter())
+    .then(PNGEncoder())
+    .to(WebDatasetWriter(shard_size=300, shuffle_buffer_size=500))
 )
 p.run(cpu_processes=4)
 ```
@@ -41,16 +52,38 @@ p.run(cpu_processes=4)
 `numpy_mem_writer_demo.py` shows you how to build a basic pipeline for patching up a wsi in memory, without the need of writing to disk (RAM heavy for larger datasets, obviously).
 ```python
 p = (
-        WSIGrid(slides=slides, tile_size=256, stride=256, level=0, use_gpu=True)
-        .then(TilePlanner())
-        .then(ReadWindowChunker(max_window_size=8192))
-        .then(RegionReadAndBatch(batch_size=800, num_workers=4))
-        .to(NumpyMemoryWriter(layout="NCHW"))
+    WSIGrid(slides=slides, level=0, use_gpu=True)
+    .then(PatchExtractor(tile_size=256, stride=256, max_batch_size=800, num_workers=4))
+    .then(LowContrastBackgroundFilter(range_threshold=0.2))
+    .then(MacenkoNormalizer())
+    .to(NumpyMemoryWriter(layout="NCHW"))
 )
 np_patch_array, np_coords_array, list_of_wsi_ids = p.run(cpu_processes=2)
 ```
 
-## 3) Build your own components
+## 4) Check out the currently available components:
+#### Core components
+- `WSIGrid`: Your starter block!
+- `AttachROIs`: Attach an ROI provider class to ensure that only your regions of interest are patched up. There are two basic ROI providers implemented, being a `RectROIProvider`, and a `RectROIfromXMLProvider`. More to come when needed.
+- `PatchExtractor`: A necessary component in every pipeline. This will nicely read and batch up all your patches. 
+- A sink component to define what the output should be. Currently implemented are:
+  - `WebDatasetWriter`: For writing to a webdataset. Comes with a WebDataset Loader for then reading in the the webdataset in a streamed format to a Torch dataloader.
+  - `NumpyMemoryWriter`: For obtaining numpy patches as one big np.ndarray. 
+  - `TorchMemoryWriter`: For obtaining all your patches as a Torch dataset.
+
+#### Other components
+- Filters: For filtering out your patches that you do not need
+  - `LowContrastBackgroundFilter`: A simple filter for filtering out background with very little difference between pixels.
+  - `OtsuFilter`: Applying otsu's method and filtering on a threshold.
+  - `PenArtifactFilter`: Applying histolabs blue, green and red pen filters, but using our own batched, gpu accelerated implementation.
+  - `CellVitTissueClassifierFilter`: Using CellVits original tissue classifier, it classifies patches as background using a mobilenetv3. 
+- Transforms: For transforming your patches 
+  - `Macenko Normalizer`: Applies Macenko normalizer, fitting on the first batch it encounters (watch out for the first batch being a background batch).
+
+
+More to come! Request if you would like your stage to be in the library.
+
+## 5) Build your own components
 This library is setup such that you can easily build your own components to suit your own needs and pop it into the pipeline. Components can either extend the `Stage` (a processing stage) or `WriterBase` (a sink) components. 
 
 #### Creating a stage component:
