@@ -12,9 +12,9 @@ def main():
     roi_xml = {"RT14-09099_HE": "./data/RT14-09099_HE.xml"}
 
     p = (
-        WSIGrid(slides=slides, tile_size=256, stride=256, level=0, use_gpu=True)
+        WSIGrid(slides=slides, level=0, use_gpu=True)
         .then(AttachROIs(providers=[RectROIfromXMLProvider(rois=roi_xml)]))
-        .then(TilePlanner())
+        .then(TilePlanner(tile_size=256, stride=256))
         .then(ReadWindowChunker())
         .then(RegionReadAndBatch(batch_size=800, num_workers=4))
         .then(PenArtifactFilter())

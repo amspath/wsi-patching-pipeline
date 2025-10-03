@@ -30,14 +30,18 @@ class TilePlanner(Stage):
     """
 
     def __init__(
-        self, tile_selection_mode: Literal["any_overlap", "full_inside_bounds", "center_in_roi"] = "any_overlap"
+        self,
+        tile_size: int,
+        stride: int,
+        tile_selection_mode: Literal["any_overlap", "full_inside_bounds", "center_in_roi"] = "any_overlap",
     ):
+        self.tile_size = tile_size
+        self.stride = stride
         self.tile_selection_mode = tile_selection_mode
 
-    def validate(self) -> None:
-        self.ctx.require_key("tile_size")
-        self.ctx.require_key("stride")
-        self.ctx.require_key("level")
+    def export_context(self, ctx) -> None:
+        ctx["tile_size"] = self.tile_size
+        ctx["stride"] = self.stride
 
     def __call__(self, it: Iterable[Union[Slide, SlideWithROIs]]) -> Iterable[TilePlan]:
         tile_size = int(self.ctx["tile_size"])
@@ -68,7 +72,12 @@ class TilePlanner(Stage):
                         roi_index=idx,
                         roi_bounds=(bx, by, bw, bh),
                         tiles=tiles,
-                        meta={**s.meta, "roi_bounds": (bx, by, bw, bh)},
+                        meta={
+                            **s.meta,
+                            "roi_bounds": (bx, by, bw, bh),
+                            "slide.stride": stride,
+                            "slide.tile_size": tile_size,
+                        },
                     )
                 else:
                     self.log.warning(f"No tiles found for slide {s.wsi_id} ROI {idx} bounds {bx, by, bw, bh}")

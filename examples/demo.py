@@ -41,9 +41,9 @@ def main(argv=None):
     rois_dict = {Path(s).stem: [(0, 0, 4000, 4000)] for s in slides}
 
     p = (
-        WSIGrid(slides=slides, tile_size=224, stride=224, level=0, use_gpu=True)
+        WSIGrid(slides=slides, level=0, use_gpu=True)
         .then(AttachROIs(providers=[RectROIProvider(rois_dict)]))
-        .then(TilePlanner())
+        .then(TilePlanner(tile_size=224, stride=224))
         .then(ReadWindowChunker())
         .then(RegionReadAndBatch(batch_size=args.batch, num_workers=args.num_workers))
         .then(CellVitTissueClassifierFilter())

@@ -14,8 +14,8 @@ def main():
     slides = ["./data/RBIO-GC072-HE-01.tiff"]
 
     p = (
-        WSIGrid(slides=slides, tile_size=256, stride=256, level=0, use_gpu=True)
-        .then(TilePlanner())
+        WSIGrid(slides=slides, level=0, use_gpu=True)
+        .then(TilePlanner(tile_size=256, stride=256))
         .then(ReadWindowChunker())
         .then(RegionReadAndBatch(batch_size=800, num_workers=4))
         .then(LowContrastBackgroundFilter(range_threshold=0.2))
