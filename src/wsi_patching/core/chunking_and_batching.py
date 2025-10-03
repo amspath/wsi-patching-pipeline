@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Iterable, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Iterable, List, Literal, Optional, Tuple, Union
 
 from wsi_patching.regions_of_interest.roi_providers import WholeSlideProvider
 
@@ -9,7 +9,7 @@ import numpy as np
 from wsi_patching.backends.cucim_openslide import read_region
 from wsi_patching.backends.cupy_numpy import get_xp_backend
 from wsi_patching.core.pipeline import Stage
-from wsi_patching.regions_of_interest.rois import ROI, BoxROI
+from wsi_patching.regions_of_interest.rois import ROI
 from wsi_patching.utils.types import CollatedPatchBatch, RegionTask, Slide, SlideWithROIs, TilePlan
 
 
@@ -18,13 +18,20 @@ class TilePlanner(Stage):
     Divide slides (with or without ROIs) into patches on a regular grid.
 
     The TilePlanner emits a TilePlan. Each TilePlan corresponds to a single slide,
-    and might has a list of coords corresponding to coordinates of patches to be extracted.
+    and has a list of coords corresponding to coordinates of patches to be extracted.
     If ROIs are attached to the slide, all generated coordinates will lie within the ROIs.
     If no ROIs are attached, the WholeSlideProvider is used to generate a single ROI
     covering the entire slide.
+
+    tile_selection_mode:
+      - "any_overlap" (default): accept tile if any pixel overlaps ROI.
+      - "full_inside_bounds": accept tile only if fully inside ROI bounds rectangle (exact for BoxROI).
+      - "center_in_roi": accept tile if its center is inside ROI (fallback for non-box in full_inside_bounds).
     """
 
-    def __init__(self, tile_selection_mode: str = "full_inside_bounds"):
+    def __init__(
+        self, tile_selection_mode: Literal["any_overlap", "full_inside_bounds", "center_in_roi"] = "any_overlap"
+    ):
         self.tile_selection_mode = tile_selection_mode
 
     def validate(self) -> None:
@@ -41,15 +48,13 @@ class TilePlanner(Stage):
             W, H = s.dims
             for idx, roi in enumerate(rois):
                 bx, by, bw, bh = roi.bounds()
-                x0 = _align_to_grid(max(0, bx), stride)
-                y0 = _align_to_grid(max(0, by), stride)
                 x1 = min(bx + bw, W)
                 y1 = min(by + bh, H)
                 tiles: List[Tuple[int, int]] = []
-                y = y0
-                while y + tile_size <= y1:
-                    x = x0
-                    while x + tile_size <= x1:
+                y = by
+                while y <= y1:
+                    x = bx
+                    while x <= x1:
                         if self._accept_tile(roi, x, y, tile_size):
                             tiles.append((x, y))
                         x += stride
@@ -72,21 +77,17 @@ class TilePlanner(Stage):
 
     def _accept_tile(self, roi: ROI, tx: int, ty: int, tile_size: int) -> bool:
         mode = self.tile_selection_mode
-        if mode == "full_inside_bounds":
-            # Conservative: ensure full tile lies inside ROI bounds rectangle.
-            if isinstance(roi, BoxROI):
-                bx, by, bw, bh = roi.bounds()
-                return (tx >= bx) and (ty >= by) and (tx + tile_size <= bx + bw) and (ty + tile_size <= by + bh)
-            # For non-box geometries, fall back to center-in-ROI
-            mode = "center_in_roi"
 
-        if mode == "center_in_roi":
+        if mode == "any_overlap":
+            return roi.intersects_patch(tx, ty, tile_size, tile_size)
+        elif mode == "full_inside_bounds":
+            return roi.contains_patch(tx, ty, tile_size, tile_size)
+        elif mode == "center_in_roi":
             cx = tx + tile_size / 2.0
             cy = ty + tile_size / 2.0
             return roi.contains_point(cx, cy)
-
-        # Default fallback
-        return True
+        else:
+            raise ValueError(f"TilePlanner: unknown tile_selection_mode '{mode}'")
 
 
 class ReadWindowChunker(Stage):
@@ -132,7 +133,6 @@ class ReadWindowChunker(Stage):
 
     def __call__(self, it: Iterable[TilePlan]) -> Iterable[RegionTask]:
         tile_size = int(self.ctx["tile_size"])
-        stride = int(self.ctx["stride"])
 
         for plan in it:
             bx, by, bw, bh = plan.roi_bounds
@@ -141,21 +141,28 @@ class ReadWindowChunker(Stage):
                 self.log.warning(f"ReadWindowChunker: no tiles in plan for slide {plan.wsi_id} ROI {plan.roi_index}")
                 continue
 
-            x_start = _align_to_grid(max(0, bx), stride) if self.align_to_stride else bx
-            y_start = _align_to_grid(max(0, by), stride) if self.align_to_stride else by
             x_end, y_end = min(bx + bw, W), min(by + bh, H)
 
-            for yy in range(y_start, y_end, self.max_window_size):
-                for xx in range(x_start, x_end, self.max_window_size):
+            for yy in range(by, y_end, self.max_window_size):
+                for xx in range(bx, x_end, self.max_window_size):
                     ww, hh = min(self.max_window_size, x_end - xx), min(self.max_window_size, y_end - yy)
                     in_window: List[Tuple[int, int]] = []
                     wx1, wy1 = xx + ww, yy + hh
                     for tx, ty in plan.tiles:
-                        if tx >= xx and ty >= yy and (tx + tile_size) <= wx1 and (ty + tile_size) <= wy1:
+                        if (xx <= tx < wx1) and (yy <= ty < wy1):
                             in_window.append((tx, ty))
 
                     if in_window:
-                        yield RegionTask(plan.wsi_id, plan.wsi_path, (xx, yy, ww, hh), in_window, meta=plan.meta)
+                        # Expand window to fully cover the included tiles (so slicing works)
+                        max_tx = max(tx for tx, _ in in_window)
+                        max_ty = max(ty for _, ty in in_window)
+                        # Ensure we cover the full tile in the window, except at slide edges
+                        new_wx1 = min(max_tx + tile_size, W)
+                        new_wy1 = min(max_ty + tile_size, H)
+
+                        yield RegionTask(
+                            plan.wsi_id, plan.wsi_path, (xx, yy, new_wx1 - xx, new_wy1 - yy), in_window, meta=plan.meta
+                        )
 
 
 class RegionReadAndBatch(Stage):
@@ -170,15 +177,25 @@ class RegionReadAndBatch(Stage):
       - Changing dtype to e.g. np.float32 is allowed, but no normalization is applied
     """
 
-    def __init__(self, batch_size: int = 200, num_workers: int = 8, dtype: str = np.uint8):
+    def __init__(
+        self,
+        batch_size: int = 200,
+        num_workers: int = 8,
+        dtype: str = np.uint8,
+        edge_policy: Literal["drop", "pad_with_zeros", "pad_with_edge"] = "pad_with_zeros",
+    ):
         self.batch_size = int(batch_size)
         self.num_workers = int(num_workers)
         self.dtype = dtype
+        self.edge_policy = edge_policy
 
     def validate(self) -> None:
         self.ctx.require_key("tile_size")
         self.ctx.require_key("level")
         self.ctx.require_key("use_gpu")
+
+        if self.edge_policy not in {"drop", "pad_with_zeros", "pad_with_edge"}:
+            raise ValueError(f"RegionReadAndBatch: unknown edge_policy '{self.edge_policy}'")
 
     def __call__(self, it: Iterable[RegionTask]) -> Iterable[CollatedPatchBatch]:
         xp = get_xp_backend(self.ctx["use_gpu"])
@@ -198,7 +215,10 @@ class RegionReadAndBatch(Stage):
                 rx, ry = tx - x0, ty - y0
                 patch = region_img[ry : ry + tile_size, rx : rx + tile_size, :]
                 if patch.shape[:2] != (tile_size, tile_size):
-                    continue
+                    if self.edge_policy == "drop":
+                        continue
+                    self.log.info(f"RegionReadAndBatch: patch at edge, applying edge_policy {self.edge_policy}")
+                    patch = self._pad_to_tile_size(patch, tile_size, xp)
 
                 coords.append((tx, ty))
                 patches.append(patch)
@@ -218,10 +238,19 @@ class RegionReadAndBatch(Stage):
             cpb.add_col(k, np.array([v] * len(coords)))
         return cpb
 
+    def _pad_to_tile_size(self, patch, tile_size: int, xp_module):
+        """Right/bottom pad to (tile_size, tile_size). Works for numpy or cupy arrays."""
+        h, w = int(patch.shape[0]), int(patch.shape[1])
+        pad_h = max(0, tile_size - h)
+        pad_w = max(0, tile_size - w)
+        if pad_h == 0 and pad_w == 0:
+            return patch
 
-def _align_to_grid(v: int, stride: int, origin: int = 0) -> int:
-    """Return the smallest grid value <= v on grid defined by origin & stride."""
-    if stride <= 0:
-        raise ValueError("Stride must be positive")
-    r = (v - origin) % stride
-    return v if r == 0 else v - r
+        pad_spec = ((0, pad_h), (0, pad_w), (0, 0))
+
+        if self.edge_policy == "pad_with_zeros":
+            return xp_module.pad(patch, pad_spec, mode="constant", constant_values=0)
+        elif self.edge_policy == "pad_with_edge":
+            return xp_module.pad(patch, pad_spec, mode="edge")
+        else:
+            raise ValueError(f"Unknown edge_policy '{self.edge_policy}'")

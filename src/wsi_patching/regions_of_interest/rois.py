@@ -8,6 +8,22 @@ class ROI:
     def bounds(self) -> Box: ...
     def contains_point(self, x: float, y: float) -> bool: ...
 
+    def contains_patch(self, bx, by, bw, bh) -> bool:
+        return (
+            self.contains_point(bx, by)
+            and self.contains_point(bx + bw - 1, by)
+            and self.contains_point(bx, by + bh - 1)
+            and self.contains_point(bx + bw - 1, by + bh - 1)
+        )
+
+    def intersects_patch(self, bx, by, bw, bh) -> bool:
+        return (
+            self.contains_point(bx, by)
+            or self.contains_point(bx + bw - 1, by)
+            or self.contains_point(bx, by + bh - 1)
+            or self.contains_point(bx + bw - 1, by + bh - 1)
+        )
+
 
 @dataclass
 class BoxROI(ROI):
