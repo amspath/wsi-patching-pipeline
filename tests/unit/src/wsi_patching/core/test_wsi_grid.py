@@ -5,11 +5,9 @@ from wsi_patching.core.wsi_grid import WSIGrid
 
 
 def test_export_context_sets_expected_keys():
-    grid = WSIGrid(slides=["/data/A.svs"], tile_size=256, stride=128, use_gpu=True, level=2)
+    grid = WSIGrid(slides=["/data/A.svs"], use_gpu=True, level=2)
     ctx = PipelineContext({})
     grid.export_context(ctx)
-    assert ctx["tile_size"] == 256
-    assert ctx["stride"] == 128
     assert ctx["level"] == 2
     assert ctx["use_gpu"] is True
 
@@ -18,25 +16,23 @@ def test_export_context_sets_expected_keys():
 @patch("wsi_patching.core.wsi_grid.validate_xp_backend")
 @patch("wsi_patching.core.wsi_grid.validate_slide_backend")
 def test_validate_invokes_backends(mock_validate_slide, mock_validate_xp):
-    grid = WSIGrid(slides=[], tile_size=256, stride=128, use_gpu=False, level=0)
+    grid = WSIGrid(slides=[], use_gpu=False, level=0)
     grid.validate()
     mock_validate_slide.assert_called_once_with(False)
     mock_validate_xp.assert_called_once_with(False)
 
     # Also check use_gpu=True path
-    grid2 = WSIGrid(slides=[], tile_size=256, stride=128, use_gpu=True, level=0)
+    grid2 = WSIGrid(slides=[], use_gpu=True, level=0)
     grid2.validate()
     assert mock_validate_slide.call_args_list[-1] == call(True)
     assert mock_validate_xp.call_args_list[-1] == call(True)
 
 
 def test_for_slide_returns_single_slide_clone():
-    grid = WSIGrid(slides=["/data/A.svs", "/data/B.svs"], tile_size=512, stride=256, use_gpu=True, level=1)
+    grid = WSIGrid(slides=["/data/A.svs", "/data/B.svs"], use_gpu=True, level=1)
     g2 = grid.for_slide("/data/C.svs")
     assert isinstance(g2, WSIGrid)
     assert g2.slides == ["/data/C.svs"]
-    assert g2.tile_size == 512
-    assert g2.stride == 256
     assert g2.use_gpu is True
     assert g2.level == 1
 
@@ -52,7 +48,7 @@ def test_call_yields_slide_objects_with_dims(mock_dims, mock_exists):
 
     mock_dims.side_effect = _dims
 
-    grid = WSIGrid(slides=["/slides/A.svs", "/slides/B.svs"], tile_size=256, stride=128, use_gpu=False, level=0)
+    grid = WSIGrid(slides=["/slides/A.svs", "/slides/B.svs"], use_gpu=False, level=0)
 
     out = list(grid(iter(())))
     assert len(out) == 2

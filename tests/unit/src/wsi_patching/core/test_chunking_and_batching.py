@@ -52,7 +52,7 @@ def fake_read_region(path, x, y, w, h, level, use_gpu, num_workers_cucim):
 # ------------------- TilePlanner -------------------
 def test_tileplanner_whole_slide_no_rois_generates_tiles():
     slide = SlideStub("S", "/s", (64, 64), {})
-    tp = TilePlanner(tile_selection_mode="full_inside_bounds")
+    tp = TilePlanner(tile_selection_mode="full_inside_bounds", tile_size=16, stride=16)
     # seed context
     tp.attach_context(PipelineContext({"tile_size": 16, "stride": 16, "level": 0}))
     tp.validate()
@@ -71,7 +71,7 @@ def test_tileplanner_center_mode_accepts_boundary_tiles():
     # ROI that starts at (8,8) sized 9x9; tile_size 16
     # full_inside_bounds would reject (0,0) tile, but center (8,8) lies inside -> accept in center_in_roi.
     slide = SlideWithROIsStub("S", "/s", (40, 40), {}, rois=[BoxROI(8, 8, 9, 9)])
-    tp = TilePlanner(tile_selection_mode="center_in_roi")
+    tp = TilePlanner(tile_size=16, stride=16, tile_selection_mode="center_in_roi")
     tp.attach_context(PipelineContext({"tile_size": 16, "stride": 16, "level": 0}))
     tp.validate()
 
@@ -86,7 +86,7 @@ def test_tileplanner_center_mode_accepts_boundary_tiles():
 def test_tileplanner_warns_when_no_tiles(caplog):
     # Tiny slide 15x15 with tile_size 16 -> no tiles
     slide = SlideStub("S", "/s", (15, 15), {})
-    tp = TilePlanner(tile_selection_mode="full_inside_bounds")
+    tp = TilePlanner(tile_size=16, stride=16, tile_selection_mode="full_inside_bounds")
     tp.attach_context(PipelineContext({"tile_size": 16, "stride": 16, "level": 0}))
     tp.validate()
 
@@ -94,12 +94,12 @@ def test_tileplanner_warns_when_no_tiles(caplog):
     plans = list(tp(iter([slide])))
     # No emitted TilePlan (because there were no tiles)
     assert plans == []
-    assert "TilePlanner: no tiles found for slide S ROI 0" in caplog.text
+    assert "No tiles found for slide S ROI 0" in caplog.text
 
 
 # ------------------- ReadWindowChunker -------------------
 def test_readwindowchunker_validate_defaults_and_guards(caplog):
-    r = ReadWindowChunker(max_window_size=None, align_to_stride=True)
+    r = ReadWindowChunker(max_window_size=None)
     # seed context
     r.attach_context(PipelineContext({"tile_size": 32, "stride": 16}))
     caplog.set_level("INFO")
@@ -139,7 +139,7 @@ def test_readwindowchunker_groups_tiles_into_windows():
         ],  # group 2 (falls in window starting at x=32)
         meta={},
     )
-    r = ReadWindowChunker(max_window_size=32, align_to_stride=True)
+    r = ReadWindowChunker(max_window_size=32)
     r.attach_context(PipelineContext({"tile_size": 16, "stride": 16}))
     r.validate()
 

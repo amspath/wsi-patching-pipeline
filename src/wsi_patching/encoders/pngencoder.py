@@ -18,11 +18,8 @@ class PNGEncoder(Stage):
     """
 
     def __call__(self, it: Iterable[CollatedPatchBatch]) -> Iterable[Patch]:
-        prof = self.get_current_profiler()
         for batch in it:
             for idx in range(len(batch.coords)):
-                t0 = time.perf_counter()
-
                 wsi_id, coord, patch, meta = batch.get(idx)
                 key = f"{wsi_id}-{coord[0]}-{coord[1]}"
 
@@ -40,8 +37,4 @@ class PNGEncoder(Stage):
                 png_bytes = bio.getvalue()
                 # JSON
                 meta = {"coord": coord, **meta}
-
-                dt = time.perf_counter() - t0
-                if prof is not None:
-                    prof.add_time("PNGEncoder.isolated", dt, yielded=True)
                 yield Patch(key=key, patch=png_bytes, meta=meta)

@@ -85,7 +85,7 @@ class LowContrastBackgroundFilter(Stage):
             collated_patch_batch.filter(ensure_numpy(keep_batch_mask), use_gpu=use_gpu)
 
             self.log.info(
-                f"LowContrastBackgroundFilter: wsi={collated_patch_batch.wsi_id} "
+                f"wsi={collated_patch_batch.wsi_id} "
                 f"batch_out={len(collated_patch_batch.patches)} (range_threshold={self.range_threshold})"
             )
 

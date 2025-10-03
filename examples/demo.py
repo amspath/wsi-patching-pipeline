@@ -7,7 +7,7 @@ import logging
 import time
 from pathlib import Path
 
-from wsi_patching.core import ReadWindowChunker, RegionReadAndBatch, TilePlanner, WSIGrid
+from wsi_patching.core import PatchExtractor, WSIGrid
 from wsi_patching.encoders import PNGEncoder
 from wsi_patching.filtering import CellVitTissueClassifierFilter
 from wsi_patching.regions_of_interest import AttachROIs, RectROIProvider
@@ -41,11 +41,9 @@ def main(argv=None):
     rois_dict = {Path(s).stem: [(0, 0, 4000, 4000)] for s in slides}
 
     p = (
-        WSIGrid(slides=slides, tile_size=224, stride=224, level=0, use_gpu=True)
+        WSIGrid(slides=slides, level=0, use_gpu=True)
         .then(AttachROIs(providers=[RectROIProvider(rois_dict)]))
-        .then(TilePlanner())
-        .then(ReadWindowChunker())
-        .then(RegionReadAndBatch(batch_size=args.batch, num_workers=args.num_workers))
+        .then(PatchExtractor(tile_size=224, stride=224, max_batch_size=args.batch, num_workers=args.num_workers))
         .then(CellVitTissueClassifierFilter())
         .then(PNGEncoder())
         .to(WebDatasetWriter(shard_size=300, shuffle_buffer_size=500))

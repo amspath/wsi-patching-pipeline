@@ -144,10 +144,7 @@ def test_stats_and_filtering(monkeypatch, patch_backends, caplog):
     assert out.patches.shape[0] == 2
 
     # Log captured and contains wsi + batch_out
-    assert any(
-        "LowContrastBackgroundFilter: wsi=slideA" in rec.message and "batch_out=2" in rec.message
-        for rec in caplog.records
-    )
+    assert any("wsi=slideA" in rec.message and "batch_out=2" in rec.message for rec in caplog.records)
 
 
 def test_all_filtered_yields_nothing(monkeypatch, patch_backends):
