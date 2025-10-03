@@ -79,6 +79,8 @@ np_patch_array, np_coords_array, list_of_wsi_ids = p.run(cpu_processes=2)
   - `CellVitTissueClassifierFilter`: Using CellVits original tissue classifier, it classifies patches as background using a mobilenetv3. 
 - Transforms: For transforming your patches 
   - `Macenko Normalizer`: Applies Macenko normalizer, fitting on the first batch it encounters (watch out for the first batch being a background batch).
+- Encoders: For encoding your patches into the right format
+  - `PNGEncoder` Transforming your patches into PNGs. Particularly useful for the WebDatasetWriter.
 
 
 More to come! Request if you would like your stage to be in the library.
@@ -91,23 +93,22 @@ This library is setup such that you can easily build your own components to suit
 from wsi_patching.custom_component import Stage, PipelineContext, # <PreviousStageOutputType> and <NextStageInputType> can also be found here
 
 class CustomStage(Stage):
-        def __init__(self, ...):
-                ...
-        
-        def export_context(self, ctx: "PipelineContext") -> None:
-                # Optional: Seed/override global grid parameters for other stages to read, i.e.
-                ctx["tile_size"] = self.tile_size
-
-        def validate(self) -> None:
-                # Optional: Validate your class before starting processing, i.e.
-                self.ctx.require_key("use_gpu")
-                if self.ctx['some_key'] < self.some_init_param:
-                        ...
-        
-        def __call__(self, it: Iterable[<PreviousStageOutputType>]) -> Iterable[<NextStageInputType>]:
-                # The logic of your stage. You should specifiy the type of your call function. 
-                # These should align with the preceeding and succeeding stages (checked at initialization).
-                ...
+    def __init__(self, ...):
+            ...
+    
+    def export_context(self, ctx: "PipelineContext") -> None:
+            # Optional: Seed/override global grid parameters for other stages to read, i.e.
+            ctx["tile_size"] = self.tile_size
+    def validate(self) -> None:
+            # Optional: Validate your class before starting processing, i.e.
+            self.ctx.require_key("use_gpu")
+            if self.ctx['some_key'] < self.some_init_param:
+                    ...
+    
+    def __call__(self, it: Iterable[<PreviousStageOutputType>]) -> Iterable[<NextStageInputType>]:
+            # The logic of your stage. You should specifiy the type of your call function. 
+            # These should align with the preceeding and succeeding stages (checked at initialization).
+            ...
 ```
 
 #### Creating a custom sink component:
@@ -115,20 +116,55 @@ class CustomStage(Stage):
 from wsi_patching.custom_component import WriterBase, # <PreviousStageOutputType> can also be found here
 
 class CustomWriter(WriterBase):
-        def __init__(self, ...):
-                ...
+    def __init__(self, ...):
+            ...
+    def open(self) -> None:
+            # Opening your writer
+    
+    def write(self, sample: <PreviousStageOutputType>) -> None:
+            # What to do with a single sample
+    def close(self) -> None:
+            # Closing up the buffer
+    
+    def get_output(self) -> Any:
+            # Optional: if you want to output something in memory.
+```
 
-        def open(self) -> None:
-                # Opening your writer
-        
-        def write(self, sample: <PreviousStageOutputType>) -> None:
-                # What to do with a single sample
+#### Profiling runtime of a custom component:
+```python
+import time
 
-        def close(self) -> None:
-                # Closing up the buffer
-        
-        def get_output(self) -> Any:
-                # Optional: if you want to output something in memory.
+class CustomStage(Stage/WriterBase):
+    ...
+
+    def __call__(self, it: ...):
+        prof = self.get_current_profiler()
+        for something in it:
+            # Start measuring the iteration
+            t0 = time.perf_counter()
+
+            # Do some heavy operation
+            output = ...
+
+            # Stop the clock
+            dt = time.perf_counter() - t0
+            if output:
+                prof.add_time("CustomStage", dt, yielded=True)
+                yield output
+            else:
+                prof.add_time("CustomStage", dt, yielded=False)
+```
+This will count per slide per iteration breakdown of how fast this stage is, in the form of:
+```
+=== Pipeline Profile (isolated timings only) ===
+Stage                                Yields         Wall (s)   Avg (ms/yield)
+PNGEncoder.isolated                    640            1.440s          2.412ms
+
+--- Per slide breakdown ---
+[RBIO-GC072-HE-02]
+  PNGEncoder.isolated          yields=  320    wall=  0.762s    avg=  2.382ms
+[RBIO-GC072-HE-01]
+  PNGEncoder.isolated          yields=  320    wall=  0.778s    avg=  2.432ms
 ```
 
 # More will come
