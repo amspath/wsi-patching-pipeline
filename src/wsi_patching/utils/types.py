@@ -44,6 +44,7 @@ class TilePlan:
 class RegionTask:
     wsi_id: str
     wsi_path: str
+    wsi_dims: Tuple[int, int]
     region: Box
     tiles: List[Tuple[int, int]]
     meta: Dict[str, Any] = field(default_factory=dict)
