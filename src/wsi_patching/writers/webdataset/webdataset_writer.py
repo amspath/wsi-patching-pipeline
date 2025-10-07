@@ -30,11 +30,11 @@ class WebDatasetWriter(WriterBase):
         # allocate sink in the writer process
         self._sink = wds.ShardWriter(self.shard_pattern, maxcount=self.shard_size, verbose=0)
 
-    def write(self, sample: EncodedCollatedPatchBatch) -> None:
-        for sample_idx in range(sample.coords.shape[0]):
-            wsi_id, coord, _, meta = sample.get(sample_idx)
+    def write(self, batch: EncodedCollatedPatchBatch) -> None:
+        for sample_idx in range(batch.coords.shape[0]):
+            wsi_id, coord, _, meta = batch.get(sample_idx)
             key = f"{wsi_id}_{coord[0]}_{coord[1]}"
-            encoded_patch = sample.encoded_patches[sample_idx]
+            encoded_patch = batch.encoded_patches[sample_idx]
             self._buffer.append((key, encoded_patch, meta))
 
             if len(self._buffer) >= self.shuffle_buffer_size:

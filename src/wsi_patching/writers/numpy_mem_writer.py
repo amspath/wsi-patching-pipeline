@@ -32,14 +32,14 @@ class NumpyMemoryWriter(WriterBase):
     def open(self) -> None:
         self.log.info("Opening... layout=%s dtype=%s", self.layout, self.dtype)
 
-    def write(self, sample: CollatedPatchBatch) -> None:
-        self.log.info(f"Received batch from wsi: {sample.wsi_id} size: {len(sample.patches)}")
+    def write(self, batch: CollatedPatchBatch) -> None:
+        self.log.info(f"Received batch from wsi: {batch.wsi_id} size: {len(batch.patches)}")
 
         # coords -> np.int64
-        coords_np = np.asarray(sample.coords, dtype=np.int64)
+        coords_np = np.asarray(batch.coords, dtype=np.int64)
 
         # patches -> np.float (from numpy or cupy)
-        images_np = ensure_numpy(sample.patches)
+        images_np = ensure_numpy(batch.patches)
         images_np = np.asarray(images_np, dtype=self.dtype)
 
         # store as requested layout (assume input is BHWC)
@@ -50,8 +50,8 @@ class NumpyMemoryWriter(WriterBase):
         # accumulate
         self._images_chunks.append(images_np)
         self._coords_chunks.append(coords_np)
-        self.meta.extend(sample.metadata.get_all_row_wise())
-        self.wsi_ids.extend([sample.wsi_id] * images_np.shape[0])
+        self.meta.extend(batch.metadata.get_all_row_wise())
+        self.wsi_ids.extend([batch.wsi_id] * images_np.shape[0])
 
     def close(self) -> None:
         if self.final_images is not None:

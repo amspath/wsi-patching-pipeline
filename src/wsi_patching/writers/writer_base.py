@@ -14,7 +14,7 @@ class WriterBase(ContextAware, metaclass=WriterMeta):
 
     Implementers override:
       - open(self) -> None               # allocate resources; runs in writer process
-      - write(self, sample: Any) -> None # write a single item
+      - write(self, batch: Any) -> None  # write a batch of items
       - on_end_of_stream(self) -> None   # optional per-slide finalization
       - close(self) -> None              # flush/close resources
 
@@ -34,8 +34,8 @@ class WriterBase(ContextAware, metaclass=WriterMeta):
         """Allocate resources. Called in the writer process (or current process for single-process)."""
         pass
 
-    def write(self, sample: Any) -> None:
-        """Write one item. Must be implemented by subclass."""
+    def write(self, batch: Any) -> None:
+        """Write a batch of items. Must be implemented by subclass."""
         raise NotImplementedError
 
     def on_end_of_stream(self) -> None:
