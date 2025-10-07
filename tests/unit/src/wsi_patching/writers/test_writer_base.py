@@ -1,9 +1,6 @@
 import logging
-from typing import Any
 
-import pytest
-
-from wsi_patching.utils.types import EndOfQueue, EndOfStream
+from wsi_patching.core.types.util_types import EndOfQueue, EndOfStream
 from wsi_patching.writers.writer_base import WriterBase
 
 

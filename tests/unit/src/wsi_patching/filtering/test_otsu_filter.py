@@ -1,13 +1,11 @@
-# tests/test_otsu_filter.py
 import types
 
 import numpy as np
 import pytest
 
-from wsi_patching.backends.cupy_numpy import ensure_cupy
+from wsi_patching.core.types.types import CollatedPatchBatch
 from wsi_patching.filtering.otsu_filter import OtsuFilter
 from wsi_patching.utils.meta_typing import PipelineContext
-from wsi_patching.utils.types import CollatedPatchBatch
 
 
 # -----------------------
@@ -109,7 +107,7 @@ def test_polarity_and_stats(monkeypatch, patch_backends, tissue_is_darker, caplo
     filt = OtsuFilter(tissue_is_darker=tissue_is_darker, num_bins=256, min_tissue_fraction=0.0)
     filt.attach_context(PipelineContext({"use_gpu": False}))
 
-    batch = CollatedPatchBatch(patches=patches.copy(), wsi_id="id", coords=np.zeros((B, 2)), meta_cols={})
+    batch = CollatedPatchBatch(patches=patches.copy(), wsi_id="id", coords=np.zeros((B, 2)), use_gpu=False)
 
     with caplog.at_level("INFO"):
         out_batches = list(filt([batch]))
@@ -118,11 +116,11 @@ def test_polarity_and_stats(monkeypatch, patch_backends, tissue_is_darker, caplo
     out = out_batches[0]
 
     # Check columns exist and have correct shapes
-    assert "otsu_threshold" in out.meta_cols
-    assert "tissue_fraction" in out.meta_cols
-    assert "tissue_pixel_count" in out.meta_cols
+    assert "otsu_threshold" in out.metadata.columns()
+    assert "tissue_fraction" in out.metadata.columns()
+    assert "tissue_pixel_count" in out.metadata.columns()
 
-    np.testing.assert_allclose(out.meta_cols["otsu_threshold"], thresholds)
+    np.testing.assert_allclose(out.metadata.get("otsu_threshold"), thresholds)
 
     # Compute expected masks for each polarity
     if tissue_is_darker:
@@ -134,9 +132,9 @@ def test_polarity_and_stats(monkeypatch, patch_backends, tissue_is_darker, caplo
         # item1: gray >= 0.6 -> all True (equal counts) -> 4/4 tissue
         expected_counts = np.array([2, 4], dtype=np.int64)
 
-    np.testing.assert_array_equal(out.meta_cols["tissue_pixel_count"], expected_counts)
+    np.testing.assert_array_equal(out.metadata.get("tissue_pixel_count"), expected_counts)
     expected_fracs = expected_counts / 4.0
-    np.testing.assert_allclose(out.meta_cols["tissue_fraction"], expected_fracs.astype(np.float32))
+    np.testing.assert_allclose(out.metadata.get("tissue_fraction"), expected_fracs.astype(np.float32))
 
     # No filtering when min_tissue_fraction == 0
     assert out.patches.shape[0] == 2
@@ -168,12 +166,12 @@ def test_min_tissue_fraction_filters(monkeypatch, patch_backends):
     filt = OtsuFilter(tissue_is_darker=False, min_tissue_fraction=0.75)
     filt.attach_context(PipelineContext({"use_gpu": False}))
 
-    batch = CollatedPatchBatch(patches=patches.copy(), wsi_id="id", coords=np.zeros((B, 2)), meta_cols={})
+    batch = CollatedPatchBatch(patches=patches.copy(), wsi_id="id", coords=np.zeros((B, 2)), use_gpu=False)
     out = next(iter(filt([batch])))
 
     # Only the second item (4/4 tissue = 1.0) survives; first has 0.5 < 0.75
     assert out.patches.shape[0] == 1
     # The columns should be filtered as well
-    np.testing.assert_array_equal(out.meta_cols["tissue_pixel_count"], np.array([4]))
-    np.testing.assert_allclose(out.meta_cols["tissue_fraction"], np.array([1.0], dtype=np.float32))
-    np.testing.assert_allclose(out.meta_cols["otsu_threshold"], np.array([0.6], dtype=np.float32))
+    np.testing.assert_array_equal(out.metadata.get("tissue_pixel_count"), np.array([4]))
+    np.testing.assert_allclose(out.metadata.get("tissue_fraction"), np.array([1.0], dtype=np.float32))
+    np.testing.assert_allclose(out.metadata.get("otsu_threshold"), np.array([0.6], dtype=np.float32))

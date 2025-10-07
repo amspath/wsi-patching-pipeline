@@ -4,9 +4,9 @@ import numpy as np
 import pytest
 
 from wsi_patching.backends.cupy_numpy import ensure_cupy
+from wsi_patching.core.types.types import CollatedPatchBatch
 from wsi_patching.transforms.macenko_normalizer import MacenkoNormalizer
 from wsi_patching.utils.meta_typing import PipelineContext
-from wsi_patching.utils.types import CollatedPatchBatch
 
 
 def fake_get_xp_backend(use_gpu):
@@ -197,7 +197,7 @@ def H_true():
 def synthetic_batch(H_true):
     patches = synth_patches_from_stains(H_true, n_patches=6, patch_hw=(48, 48), I0=255, conc_scale=1.2, seed=42)
     return CollatedPatchBatch(
-        patches=patches, wsi_id="wsi_synth", coords=np.array([[0, 0]] * patches.shape[0]), meta_cols={}
+        patches=patches, wsi_id="wsi_synth", coords=np.array([[0, 0]] * patches.shape[0]), use_gpu=False
     )
 
 
@@ -291,7 +291,7 @@ def test_shapes_and_types(monkeypatch, H_true):
 
     # Single small patch, still should fit
     patches = synth_patches_from_stains(H_true, n_patches=1, patch_hw=(16, 16), seed=7)
-    batch = CollatedPatchBatch(patches=patches, wsi_id="S3", coords=np.array([[0, 0]]), meta_cols={})
+    batch = CollatedPatchBatch(patches=patches, wsi_id="S3", coords=np.array([[0, 0]]), use_gpu=False)
 
     norm = MacenkoNormalizer(pixel_limit=None)
     norm.attach_context(PipelineContext({"use_gpu": False}))
@@ -333,7 +333,7 @@ def test_golden_H_and_maxsat_with_controlled_whites(monkeypatch, H_true):
     )
     patch = gold["patch"]
 
-    batch = CollatedPatchBatch(patches=patch, wsi_id="GOLD", coords=np.array([[0, 0]]), meta_cols={})
+    batch = CollatedPatchBatch(patches=patch, wsi_id="GOLD", coords=np.array([[0, 0]]), use_gpu=False)
 
     norm = MacenkoNormalizer(alpha=alpha, beta=beta, light_intensity=I0, pixel_limit=None)
     norm.attach_context(PipelineContext({"use_gpu": False}))

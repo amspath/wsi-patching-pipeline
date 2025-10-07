@@ -1,9 +1,9 @@
 import numpy as np
 import pytest
 
+from wsi_patching.core.types.types import CollatedPatchBatch
 from wsi_patching.filtering.low_contrast_background_filter import LowContrastBackgroundFilter
 from wsi_patching.utils.meta_typing import PipelineContext
-from wsi_patching.utils.types import CollatedPatchBatch
 
 
 # -----------------------
@@ -114,7 +114,7 @@ def test_stats_and_filtering(monkeypatch, patch_backends, caplog):
     filt = LowContrastBackgroundFilter(range_threshold=0.2, float_precision="float32")
     filt.attach_context(PipelineContext({"use_gpu": False}))
 
-    batch = CollatedPatchBatch(patches=patches.copy(), wsi_id="slideA", coords=np.zeros((B, 2)), meta_cols={})
+    batch = CollatedPatchBatch(patches=patches.copy(), wsi_id="slideA", coords=np.zeros((B, 2)), use_gpu=False)
 
     with caplog.at_level("INFO"):
         out_batches = list(filt([batch]))
@@ -125,7 +125,7 @@ def test_stats_and_filtering(monkeypatch, patch_backends, caplog):
 
     # Check columns exist
     for k in ("gray_min", "gray_max", "gray_range", "range_threshold"):
-        assert k in out.meta_cols
+        assert k in out.metadata.columns()
 
     # Expected stats BEFORE filtering would be:
     g_min = np.array([0.1, 0.50, 0.0], dtype=np.float32)
@@ -134,11 +134,11 @@ def test_stats_and_filtering(monkeypatch, patch_backends, caplog):
     keep = g_rng >= 0.2  # [T, F, T]
 
     # After filtering, only items 0 and 2 remain
-    np.testing.assert_allclose(out.meta_cols["gray_min"], g_min[keep])
-    np.testing.assert_allclose(out.meta_cols["gray_max"], g_max[keep])
-    np.testing.assert_allclose(out.meta_cols["gray_range"], g_rng[keep])
+    np.testing.assert_allclose(out.metadata.get("gray_min"), g_min[keep])
+    np.testing.assert_allclose(out.metadata.get("gray_max"), g_max[keep])
+    np.testing.assert_allclose(out.metadata.get("gray_range"), g_rng[keep])
     # range_threshold meta_col should be per-item, matching gray dtype
-    np.testing.assert_allclose(out.meta_cols["range_threshold"], np.array([0.2, 0.2], dtype=np.float32))
+    np.testing.assert_allclose(out.metadata.get("range_threshold"), np.array([0.2, 0.2], dtype=np.float32))
 
     # Patches count reflects filtering
     assert out.patches.shape[0] == 2
@@ -168,7 +168,7 @@ def test_all_filtered_yields_nothing(monkeypatch, patch_backends):
     filt = LowContrastBackgroundFilter(range_threshold=0.2, float_precision="float32")
     filt.attach_context(PipelineContext({"use_gpu": False}))
 
-    batch = CollatedPatchBatch(patches=patches.copy(), wsi_id="slideB", coords=np.zeros((B, 2)), meta_cols={})
+    batch = CollatedPatchBatch(patches=patches.copy(), wsi_id="slideB", coords=np.zeros((B, 2)), use_gpu=False)
 
     out_batches = list(filt([batch]))
     assert out_batches == []  # nothing yielded
@@ -190,12 +190,12 @@ def test_float_precision_controls_threshold_dtype(monkeypatch, np_xp, patch_back
     before = len(np_xp._asarray_dtypes)
     f64 = mod.LowContrastBackgroundFilter(range_threshold=0.2, float_precision="float64")
     f64.attach_context(PipelineContext({"use_gpu": False}))
-    _ = list(f64([CollatedPatchBatch(patches=patches.copy(), wsi_id="id", coords=np.zeros((B, 2)), meta_cols={})]))
+    _ = list(f64([CollatedPatchBatch(patches=patches.copy(), wsi_id="id", coords=np.zeros((B, 2)), use_gpu=False)]))
     assert np_xp._asarray_dtypes[before] == np.float64
 
     # float32 path
     before = len(np_xp._asarray_dtypes)
     f32 = mod.LowContrastBackgroundFilter(range_threshold=0.2, float_precision="float32")
     f32.attach_context(PipelineContext({"use_gpu": False}))
-    _ = list(f32([CollatedPatchBatch(patches=patches.copy(), wsi_id="id", coords=np.zeros((B, 2)), meta_cols={})]))
+    _ = list(f32([CollatedPatchBatch(patches=patches.copy(), wsi_id="id", coords=np.zeros((B, 2)), use_gpu=False)]))
     assert np_xp._asarray_dtypes[before] == np.float32

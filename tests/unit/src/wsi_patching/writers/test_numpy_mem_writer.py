@@ -1,16 +1,8 @@
 import numpy as np
 import pytest
 
+from wsi_patching.core.types.types import CollatedPatchBatch
 from wsi_patching.writers.numpy_mem_writer import NumpyMemoryWriter
-
-
-class DummyBatch:
-    """Minimal stand-in for CollatedPatchBatch (attributes only)."""
-
-    def __init__(self, wsi_id, patches, coords):
-        self.wsi_id = wsi_id
-        self.patches = patches  # expected BHWC
-        self.coords = coords  # e.g., (N, 2) ints
 
 
 def _mk_bhwc(n, h, w, c, dtype=np.float32):
@@ -23,7 +15,7 @@ def test_close_empty_yields_empty_outputs():
     w = NumpyMemoryWriter()
     # No writes, close immediately
     w.close()
-    imgs, coords, ids = w.get_output()
+    ids, imgs, coords, meta = w.get_output()
     assert imgs.shape == (0, 1, 1, 1)
     assert imgs.dtype == np.float32
     assert coords.shape == (0, 2)
@@ -39,14 +31,14 @@ def test_write_single_batch_and_close(layout):
 
     w = NumpyMemoryWriter(layout=layout, dtype=np.float32)
     # write one batch from slide "S1"
-    w.write(DummyBatch("S1", patches, coords))
+    w.write(CollatedPatchBatch(wsi_id="S1", patches=patches, coords=coords, use_gpu=False))
     w.close()
 
-    imgs, out_coords, ids = w.get_output()
+    ids, imgs, coords, meta = w.get_output()
 
     # dtype conversion and ids replicated per patch
     assert imgs.dtype == np.float32
-    assert out_coords.dtype == np.int64
+    assert coords.dtype == np.int64
     assert ids == ["S1"] * N
 
     # shape/layout checks
@@ -60,20 +52,27 @@ def test_write_single_batch_and_close(layout):
         assert imgs[0, 0, 0, 1] == np.float32(patches[0, 0, 0, 1])
 
     # coords passed through as 64-bit ints
-    np.testing.assert_array_equal(out_coords, coords.astype(np.int64))
+    np.testing.assert_array_equal(coords, coords.astype(np.int64))
 
 
 def test_multiple_batches_are_concatenated_and_ids_extended():
     # First batch: 2 items, second: 3 items
-    b1 = DummyBatch("A", _mk_bhwc(2, 2, 2, 1), np.array([[1, 2], [3, 4]], dtype=np.int64))
-    b2 = DummyBatch("B", _mk_bhwc(3, 2, 2, 1), np.array([[5, 6], [7, 8], [9, 10]], dtype=np.int64))
+    b1 = CollatedPatchBatch(
+        wsi_id="A", patches=_mk_bhwc(2, 2, 2, 1), coords=np.array([[1, 2], [3, 4]], dtype=np.int64), use_gpu=False
+    )
+    b2 = CollatedPatchBatch(
+        wsi_id="B",
+        patches=_mk_bhwc(3, 2, 2, 1),
+        coords=np.array([[5, 6], [7, 8], [9, 10]], dtype=np.int64),
+        use_gpu=False,
+    )
 
     w = NumpyMemoryWriter(layout="NCHW")
     w.write(b1)
     w.write(b2)
 
     # get_output should auto-close if not yet closed
-    imgs, coords, ids = w.get_output()
+    ids, imgs, coords, meta = w.get_output()
 
     # 5 total samples
     assert imgs.shape[0] == 5

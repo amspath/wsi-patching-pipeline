@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 from typing import List
 from unittest.mock import patch
 
@@ -6,9 +5,9 @@ import numpy as np
 import pytest
 import torch
 
+from wsi_patching.core.types.types import CollatedPatchBatch
 from wsi_patching.filtering.cellvit_tissue_classifier_filter import CellVitTissueClassifierFilter
 from wsi_patching.utils.meta_typing import PipelineContext
-from wsi_patching.utils.types import CollatedPatchBatch
 
 
 def _mk_batch(brights: List[int], h=4, w=5, c=3):
@@ -74,7 +73,7 @@ def test_validate_requires_keys():
 def test_filter_keeps_only_class0_on_cpu():
     # Build batch: bright -> keep, dim -> drop (according to DummyThreshModel threshold 0.5)
     patches, coords = _mk_batch([255, 10, 200, 0])  # [B=4]
-    batch = CollatedPatchBatch(wsi_id="WSI1", patches=patches, coords=coords, meta_cols={})
+    batch = CollatedPatchBatch(wsi_id="WSI1", patches=patches, coords=coords, use_gpu=False)
 
     f = CellVitTissueClassifierFilter()
     f.attach_context(PipelineContext({"use_gpu": False, "tile_size": 128}))

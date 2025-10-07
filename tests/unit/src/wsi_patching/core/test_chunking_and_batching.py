@@ -1,14 +1,12 @@
-from dataclasses import dataclass
-from typing import List, Tuple
 from unittest.mock import patch
 
 import numpy as np
 import pytest
 
 from wsi_patching.core.chunking_and_batching import ReadWindowChunker, RegionReadAndBatch, TilePlanner
+from wsi_patching.core.types.types import RegionTask, Slide, SlideWithROIs, TilePlan
 from wsi_patching.regions_of_interest.rois import BoxROI
 from wsi_patching.utils.meta_typing import PipelineContext
-from wsi_patching.utils.types import RegionTask, Slide, SlideWithROIs, TilePlan
 
 
 def fake_read_region(path, x, y, w, h, level, use_gpu, num_workers_cucim):
