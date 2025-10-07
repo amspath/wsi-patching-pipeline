@@ -23,7 +23,7 @@ def main():
         .to(NumpyMemoryWriter(layout="NCHW"))
     )
 
-    final_images, final_coords, wsi_ids = p.run(cpu_processes=2, profile=False, verbosity_level="INFO")
+    wsi_ids, final_images, final_coords, meta = p.run(cpu_processes=2, profile=False, verbosity_level="INFO")
     visualize_selected_patches(
         slides[0],
         coords=final_coords,

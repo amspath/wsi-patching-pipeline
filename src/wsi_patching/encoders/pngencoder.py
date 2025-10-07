@@ -1,12 +1,11 @@
 import io
-import time
 from typing import Iterable
 
 from PIL import Image
 
 from wsi_patching.backends.cupy_numpy import ensure_numpy
 from wsi_patching.core.pipeline import Stage
-from wsi_patching.utils.types import CollatedPatchBatch, Patch
+from wsi_patching.core.types.types import CollatedPatchBatch, Patch
 
 
 class PNGEncoder(Stage):
@@ -36,5 +35,5 @@ class PNGEncoder(Stage):
                 Image.fromarray(patch_uint8).save(bio, format="PNG")
                 png_bytes = bio.getvalue()
                 # JSON
-                meta = {"coord": coord, **meta}
+                meta["coord"] = coord
                 yield Patch(key=key, patch=png_bytes, meta=meta)

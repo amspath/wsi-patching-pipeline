@@ -1,16 +1,15 @@
 from typing import TYPE_CHECKING, Iterable, List, Literal, Optional, Tuple, Union
 
+from wsi_patching.backends.cucim_openslide import read_region
+from wsi_patching.backends.cupy_numpy import get_xp_backend
+from wsi_patching.core.pipeline import Stage
+from wsi_patching.core.types.types import CollatedPatchBatch, RegionTask, Slide, SlideWithROIs, TilePlan
 from wsi_patching.regions_of_interest.roi_providers import WholeSlideProvider
+from wsi_patching.regions_of_interest.rois import ROI
 
 if TYPE_CHECKING:
     import cupy as cp
 import numpy as np
-
-from wsi_patching.backends.cucim_openslide import read_region
-from wsi_patching.backends.cupy_numpy import get_xp_backend
-from wsi_patching.core.pipeline import Stage
-from wsi_patching.regions_of_interest.rois import ROI
-from wsi_patching.utils.types import CollatedPatchBatch, RegionTask, Slide, SlideWithROIs, TilePlan
 
 
 class TilePlanner(Stage):
@@ -260,9 +259,9 @@ class RegionReadAndBatch(Stage):
     def _make_batch(self, task, coords, patches, xp):
         batch_array = np.stack(patches, axis=0)
         patches_xp = xp.asarray(batch_array, dtype=self.dtype)
-        cpb = CollatedPatchBatch(task.wsi_id, np.asarray(coords), patches_xp, meta_cols={})
+        cpb = CollatedPatchBatch(task.wsi_id, np.asarray(coords), patches_xp, use_gpu=self.ctx["use_gpu"])
         for k, v in task.meta.items():
-            cpb.add_col(k, np.array([v] * len(coords)))
+            cpb.add_meta_column(k, np.array([v] * len(coords)))
         return cpb
 
     def _pad_to_tile_size(self, patch, tile_size: int, xp_module):
@@ -276,9 +275,9 @@ class RegionReadAndBatch(Stage):
         pad_spec = ((0, pad_h), (0, pad_w), (0, 0))
 
         if self.wsi_edge_policy == "pad_with_zeros":
-            return xp_module.pad(patch, pad_spec, mode="constant", constant_values=0)
+            return np.pad(patch, pad_spec, mode="constant", constant_values=0)
         elif self.wsi_edge_policy == "pad_with_edge":
-            return xp_module.pad(patch, pad_spec, mode="edge")
+            return np.pad(patch, pad_spec, mode="edge")
         else:
             raise ValueError(f"Unknown edge_policy '{self.wsi_edge_policy}'")
 

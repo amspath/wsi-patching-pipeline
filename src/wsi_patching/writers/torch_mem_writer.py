@@ -1,13 +1,14 @@
 from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Union
 
-if TYPE_CHECKING:
-    import cupy as cp
 import numpy as np
 import torch
 
 from wsi_patching.backends.torch_device import get_torch_device
-from wsi_patching.utils.types import CollatedPatchBatch
+from wsi_patching.core.types.types import CollatedPatchBatch
 from wsi_patching.writers.writer_base import WriterBase
+
+if TYPE_CHECKING:
+    import cupy as cp
 
 
 class InMemoryPatchDataset(torch.utils.data.Dataset):
@@ -96,7 +97,7 @@ class TorchMemoryWriter(WriterBase):
         # accumulate
         self._images_chunks.append(images_t)
         self._coords_chunks.append(coords_t)
-        self._metadata.extend(sample.get_all_meta())
+        self._metadata.extend(sample.metadata.get_all_row_wise())
         self._wsi_ids.extend([sample.wsi_id] * images_t.shape[0])
 
     def close(self) -> None:

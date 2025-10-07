@@ -1,8 +1,8 @@
 from typing import Iterable, List
 
 from wsi_patching.core.pipeline import Stage
+from wsi_patching.core.types.types import Slide, SlideWithROIs
 from wsi_patching.regions_of_interest.roi_providers import ROIProvider, WholeSlideProvider
-from wsi_patching.utils.types import Slide, SlideWithROIs
 
 
 class AttachROIs(Stage):

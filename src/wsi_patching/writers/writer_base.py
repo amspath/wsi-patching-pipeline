@@ -2,9 +2,9 @@ import logging
 from multiprocessing.queues import Queue as MPQueue
 from typing import Any, Union
 
+from wsi_patching.core.types.util_types import EndOfQueue, EndOfStream
 from wsi_patching.utils.logging_config import LogLevel, init_logging
 from wsi_patching.utils.meta_typing import ContextAware, WriterMeta
-from wsi_patching.utils.types import EndOfQueue, EndOfStream
 
 
 class WriterBase(ContextAware, metaclass=WriterMeta):

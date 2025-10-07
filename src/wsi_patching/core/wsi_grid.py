@@ -5,7 +5,7 @@ from wsi_patching.backends.cucim_openslide import get_dimensions_for_level, vali
 from wsi_patching.backends.cupy_numpy import validate_xp_backend
 from wsi_patching.backends.torch_device import get_torch_device
 from wsi_patching.core.pipeline import PipelineContext, Stage
-from wsi_patching.utils.types import Slide
+from wsi_patching.core.types.types import Slide
 
 
 class WSIGrid(Stage):

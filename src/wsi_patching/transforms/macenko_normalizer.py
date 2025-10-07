@@ -2,7 +2,7 @@ from typing import Iterable, Optional, Tuple
 
 from wsi_patching.backends.cupy_numpy import get_xp_backend
 from wsi_patching.core.pipeline import Stage
-from wsi_patching.utils.types import CollatedPatchBatch
+from wsi_patching.core.types.types import CollatedPatchBatch
 
 
 class MacenkoNormalizer(Stage):

@@ -38,6 +38,11 @@ def ensure_cupy(arr: Union[np.ndarray, "cp.ndarray"]) -> "cp.ndarray":
         raise TypeError(f"Input must be a numpy.ndarray or cupy.ndarray, got {type(arr)}")
 
 
+def is_cupy(arr: object) -> bool:
+    """Check if the given array is a CuPy ndarray."""
+    return _cupy_available and isinstance(arr, cp.ndarray)
+
+
 def ensure_array_matches_use_gpu(
     arr: Union[np.ndarray, "cp.ndarray"], use_gpu: bool
 ) -> Union[np.ndarray, "cp.ndarray"]:
