@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Dict, List, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
 from wsi_patching.backends.cupy_numpy import ensure_array_matches_use_gpu, is_cupy
 from wsi_patching.core.types.util_types import MetaColStorage
@@ -57,11 +57,22 @@ class CollatedPatchBatch:
     patches: Union[np.ndarray, "cp.ndarray"]  # (N, ...)
     metadata: MetaColStorage
 
-    def __init__(self, wsi_id: str, coords: np.ndarray, patches: Union[np.ndarray, "cp.ndarray"], use_gpu: bool):
+    def __init__(
+        self,
+        wsi_id: str,
+        coords: np.ndarray,
+        patches: Union[np.ndarray, "cp.ndarray"],
+        use_gpu: bool,
+        metadata: Optional[MetaColStorage] = None,
+    ):
         self.wsi_id = wsi_id
         self.coords = coords
         self.patches = patches
-        self.metadata = MetaColStorage(length=coords.shape[0])
+
+        if metadata is not None:
+            self.metadata = metadata
+        else:
+            self.metadata = MetaColStorage(length=coords.shape[0])
 
         if use_gpu and not is_cupy(self.patches):
             raise TypeError("patches must be a cupy.ndarray when use_gpu is True")
@@ -107,8 +118,19 @@ class CollatedPatchBatch:
         return self.wsi_id, self.coords[idx], self.patches[idx], self.metadata.get_sample(idx)
 
 
-@dataclass(frozen=True)
-class Patch:
-    key: str
-    patch: object
-    meta: Dict[str, Any] = field(default_factory=dict)
+class EncodedCollatedPatchBatch(CollatedPatchBatch):
+    encoding: str
+    encoded_patches: Any
+
+    @classmethod
+    def from_collated_patch_batch(cls, batch: CollatedPatchBatch, encoding: str, encoded_patches: Any):
+        obj = cls(
+            wsi_id=batch.wsi_id,
+            coords=batch.coords,
+            patches=batch.patches,
+            use_gpu=is_cupy(batch.patches),
+            metadata=batch.metadata,
+        )
+        obj.encoding = encoding
+        obj.encoded_patches = encoded_patches
+        return obj

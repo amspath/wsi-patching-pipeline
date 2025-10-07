@@ -5,7 +5,7 @@ from typing import List, Optional
 import orjson
 import webdataset as wds
 
-from wsi_patching.core.types.types import Patch
+from wsi_patching.core.types.types import EncodedCollatedPatchBatch
 from wsi_patching.writers.writer_base import WriterBase
 
 
@@ -21,7 +21,7 @@ class WebDatasetWriter(WriterBase):
         self.write_count = 0
 
         # runtime (allocated in open)
-        self._buffer: List[Patch] = []
+        self._buffer: List[EncodedCollatedPatchBatch] = []
         self._sink: Optional[wds.ShardWriter] = None
 
     def open(self) -> None:
@@ -30,15 +30,20 @@ class WebDatasetWriter(WriterBase):
         # allocate sink in the writer process
         self._sink = wds.ShardWriter(self.shard_pattern, maxcount=self.shard_size, verbose=0)
 
-    def write(self, sample: Patch) -> None:
-        self._buffer.append(sample)
-        if len(self._buffer) >= self.shuffle_buffer_size:
-            self._flush_buffer()
+    def write(self, sample: EncodedCollatedPatchBatch) -> None:
+        for sample_idx in range(sample.coords.shape[0]):
+            wsi_id, coord, _, meta = sample.get(sample_idx)
+            key = f"{wsi_id}_{coord[0]}_{coord[1]}"
+            encoded_patch = sample.encoded_patches[sample_idx]
+            self._buffer.append((key, encoded_patch, meta))
+
+            if len(self._buffer) >= self.shuffle_buffer_size:
+                self._flush_buffer()
 
     def close(self) -> None:
         if self._buffer:
             self.log.info(f"Closing... Flushing remaining {len(self._buffer)} samples in buffer.")
-            self.log.info(f"Meta example: {self._buffer[0].meta}")
+            self.log.info(f"Meta example: {self._buffer[0][2]}")
         while self._buffer:
             self._flush_buffer()
         if self._sink is not None:
@@ -56,6 +61,6 @@ class WebDatasetWriter(WriterBase):
             s = self._buffer.pop()
             self.write_count += 1
             self._sink.write(
-                {"__key__": s.key, "png": s.patch, "meta": orjson.dumps(s.meta, option=orjson.OPT_SERIALIZE_NUMPY)}
+                {"__key__": s[0], "png": s[1], "meta": orjson.dumps(s[2], option=orjson.OPT_SERIALIZE_NUMPY)}
             )
         self.log.info(f"Buffer size after flush: {len(self._buffer)}")
