@@ -63,7 +63,7 @@ class WebDatasetLoader:
             ds = ds.shuffle(self.shuffle_size)
 
         # Decode PNG to RGB8 (numpy HWC uint8) and meta to dict
-        ds = ds.decode("torch").to_tuple("__key__", "png", "meta")
+        ds = ds.decode("torch").to_tuple("__key__", "image", "meta")
 
         # Map to a simple dict the rest of the code can rely on
         def _map(sample):
