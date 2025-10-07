@@ -56,6 +56,6 @@ class WebDatasetWriter(WriterBase):
             s = self._buffer.pop()
             self.write_count += 1
             self._sink.write(
-                {"__key__": s.key, "image": s.patch, "meta": orjson.dumps(s.meta, option=orjson.OPT_SERIALIZE_NUMPY)}
+                {"__key__": s.key, "png": s.patch, "meta": orjson.dumps(s.meta, option=orjson.OPT_SERIALIZE_NUMPY)}
             )
         self.log.info(f"Buffer size after flush: {len(self._buffer)}")
