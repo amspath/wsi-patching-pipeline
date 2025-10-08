@@ -1,7 +1,7 @@
 import io
 import os
 from concurrent.futures import ThreadPoolExecutor
-from typing import Iterable, List
+from typing import Iterable, List, Optional
 
 import numpy as np
 from PIL import Image
@@ -23,7 +23,7 @@ class PNGEncoder(Stage):
     - Ensure contiguous uint8 to keep the fast path.
     """
 
-    def __init__(self, compress_level: int = 1, threads: int | None = None):
+    def __init__(self, compress_level: int = 1, threads: Optional[int] = None):
         # compress_level: 0 (no compression) .. 9 (max). 1–3 is a good speed/size tradeoff.
         self.compress_level = int(compress_level)
         self.threads = threads or os.cpu_count() or 8
