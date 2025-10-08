@@ -73,7 +73,7 @@ def test_annotations_added_basic(tmp_path):
 
     # second tile has one annotation
     assert a1.shape == (1, 3)
-    assert (a1[0] == np.array([20, 20, 2], dtype=np.int32)).all()
+    assert (a1[0] == np.array([4, 4, 2], dtype=np.int32)).all()
 
     # third tile empty with shape (0,3)
     assert a2.shape == (0, 3)
@@ -143,4 +143,4 @@ def test_strict_bounds_left_inclusive_right_exclusive(tmp_path):
     assert sorted(map(tuple, anns0.tolist())) == [(0, 0, 10), (15, 15, 11)]
     # second tile has one (the edge one)
     assert anns1.shape == (1, 3)
-    assert tuple(anns1[0]) == (16, 16, 12)
+    assert tuple(anns1[0]) == (0, 0, 12)

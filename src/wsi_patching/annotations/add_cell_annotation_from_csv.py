@@ -79,8 +79,8 @@ class AddCellAnnotationFromCSV(Stage):
                         # Pack (k,3) object as before: (x, y, label)
                         k = sel.size
                         packed = np.empty((k, 3), dtype=np.int32)
-                        packed[:, 0] = x_arr[sel]
-                        packed[:, 1] = y_arr[sel]
+                        packed[:, 0] = x_arr[sel] - x0
+                        packed[:, 1] = y_arr[sel] - y0
                         packed[:, 2] = lbl_arr[sel]
                         all_annotations.append(packed)
                         continue
