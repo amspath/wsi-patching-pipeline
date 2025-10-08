@@ -2,7 +2,7 @@ from typing import Iterable, Sequence, Tuple
 
 from wsi_patching.backends.cupy_numpy import ensure_numpy, get_xp_backend, validate_xp_backend
 from wsi_patching.core.pipeline import Stage
-from wsi_patching.utils.types import CollatedPatchBatch
+from wsi_patching.core.types.types import CollatedPatchBatch
 
 
 class PenArtifactFilter(Stage):
@@ -136,9 +136,9 @@ class PenArtifactFilter(Stage):
             keep_batch_mask = pen_fraction <= self.max_pen_fraction
 
             # Pipeline columns expect NumPy; convert explicitly at the boundary.
-            collated_patch_batch.add_col("pen_fraction", ensure_numpy(pen_fraction))
-            collated_patch_batch.add_col("pen_pixel_count", ensure_numpy(pen_pixel_count))
-            collated_patch_batch.filter(ensure_numpy(keep_batch_mask), use_gpu=use_gpu)
+            collated_patch_batch.add_meta_column("pen_fraction", ensure_numpy(pen_fraction))
+            collated_patch_batch.add_meta_column("pen_pixel_count", ensure_numpy(pen_pixel_count))
+            collated_patch_batch.filter_on_mask(ensure_numpy(keep_batch_mask))
 
             self.log.info(
                 f"batch_in={in_sz} batch_out={len(collated_patch_batch.patches)} "

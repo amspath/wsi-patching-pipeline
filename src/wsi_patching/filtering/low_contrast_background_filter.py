@@ -2,7 +2,7 @@ from typing import Iterable
 
 from wsi_patching.backends.cupy_numpy import ensure_array_matches_use_gpu, ensure_numpy, get_xp_backend
 from wsi_patching.core.pipeline import Stage
-from wsi_patching.utils.types import CollatedPatchBatch
+from wsi_patching.core.types.types import CollatedPatchBatch
 
 
 class LowContrastBackgroundFilter(Stage):
@@ -78,11 +78,11 @@ class LowContrastBackgroundFilter(Stage):
             keep_batch_mask = g_range >= thr
 
             # Record stats + filter (convert to NumPy only at the boundary)
-            collated_patch_batch.add_col("gray_min", ensure_numpy(g_min))
-            collated_patch_batch.add_col("gray_max", ensure_numpy(g_max))
-            collated_patch_batch.add_col("gray_range", ensure_numpy(g_range))
-            collated_patch_batch.add_col("range_threshold", ensure_numpy(xp.full((B,), thr, dtype=gray.dtype)))
-            collated_patch_batch.filter(ensure_numpy(keep_batch_mask), use_gpu=use_gpu)
+            collated_patch_batch.add_meta_column("gray_min", ensure_numpy(g_min))
+            collated_patch_batch.add_meta_column("gray_max", ensure_numpy(g_max))
+            collated_patch_batch.add_meta_column("gray_range", ensure_numpy(g_range))
+            collated_patch_batch.add_meta_column("range_threshold", ensure_numpy(xp.full((B,), thr, dtype=gray.dtype)))
+            collated_patch_batch.filter_on_mask(ensure_numpy(keep_batch_mask))
 
             self.log.info(
                 f"wsi={collated_patch_batch.wsi_id} "

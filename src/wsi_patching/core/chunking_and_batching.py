@@ -1,16 +1,15 @@
 from typing import TYPE_CHECKING, Iterable, List, Literal, Optional, Tuple, Union
 
+from wsi_patching.backends.cucim_openslide import read_region
+from wsi_patching.backends.cupy_numpy import get_xp_backend
+from wsi_patching.core.pipeline import Stage
+from wsi_patching.core.types.types import CollatedPatchBatch, RegionTask, Slide, SlideWithROIs, TilePlan
 from wsi_patching.regions_of_interest.roi_providers import WholeSlideProvider
+from wsi_patching.regions_of_interest.rois import ROI
 
 if TYPE_CHECKING:
     import cupy as cp
 import numpy as np
-
-from wsi_patching.backends.cucim_openslide import read_region
-from wsi_patching.backends.cupy_numpy import get_xp_backend
-from wsi_patching.core.pipeline import Stage
-from wsi_patching.regions_of_interest.rois import ROI
-from wsi_patching.utils.types import CollatedPatchBatch, RegionTask, Slide, SlideWithROIs, TilePlan
 
 
 class TilePlanner(Stage):
@@ -115,7 +114,6 @@ class ReadWindowChunker(Stage):
         self.max_window_size = max_window_size
 
     def validate(self) -> None:
-        self.ctx.require_key("tile_size")
         self.ctx.require_key("stride")
 
         if self.max_window_size is None:
@@ -134,8 +132,6 @@ class ReadWindowChunker(Stage):
             )
 
     def __call__(self, it: Iterable[TilePlan]) -> Iterable[RegionTask]:
-        tile_size = int(self.ctx["tile_size"])
-
         for plan in it:
             bx, by, bw, bh = plan.roi_bounds
             W, H = plan.dims
@@ -143,27 +139,29 @@ class ReadWindowChunker(Stage):
                 self.log.warning(f"No tiles in plan for slide {plan.wsi_id} ROI {plan.roi_index}")
                 continue
 
-            x_end, y_end = min(bx + bw, W), min(by + bh, H)
+            x_roi_end, y_roi_end = min(bx + bw, W), min(by + bh, H)
 
-            for yy in range(by, y_end, self.max_window_size):
-                for xx in range(bx, x_end, self.max_window_size):
-                    ww, hh = min(self.max_window_size, x_end - xx), min(self.max_window_size, y_end - yy)
+            for y_region_start in range(by, y_roi_end, self.max_window_size):
+                for x_region_start in range(bx, x_roi_end, self.max_window_size):
                     in_window: List[Tuple[int, int]] = []
-                    wx1, wy1 = xx + ww, yy + hh
+
+                    region_width, region_height = (
+                        min(self.max_window_size, x_roi_end - x_region_start),
+                        min(self.max_window_size, y_roi_end - y_region_start),
+                    )
+                    x_region_end, y_region_end = x_region_start + region_width, y_region_start + region_height
                     for tx, ty in plan.tiles:
-                        if (xx <= tx < wx1) and (yy <= ty < wy1):
+                        if (x_region_start <= tx < x_region_end) and (y_region_start <= ty < y_region_end):
                             in_window.append((tx, ty))
 
                     if in_window:
-                        # Expand window to fully cover the included tiles (so slicing works)
-                        max_tx = max(tx for tx, _ in in_window)
-                        max_ty = max(ty for _, ty in in_window)
-                        # Ensure we cover the full tile in the window, except at slide edges
-                        new_wx1 = min(max_tx + tile_size, W)
-                        new_wy1 = min(max_ty + tile_size, H)
-
                         yield RegionTask(
-                            plan.wsi_id, plan.wsi_path, (xx, yy, new_wx1 - xx, new_wy1 - yy), in_window, meta=plan.meta
+                            wsi_id=plan.wsi_id,
+                            wsi_path=plan.wsi_path,
+                            wsi_dims=plan.dims,
+                            region=(x_region_start, y_region_start, region_width, region_height),
+                            tiles=in_window,
+                            meta=plan.meta,
                         )
 
 
@@ -184,21 +182,38 @@ class RegionReadAndBatch(Stage):
         self,
         batch_size: int = 200,
         num_workers: int = 8,
+        wsi_edge_policy: Literal["drop", "pad_with_zeros", "pad_with_edge"] = "pad_with_zeros",
+        roi_edge_policy: Literal["read_from_image", "use_wsi_edge_policy"] = "use_wsi_edge_policy",
         dtype: str = np.uint8,
-        edge_policy: Literal["drop", "pad_with_zeros", "pad_with_edge"] = "pad_with_zeros",
     ):
+        """
+        Parameters:
+            batch_size: Maximum number of patches per output batch
+            num_workers: number of parallel workers for reading WSI images using cuCIM
+            wsi_edge_policy: how to handle tiles that extend beyond the WSI edge.
+                - "drop": drop incomplete tiles
+                - "pad_with_zeros": right/bottom pad incomplete tiles with zeros
+                - "pad_with_edge": right/bottom pad incomplete tiles with edge pixel values
+            roi_edge_policy: how to handle tiles that extend beyond the ROI bounds.
+                - "read_from_image": expand region bounds to next full tile_size multiple, read from image,
+                  and apply wsi_edge_policy to any incomplete tiles at the WSI edge.
+                - "use_wsi_edge_policy": do not expand ROI bounds, read as-is from image,
+                  and apply wsi_edge_policy to any incomplete tiles at the region or WSI edge.
+            dtype: output patch dtype, e.g. np.uint8 or np.float32
+        """
         self.batch_size = int(batch_size)
         self.num_workers = int(num_workers)
         self.dtype = dtype
-        self.edge_policy = edge_policy
+        self.roi_edge_policy = roi_edge_policy
+        self.wsi_edge_policy = wsi_edge_policy
 
     def validate(self) -> None:
         self.ctx.require_key("tile_size")
         self.ctx.require_key("level")
         self.ctx.require_key("use_gpu")
 
-        if self.edge_policy not in {"drop", "pad_with_zeros", "pad_with_edge"}:
-            raise ValueError(f"Unknown edge_policy '{self.edge_policy}'")
+        if self.wsi_edge_policy not in {"drop", "pad_with_zeros", "pad_with_edge"}:
+            raise ValueError(f"Unknown edge_policy '{self.wsi_edge_policy}'")
 
     def __call__(self, it: Iterable[RegionTask]) -> Iterable[CollatedPatchBatch]:
         xp = get_xp_backend(self.ctx["use_gpu"])
@@ -207,6 +222,15 @@ class RegionReadAndBatch(Stage):
 
         for task in it:
             x0, y0, w, h = task.region
+
+            if self.roi_edge_policy == "read_from_image":
+                if w % tile_size != 0:
+                    w += tile_size - (w % tile_size)
+                    w = min(w, task.wsi_dims[0])
+                if h % tile_size != 0:
+                    h += tile_size - (h % tile_size)
+                    h = min(h, task.wsi_dims[1])
+
             region_img = read_region(
                 task.wsi_path, x0, y0, w, h, level, use_gpu=self.ctx["use_gpu"], num_workers_cucim=self.num_workers
             )
@@ -218,7 +242,7 @@ class RegionReadAndBatch(Stage):
                 rx, ry = tx - x0, ty - y0
                 patch = region_img[ry : ry + tile_size, rx : rx + tile_size, :]
                 if patch.shape[:2] != (tile_size, tile_size):
-                    if self.edge_policy == "drop":
+                    if self.wsi_edge_policy == "drop":
                         continue
                     patch = self._pad_to_tile_size(patch, tile_size, xp)
 
@@ -235,9 +259,9 @@ class RegionReadAndBatch(Stage):
     def _make_batch(self, task, coords, patches, xp):
         batch_array = np.stack(patches, axis=0)
         patches_xp = xp.asarray(batch_array, dtype=self.dtype)
-        cpb = CollatedPatchBatch(task.wsi_id, np.asarray(coords), patches_xp, meta_cols={})
+        cpb = CollatedPatchBatch(task.wsi_id, np.asarray(coords), patches_xp, use_gpu=self.ctx["use_gpu"])
         for k, v in task.meta.items():
-            cpb.add_col(k, np.array([v] * len(coords)))
+            cpb.add_meta_column(k, np.array([v] * len(coords)))
         return cpb
 
     def _pad_to_tile_size(self, patch, tile_size: int, xp_module):
@@ -250,12 +274,12 @@ class RegionReadAndBatch(Stage):
 
         pad_spec = ((0, pad_h), (0, pad_w), (0, 0))
 
-        if self.edge_policy == "pad_with_zeros":
-            return xp_module.pad(patch, pad_spec, mode="constant", constant_values=0)
-        elif self.edge_policy == "pad_with_edge":
-            return xp_module.pad(patch, pad_spec, mode="edge")
+        if self.wsi_edge_policy == "pad_with_zeros":
+            return np.pad(patch, pad_spec, mode="constant", constant_values=0)
+        elif self.wsi_edge_policy == "pad_with_edge":
+            return np.pad(patch, pad_spec, mode="edge")
         else:
-            raise ValueError(f"Unknown edge_policy '{self.edge_policy}'")
+            raise ValueError(f"Unknown edge_policy '{self.wsi_edge_policy}'")
 
 
 class PatchExtractor(Stage):
@@ -275,7 +299,8 @@ class PatchExtractor(Stage):
         tile_selection_mode: Literal["any_overlap", "full_inside_bounds", "center_in_roi"] = "any_overlap",
         max_batch_size: int = 200,
         num_workers: int = 8,
-        edge_policy: Literal["drop", "pad_with_zeros", "pad_with_edge"] = "pad_with_zeros",
+        wsi_edge_policy: Literal["drop", "pad_with_zeros", "pad_with_edge"] = "pad_with_zeros",
+        roi_edge_policy: Literal["read_from_image", "use_wsi_edge_policy"] = "use_wsi_edge_policy",
         dtype: str = np.uint8,
         max_window_size: Optional[int] = None,
     ):
@@ -286,7 +311,15 @@ class PatchExtractor(Stage):
             tile_selection_mode: how to select tiles with respect to ROIs.
             max_batch_size: Maximum number of patches per output batch
             num_workers: number of parallel workers for reading WSI images using cuCIM
-            edge_policy: how to handle tiles that extend beyond the WSI edge.
+            wsi_edge_policy: how to handle tiles that extend beyond the WSI edge.
+                - "drop": drop incomplete tiles
+                - "pad_with_zeros": right/bottom pad incomplete tiles with zeros
+                - "pad_with_edge": right/bottom pad incomplete tiles with edge pixel values
+            roi_edge_policy: how to handle tiles that extend beyond the ROI bounds.
+                - "read_from_image": expand region bounds to next full tile_size multiple, read from image,
+                  and apply wsi_edge_policy to any incomplete tiles at the WSI edge.
+                - "use_wsi_edge_policy": do not expand ROI bounds, read as-is from image,
+                  and apply wsi_edge_policy to any incomplete tiles at the region or WSI edge.
             dtype: output patch dtype, e.g. np.uint8 or np.float32
             max_window_size: maximum size of square read windows. If None, defaults to 20*tile_size.
         """
@@ -298,14 +331,19 @@ class PatchExtractor(Stage):
             batch_size=max_batch_size,
             num_workers=num_workers,
             dtype=dtype,
-            edge_policy=edge_policy,
+            wsi_edge_policy=wsi_edge_policy,
+            roi_edge_policy=roi_edge_policy,
         )
 
         # Internal stages (created now; context attached later)
         self._tp = TilePlanner(tile_size=tile_size, stride=stride, tile_selection_mode=tile_selection_mode)
         self._rwc = ReadWindowChunker(max_window_size=max_window_size)
         self._rbb = RegionReadAndBatch(
-            batch_size=max_batch_size, num_workers=num_workers, dtype=dtype, edge_policy=edge_policy
+            batch_size=max_batch_size,
+            num_workers=num_workers,
+            dtype=dtype,
+            wsi_edge_policy=wsi_edge_policy,
+            roi_edge_policy=roi_edge_policy,
         )
         self._substages: List[Stage] = [self._tp, self._rwc, self._rbb]
 

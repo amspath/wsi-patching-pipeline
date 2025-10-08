@@ -4,10 +4,9 @@ import numpy as np
 import pytest
 import torch
 
-from wsi_patching.backends.cupy_numpy import ensure_cupy
+from wsi_patching.core.types.types import CollatedPatchBatch
 from wsi_patching.filtering.dummy_tissue_classifier_filter import DummyTissueClassifierFilter
 from wsi_patching.utils.meta_typing import PipelineContext
-from wsi_patching.utils.types import CollatedPatchBatch
 
 
 def _mk_uniform_sample(val_uint8: int, h=2, w=3, c=3):
@@ -49,7 +48,7 @@ def test_validate_requires_use_gpu_key(mock_get_dev):
 )
 def test_filter_basic_cpu_keeps_and_drops_correct_items():
     patches, coords = _mk_mix_batch()
-    batch = CollatedPatchBatch(wsi_id="S1", patches=patches, coords=coords, meta_cols={})
+    batch = CollatedPatchBatch(wsi_id="S1", patches=patches, coords=coords, use_gpu=False)
 
     f = DummyTissueClassifierFilter()
     f.attach_context(PipelineContext({"use_gpu": False}))

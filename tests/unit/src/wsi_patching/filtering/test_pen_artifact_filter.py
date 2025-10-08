@@ -2,14 +2,14 @@ import numpy as np
 import pytest
 
 from wsi_patching.backends.cupy_numpy import get_xp_backend
+from wsi_patching.core.types.types import CollatedPatchBatch
 from wsi_patching.filtering.pen_artifact_filter import PenArtifactFilter
 from wsi_patching.utils.meta_typing import PipelineContext
-from wsi_patching.utils.types import CollatedPatchBatch
 
 
 def make_collated(patches):
     return CollatedPatchBatch(
-        wsi_id="id", patches=patches, coords=np.zeros((patches.shape[0], 2), dtype=np.int32), meta_cols={}
+        wsi_id="id", patches=patches, coords=np.zeros((patches.shape[0], 2), dtype=np.int32), use_gpu=False
     )
 
 

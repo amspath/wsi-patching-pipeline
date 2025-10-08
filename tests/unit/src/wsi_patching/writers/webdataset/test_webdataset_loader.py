@@ -64,8 +64,9 @@ def test_dataset_reads_and_filters(tmp_path: Path):
 
     got_keys = []
     for sample in ds:
+        print(sample)
         # Each sample is a dict {"key", "image", "meta"}
-        assert set(sample.keys()) == {"key", "image", "meta"}
+        assert set(sample.keys()) == {"key", "patch", "meta"}
         got_keys.append(sample["key"])
 
     assert all(k.startswith("A") for k in got_keys)
@@ -115,9 +116,9 @@ def test_safe_collate_handles_empty_batch():
     out = loader.safe_collate([])
     # For empty, function returns a dict with empty tensors/lists
     assert isinstance(out, dict)
-    assert out["images"].shape == (0,)
-    assert out["keys"] == []
-    assert out["metas"] == []
+    assert out["patch"].shape == (0,)
+    assert out["key"] == []
+    assert out["meta"] == []
 
 
 def test_safe_collate_numpy_and_torch_inputs_and_rgba_drop_alpha():
@@ -137,7 +138,7 @@ def test_safe_collate_numpy_and_torch_inputs_and_rgba_drop_alpha():
         dim=0,
     )  # shape [4, 4, 5] -> CHW with 4 channels
 
-    batch = [{"key": "k1", "image": np_img, "meta": {"a": 1}}, {"key": "k2", "image": torch_img_rgba, "meta": {"b": 2}}]
+    batch = [{"key": "k1", "patch": np_img, "meta": {"a": 1}}, {"key": "k2", "patch": torch_img_rgba, "meta": {"b": 2}}]
 
     images, keys, metas = loader.safe_collate(batch)
 
@@ -154,16 +155,16 @@ def test_safe_collate_rejects_bad_shapes_and_types():
     # Bad numpy shape (HW)
     bad_np = np.zeros((5, 5), dtype=np.uint8)
     with pytest.raises(ValueError):
-        loader.safe_collate([{"key": "x", "image": bad_np, "meta": {}}])
+        loader.safe_collate([{"key": "x", "patch": bad_np, "meta": {}}])
 
     # Bad torch shape (not CHW)
     bad_torch = torch.zeros((5, 5), dtype=torch.float32)
     with pytest.raises(ValueError):
-        loader.safe_collate([{"key": "y", "image": bad_torch, "meta": {}}])
+        loader.safe_collate([{"key": "y", "patch": bad_torch, "meta": {}}])
 
     # Unsupported type
     with pytest.raises(TypeError):
-        loader.safe_collate([{"key": "z", "image": "not-an-image", "meta": {}}])
+        loader.safe_collate([{"key": "z", "patch": "not-an-image", "meta": {}}])
 
 
 def test_safe_collate_stack_failure_is_wrapped():
@@ -173,5 +174,5 @@ def test_safe_collate_stack_failure_is_wrapped():
     np2 = (np.random.rand(5, 6, 3) * 255).astype(np.uint8)
 
     with pytest.raises(RuntimeError) as ei:
-        _ = loader.safe_collate([{"key": "a", "image": np1, "meta": {}}, {"key": "b", "image": np2, "meta": {}}])
-    assert "Failed to stack images" in str(ei.value)
+        _ = loader.safe_collate([{"key": "a", "patch": np1, "meta": {}}, {"key": "b", "patch": np2, "meta": {}}])
+    assert "Failed to stack patches" in str(ei.value)

@@ -68,9 +68,10 @@ class WebDatasetLoader:
         # Map to a simple dict the rest of the code can rely on
         def _map(sample):
             key, img, meta = sample  # img: HWC uint8 (numpy), meta: dict
-            return {"key": key, "image": img, "meta": orjson.loads(meta.decode("utf-8"))}
+            return {"key": key, "patch": img, "meta": orjson.loads(meta.decode("utf-8"))}
 
         ds = ds.map(_map)
+
         return ds
 
     def get_dataloader(
@@ -109,17 +110,17 @@ class WebDatasetLoader:
         - Keeps metas as a list[dict].
         """
         if not batch:
-            return {"images": torch.empty(0), "keys": [], "metas": []}
+            return {"patch": torch.empty(0), "key": [], "meta": []}
 
         # Images: convert each HWC uint8 numpy -> CHW float32 tensor in [0,1]
         imgs: List[torch.Tensor] = []
         for sample in batch:
-            img = sample["image"]
+            img = sample["patch"]
             if isinstance(img, np.ndarray):
                 # numpy HWC -> torch CHW
                 t = torch.from_numpy(img)  # [H, W, C], uint8
                 if t.ndim != 3 or t.shape[-1] not in (1, 3, 4):
-                    raise ValueError(f"Unexpected image shape: {t.shape}")
+                    raise ValueError(f"Unexpected patch shape: {t.shape}")
                 t = t.permute(2, 0, 1).contiguous()  # CHW
                 # If RGBA, drop alpha
                 if t.shape[0] == 4:
@@ -134,17 +135,24 @@ class WebDatasetLoader:
                     if t.shape[0] == 4:
                         t = t[:3, ...]
                 else:
-                    raise ValueError(f"Unexpected tensor image shape: {t.shape}")
+                    raise ValueError(f"Unexpected tensor patch shape: {t.shape}")
             else:
-                raise TypeError(f"Unsupported image type: {type(img)}")
+                raise TypeError(f"Unsupported patch type: {type(img)}")
             imgs.append(t)
 
         try:
-            images = torch.stack(imgs, dim=0)  # [B, C, H, W]
+            patches = torch.stack(imgs, dim=0)  # [B, C, H, W]
         except Exception as e:
-            raise RuntimeError(f"Failed to stack images: {e}")
+            raise RuntimeError(f"Failed to stack patches: {e}")
 
         keys = [s["key"] for s in batch]
         metas = [s["meta"] for s in batch]
 
-        return images, keys, metas
+        return patches, keys, metas
+
+    # ---- Helpers ------------------------------------------
+    def ensure_torch(self, x):
+        if isinstance(x, np.ndarray):
+            return torch.from_numpy(x)
+
+        raise TypeError(f"Unsupported type: {type(x)}")

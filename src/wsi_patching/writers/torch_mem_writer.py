@@ -1,13 +1,14 @@
 from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Union
 
-if TYPE_CHECKING:
-    import cupy as cp
 import numpy as np
 import torch
 
 from wsi_patching.backends.torch_device import get_torch_device
-from wsi_patching.utils.types import CollatedPatchBatch
+from wsi_patching.core.types.types import CollatedPatchBatch
 from wsi_patching.writers.writer_base import WriterBase
+
+if TYPE_CHECKING:
+    import cupy as cp
 
 
 class InMemoryPatchDataset(torch.utils.data.Dataset):
@@ -73,14 +74,14 @@ class TorchMemoryWriter(WriterBase):
         self._device = get_torch_device(self.ctx["use_gpu"])
         self.log.info("device=%s, layout=%s, dtype=%s", self._device, self.layout, self.dtype)
 
-    def write(self, sample: CollatedPatchBatch) -> None:
-        self.log.info(f"Received batch from wsi: {sample.wsi_id} size: {len(sample.patches)}")
+    def write(self, batch: CollatedPatchBatch) -> None:
+        self.log.info(f"Received batch from wsi: {batch.wsi_id} size: {len(batch.patches)}")
 
         # coords -> torch.long on target device
-        coords_t = torch.as_tensor(sample.coords, dtype=torch.long, device=self._device)
+        coords_t = torch.as_tensor(batch.coords, dtype=torch.long, device=self._device)
 
         # patches -> torch.float32 on target device
-        images_t = self._to_tensor(sample.patches, device=self._device, dtype=self.dtype)
+        images_t = self._to_tensor(batch.patches, device=self._device, dtype=self.dtype)
 
         # expect BHWC; permute if user requested NCHW (default)
         if self.layout == "NCHW":
@@ -90,14 +91,14 @@ class TorchMemoryWriter(WriterBase):
         if images_t.shape[0] != coords_t.shape[0]:
             raise ValueError(
                 f"Batch length mismatch: images N={images_t.shape[0]} vs coords N={coords_t.shape[0]} "
-                f"(wsi_id={sample.wsi_id})"
+                f"(wsi_id={batch.wsi_id})"
             )
 
         # accumulate
         self._images_chunks.append(images_t)
         self._coords_chunks.append(coords_t)
-        self._metadata.extend(sample.get_all_meta())
-        self._wsi_ids.extend([sample.wsi_id] * images_t.shape[0])
+        self._metadata.extend(batch.metadata.get_all_row_wise())
+        self._wsi_ids.extend([batch.wsi_id] * images_t.shape[0])
 
     def close(self) -> None:
         self.log.info("Closing ...")

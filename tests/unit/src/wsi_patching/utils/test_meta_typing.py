@@ -46,7 +46,7 @@ def test_stage_meta_defaults_to_object_when_no_annotations():
 # -------- WriterMeta --------
 def test_writer_meta_infers_iterable_payload():
     class W(metaclass=WriterMeta):
-        def write(self, sample: Iterable[float]) -> None:
+        def write(self, batch: Iterable[float]) -> None:
             pass
 
     assert W.input_type is float
@@ -56,7 +56,7 @@ def test_writer_meta_keeps_existing_input_type_when_no_write_annotations():
     with pytest.raises(ValueError):
 
         class W(metaclass=WriterMeta):
-            def write(self, sample):
+            def write(self, batch):
                 pass
 
 

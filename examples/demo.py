@@ -44,7 +44,6 @@ def main(argv=None):
         WSIGrid(slides=slides, level=0, use_gpu=True)
         .then(AttachROIs(providers=[RectROIProvider(rois_dict)]))
         .then(PatchExtractor(tile_size=224, stride=224, max_batch_size=args.batch, num_workers=args.num_workers))
-        .then(CellVitTissueClassifierFilter())
         .then(PNGEncoder())
         .to(WebDatasetWriter(shard_size=300, shuffle_buffer_size=500))
     )

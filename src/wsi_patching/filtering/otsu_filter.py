@@ -2,7 +2,7 @@ from typing import Iterable
 
 from wsi_patching.backends.cupy_numpy import ensure_array_matches_use_gpu, ensure_numpy, get_xp_backend
 from wsi_patching.core.pipeline import Stage
-from wsi_patching.utils.types import CollatedPatchBatch
+from wsi_patching.core.types.types import CollatedPatchBatch
 
 
 class OtsuFilter(Stage):
@@ -106,10 +106,10 @@ class OtsuFilter(Stage):
                 keep_batch_mask = xp.ones((B,), dtype=bool)
 
             # Record stats + filter (convert to NumPy only at the boundary)
-            collated_patch_batch.add_col("otsu_threshold", ensure_numpy(thresholds))
-            collated_patch_batch.add_col("tissue_fraction", ensure_numpy(tissue_fraction))
-            collated_patch_batch.add_col("tissue_pixel_count", ensure_numpy(tissue_pixel_count))
-            collated_patch_batch.filter(ensure_numpy(keep_batch_mask), use_gpu=use_gpu)
+            collated_patch_batch.add_meta_column("otsu_threshold", ensure_numpy(thresholds))
+            collated_patch_batch.add_meta_column("tissue_fraction", ensure_numpy(tissue_fraction))
+            collated_patch_batch.add_meta_column("tissue_pixel_count", ensure_numpy(tissue_pixel_count))
+            collated_patch_batch.filter_on_mask(ensure_numpy(keep_batch_mask))
 
             self.log.info(
                 f"batch_in={in_sz} -> "
