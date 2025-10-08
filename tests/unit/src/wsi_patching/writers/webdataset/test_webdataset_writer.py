@@ -3,19 +3,19 @@ from pathlib import Path
 
 import numpy as np
 
+from wsi_patching.core.types.types import CollatedPatchBatch
+from wsi_patching.encoders.pngencoder import PNGEncoder
 from wsi_patching.writers.webdataset.webdataset_writer import WebDatasetWriter
 
 
-class DummyPatch:
-    """Minimal stand-in for wsi_patching.utils.types.Patch (attributes only)."""
+def get_encoded_cbp(key: str, h: int = 2, w: int = 3, c: int = 3):
+    cpb = CollatedPatchBatch(
+        wsi_id=key, coords=np.zeros((1, 2)), patches=np.zeros((1, h, w, c), dtype=np.uint8), use_gpu=False
+    )
 
-    def __init__(self, key: str, h: int = 2, w: int = 3, c: int = 1):
-        # tiny PNG-like array bytes; WebDataset doesn't validate content here
-        self.key = key
-        # Use raw bytes; ShardWriter will just store them as a .png member
-        self.patch = np.zeros((h, w, c), dtype=np.uint8).tobytes()
-        # Minimal JSON-serializable metadata
-        self.meta = {"k": key}
+    cpb_it = PNGEncoder()([cpb])
+
+    return next(cpb_it)
 
 
 def _list_shards(outdir: Path):
@@ -53,7 +53,7 @@ def test_write_below_threshold_does_not_flush_until_close(tmp_path: Path):
 
     # 3 < shuffle_threshold -> no flush yet
     for i in range(3):
-        w.write(DummyPatch(f"k{i}"))
+        w.write(get_encoded_cbp(f"s{i}"))
 
     assert len(_list_shards(tmp_path)) == 1  # Opening creates zero-byte shard
     w.close()
@@ -73,7 +73,7 @@ def test_flush_on_threshold_and_sharding(tmp_path: Path):
 
     # 5 samples total => ceil(5/3)=2 shards expected after close
     for i in range(5):
-        w.write(DummyPatch(f"s{i}"))
+        w.write(get_encoded_cbp(f"s{i}"))
 
     # with threshold=2, at least one flush likely happened already, but total shards only guaranteed after close
     w.close()
@@ -96,7 +96,7 @@ def test_multiple_flushes_with_immediate_threshold(tmp_path: Path):
     w.open()
 
     for i in range(3):
-        w.write(DummyPatch(f"t{i}"))
+        w.write(get_encoded_cbp(f"t{i}"))
 
     w.close()
     shards = _list_shards(tmp_path)
@@ -111,7 +111,7 @@ def test_multiple_flushes_with_immediate_threshold(tmp_path: Path):
 def test_close_is_idempotent(tmp_path: Path):
     w = WebDatasetWriter(outdir=tmp_path, shard_size=2, shuffle_buffer_size=1)
     w.open()
-    w.write(DummyPatch("x"))
+    w.write(get_encoded_cbp("x"))
     w.close()
 
     shards_before = _list_shards(tmp_path)

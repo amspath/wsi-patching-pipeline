@@ -30,8 +30,8 @@ class DummyWriter(WriterBase):
     def open(self) -> None:
         self.open_count += 1
 
-    def write(self, sample: Patch):
-        self.written.append(sample)
+    def write(self, batch: Patch):
+        self.written.append(batch)
 
     def on_end_of_stream(self) -> None:
         self.eos_count += 1
@@ -89,10 +89,10 @@ def test_start_writer_logs_exception_from_write_and_still_closes(caplog):
     caplog.set_level(logging.INFO)
 
     class BoomWriter(DummyWriter):
-        def write(self, sample: str):
-            if sample == "boom":
+        def write(self, batch: str):
+            if batch == "boom":
                 raise RuntimeError("kaboom")
-            super().write(sample)
+            super().write(batch)
 
     w = BoomWriter()
     q = FakeQueue(["ok", "boom", EndOfQueue()])
