@@ -22,7 +22,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-gpu = ["cucim", "cupy-cuda12x"]
+gpu = ["cucim-cu12", "cupy-cuda12x"]
 dev = ["ruff", "pytest"]
 
 [tool.hatch.build.targets.wheel]
