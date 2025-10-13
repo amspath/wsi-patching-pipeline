@@ -65,14 +65,16 @@ class WebDatasetLoader:
         # Decode PNG to RGB8 (numpy HWC uint8) and meta to dict
         ds = ds.decode("torch").to_tuple("__key__", "png", "meta")
 
-        # Map to a simple dict the rest of the code can rely on
-        def _map(sample):
-            key, img, meta = sample  # img: HWC uint8 (numpy), meta: dict
-            return {"key": key, "patch": img, "meta": orjson.loads(meta.decode("utf-8"))}
-
-        ds = ds.map(_map)
+        ds = ds.map(WebDatasetLoader._map_to_dict)
 
         return ds
+
+    @staticmethod
+    def _map_to_dict(sample):
+        key, img, meta = sample
+        if isinstance(meta, (bytes, bytearray)):
+            meta = orjson.loads(meta.decode("utf-8"))
+        return {"key": key, "patch": img, "meta": meta}
 
     def get_dataloader(
         self,
