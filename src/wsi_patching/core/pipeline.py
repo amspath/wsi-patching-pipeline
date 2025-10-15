@@ -263,6 +263,7 @@ class Pipeline(Stage):
             # 3) Keep queue full
             while pending and len(active) < cpu_processes:
                 active.append(spawn_for(pending.pop(0)))
+                self.log.info(f"Spawning new producer... {len(pending)} slides left.")
 
         # collect profiling
         if profile and prof_q is not None and self.prof_agg is not None:
@@ -300,7 +301,6 @@ def _producer_worker(
     verbosity_level: LogLevel = "WARNING",
 ):
     init_logging(verbosity_level)
-    logging.info("Starting processing.")
     profiler: Optional[Profiler] = None
     try:
         slide_id = Path(slide_path).stem

@@ -12,7 +12,7 @@ from torch.utils.data import DataLoader
 class WebDatasetLoader:
     def __init__(
         self,
-        outdir: Path = Path("./output/"),
+        tar_dir: Path = Path("./output/"),
         sampled_wsi_names: Optional[List[str]] = None,
         shuffle_size: int = 20_000,
         batch_size: int = 32,
@@ -24,13 +24,13 @@ class WebDatasetLoader:
         Args:
             num_workers (int): DataLoader workers. Higher means more randomness in batches.
                 It is highly advised to use > 0 workers.
-            outdir (Path): Directory containing *.tar shards.
+            tar_dir (Path): Directory containing *.tar shards.
             sampled_wsi_names (Sequence[str] | None): Keep a sample only if its __key__
                 starts with any of these prefixes (WSI names). If None, keep all.
             shuffle_size (int): Per-worker shuffle buffer size (larger = more random).
             batch_size (int): DataLoader batch size.
         """
-        self.outdir = outdir
+        self.tar_dir = tar_dir
         self.sampled_wsi_names = sampled_wsi_names
         self.shuffle_size = shuffle_size
         self.batch_size = batch_size
@@ -47,9 +47,9 @@ class WebDatasetLoader:
 
     # ---- dataset & dataloader -----------------------------------------------
     def get_dataset(self) -> Iterable[Dict[str, Any]]:
-        self.shards = sorted(glob(str(self.outdir / "*.tar")))
+        self.shards = sorted(glob(str(self.tar_dir / "*.tar")))
         if not self.shards:
-            raise FileNotFoundError(f"No shards found in {self.outdir}")
+            raise FileNotFoundError(f"No shards found in {self.tar_dir}")
 
         # Build core pipeline
         ds = wds.WebDataset(self.shards, shardshuffle=50)

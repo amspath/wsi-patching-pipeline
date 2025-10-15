@@ -45,7 +45,7 @@ class FakeOpenSlide:
 
 # ---------- tests ----------
 def test_validate_slide_backend_raises_when_gpu_requested_but_cucim_missing(monkeypatch):
-    monkeypatch.setattr(mod, "_cupy_available", False, raising=True)
+    monkeypatch.setattr(mod, "_cucim_available", False, raising=True)
     with pytest.raises(ImportError):
         mod.validate_slide_backend(use_gpu=True)
 
@@ -54,7 +54,7 @@ def test_validate_slide_backend_raises_when_gpu_requested_but_cucim_missing(monk
 
 
 def test_get_dimensions_for_level_cpu(monkeypatch):
-    monkeypatch.setattr(mod, "_cupy_available", False, raising=True)
+    monkeypatch.setattr(mod, "_cucim_available", False, raising=True)
     monkeypatch.setattr(mod, "OpenSlide", FakeOpenSlide, raising=True)
 
     W, H = mod.get_dimensions_for_level("dummy.svs", level=1, use_gpu=False)
@@ -63,7 +63,7 @@ def test_get_dimensions_for_level_cpu(monkeypatch):
 
 
 def test_get_dimensions_for_level_gpu_with_cucim(monkeypatch):
-    monkeypatch.setattr(mod, "_cupy_available", True, raising=True)
+    monkeypatch.setattr(mod, "_cucim_available", True, raising=True)
     monkeypatch.setattr(mod, "CuImage", FakeCuImage, raising=False)
 
     W, H = mod.get_dimensions_for_level("dummy.tif", level=1, use_gpu=True)
@@ -72,7 +72,7 @@ def test_get_dimensions_for_level_gpu_with_cucim(monkeypatch):
 
 
 def test_read_region_cpu_returns_numpy_and_uses_openslide(monkeypatch):
-    monkeypatch.setattr(mod, "_cupy_available", False, raising=True)
+    monkeypatch.setattr(mod, "_cucim_available", False, raising=True)
     monkeypatch.setattr(mod, "OpenSlide", FakeOpenSlide, raising=True)
 
     arr = mod.read_region(path="cpu.svs", x=10, y=20, w=7, h=9, level=0, use_gpu=False, num_workers_cucim=99)
@@ -83,7 +83,7 @@ def test_read_region_cpu_returns_numpy_and_uses_openslide(monkeypatch):
 
 
 def test_read_region_gpu_returns_numpy_and_passes_num_workers(monkeypatch):
-    monkeypatch.setattr(mod, "_cupy_available", True, raising=True)
+    monkeypatch.setattr(mod, "_cucim_available", True, raising=True)
 
     fake = FakeCuImage("gpu.tif")
 

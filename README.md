@@ -13,7 +13,7 @@ A pragmatic pipeline for streaming whole-slide image (WSI) patches with region p
 
 ## 1) Library install
 
-Python ≥3.8 is recommended.
+Python ≥3.8 <3.12 is recommended. 3.12 is unsupported because cuCIM does not yet support it.
 ```
 # CPU install (not all functionality is supported for cpu only)
 pip install "wsi-patching @ git+https://github.com/amspath/wsi-patching-pipeline.git"

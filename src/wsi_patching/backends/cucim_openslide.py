@@ -3,21 +3,21 @@ from typing import Optional, Tuple
 try:
     from cucim import CuImage
 
-    _cupy_available = True
+    _cucim_available = True
 except ImportError:
-    _cupy_available = False
+    _cucim_available = False
 
 import numpy as np
 from openslide import OpenSlide
 
 
 def validate_slide_backend(use_gpu: bool) -> None:
-    if use_gpu and not _cupy_available:
-        raise ImportError("CuPy/cuCIM is not available. Please install them to use GPU backend.")
+    if use_gpu and not _cucim_available:
+        raise ImportError("cuCIM is not available. Please install cuCIM to use GPU backend.")
 
 
 def _open_slide(path: str, use_gpu: bool):
-    if _cupy_available and use_gpu:
+    if _cucim_available and use_gpu:
         return CuImage(str(path))
     else:
         return OpenSlide(str(path))
@@ -25,7 +25,7 @@ def _open_slide(path: str, use_gpu: bool):
 
 def get_dimensions_for_level(path: str, level: int, use_gpu: bool) -> Tuple[int, int]:
     slide = _open_slide(path, use_gpu)
-    if _cupy_available and use_gpu:
+    if _cucim_available and use_gpu:
         W, H = slide.resolutions["level_dimensions"][level]
     else:
         W, H = slide.level_dimensions[level]

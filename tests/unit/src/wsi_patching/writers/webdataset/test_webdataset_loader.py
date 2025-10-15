@@ -45,7 +45,7 @@ def test_key_in_train_prefix_filtering():
 
 
 def test_get_dataset_raises_if_no_shards(tmp_path: Path):
-    loader = WebDatasetLoader(outdir=tmp_path)
+    loader = WebDatasetLoader(tar_dir=tmp_path)
     with pytest.raises(FileNotFoundError):
         _ = loader.get_dataset()
 
@@ -59,7 +59,7 @@ def test_dataset_reads_and_filters(tmp_path: Path):
     _write_shard(tmp_path, items)
 
     # Only keep keys starting with "A"
-    loader = WebDatasetLoader(outdir=tmp_path, sampled_wsi_names=["A"], batch_size=2)
+    loader = WebDatasetLoader(tar_dir=tmp_path, sampled_wsi_names=["A"], batch_size=2)
     ds = loader.get_dataset()
 
     got_keys = []
@@ -87,7 +87,7 @@ def test_dataloader_with_safe_collate_numpy_path(tmp_path: Path):
     items = [("S/0001", _png_bytes_from_array(img1), {"i": 1}), ("S/0002", _png_bytes_from_array(img2), {"i": 2})]
     _write_shard(tmp_path, items)
 
-    loader = WebDatasetLoader(outdir=tmp_path, batch_size=2)
+    loader = WebDatasetLoader(tar_dir=tmp_path, batch_size=2)
     dl = loader.get_dataloader(
         num_workers=0,  # keep single-process to be stable in tests
         persistent_workers=False,  # required when num_workers=0
