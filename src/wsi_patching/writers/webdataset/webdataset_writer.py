@@ -12,11 +12,13 @@ from wsi_patching.writers.writer_base import WriterBase
 class WebDatasetWriter(WriterBase):
     """Writer for WebDataset shards."""
 
-    def __init__(self, outdir: Path = Path("./output/"), shard_size: int = 200, shuffle_buffer_size: int = 500):
+    def __init__(
+        self, outdir: Path = Path("./output/"), shard_size: int = 200, shuffle_buffer_size: Optional[int] = None
+    ):
         super().__init__()
         self.outdir = outdir
         self.shard_size = int(shard_size)
-        self.shuffle_buffer_size = int(shuffle_buffer_size)
+        self.shuffle_buffer_size = int(shuffle_buffer_size) if shuffle_buffer_size is not None else int(shard_size * 3)
         self.shard_pattern = str(self.outdir / "shard-%06d.tar")
         self.write_count = 0
 
