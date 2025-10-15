@@ -11,6 +11,7 @@ from wsi_patching.core.types.util_types import EndOfQueue, EndOfStream
 from wsi_patching.utils.logging_config import LogLevel, init_logging
 from wsi_patching.utils.meta_typing import ContextAware, PipelineContext, StageMeta
 from wsi_patching.utils.profiling import PipelineProfileAggregator, Profiler, get_current_profiler, set_current_profiler
+from wsi_patching.writers.generator_writer_base import GeneratorWriterBase
 from wsi_patching.writers.writer_base import WriterBase
 
 try:
@@ -84,7 +85,7 @@ class Pipeline(Stage):
     def __init__(
         self,
         stages: List[Stage],
-        writer: Optional[WriterBase] = None,
+        writer: Optional[Union[WriterBase, GeneratorWriterBase]] = None,
         prof_agg: Optional["PipelineProfileAggregator"] = None,
         context: Optional[PipelineContext] = None,
     ):
@@ -110,8 +111,13 @@ class Pipeline(Stage):
 
         return Pipeline(self.stages + [nxt], prof_agg=self.prof_agg, context=self._context)
 
-    def to(self, writer: WriterBase) -> "Pipeline":
-        return Pipeline(stages=self.stages, writer=writer, prof_agg=self.prof_agg, context=self._context)
+    def to(self, writer: Union[WriterBase, GeneratorWriterBase]) -> "Pipeline":
+        if isinstance(writer, WriterBase):
+            return WriterPipeline(stages=self.stages, writer=writer, prof_agg=self.prof_agg, context=self._context)
+        elif isinstance(writer, GeneratorWriterBase):
+            return GeneratorPipeline(stages=self.stages, writer=writer, prof_agg=self.prof_agg, context=self._context)
+        else:
+            raise TypeError("writer must be a WriterBase or GeneratorWriterBase instance")
 
     def _preflight_types(self) -> None:
         errors: List[str] = []
@@ -161,7 +167,29 @@ class Pipeline(Stage):
         if self.prof_agg is None:
             self.prof_agg = PipelineProfileAggregator()
 
-    def run(
+    def materialize(self, **kwargs) -> Any:
+        if self.writer is None:
+            raise RuntimeError("Pipeline has no writer; add one via .to(writer)")
+
+        if isinstance(self.writer, GeneratorWriterBase):
+            raise RuntimeError("materialize() can only be used with WriterBase writers. Use stream instead.")
+
+        raise NotImplementedError("materialize() not yet implemented for this WriterPipeline class.")
+
+    def stream(self, **kwargs) -> Iterable[Any]:
+        if self.writer is None:
+            raise RuntimeError("Pipeline has no writer; add one via .to(writer)")
+
+        if isinstance(self.writer, WriterBase):
+            raise RuntimeError("stream() can only be used with GeneratorWriterBase writers. Use materialize() instead.")
+
+        raise RuntimeError("stream() not yet implemented for this GeneratorPipeline class.")
+
+
+class WriterPipeline(Pipeline):
+    writer: WriterBase
+
+    def materialize(
         self,
         cpu_processes: int = 4,
         queue_maxsize: int = 4000,
@@ -289,6 +317,19 @@ class Pipeline(Stage):
 
         # now self.writer is the SAME object that consumed data
         return self.writer.get_output()
+
+
+class GeneratorPipeline(Pipeline):
+    writer: GeneratorWriterBase
+
+    def stream(
+        self,
+        cpu_processes: int = 4,
+        queue_maxsize: int = 4000,
+        profile: bool = False,
+        verbosity_level: LogLevel = "WARNING",
+        gracefully_handle_producer_errors: bool = False,
+    ) -> Iterable[Any]: ...
 
 
 def _producer_worker(
