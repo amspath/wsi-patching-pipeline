@@ -3,6 +3,7 @@ from typing import Any, Iterable, List, Union
 import pytest
 
 from wsi_patching.core.pipeline import Pipeline, Stage
+from wsi_patching.writers.materialize_writers.materialize_writer_base import MaterializeWriterBase
 
 
 # ----------------- helpers & fakes -----------------
@@ -40,7 +41,7 @@ class PassThrough(Stage):
             yield x
 
 
-class DummyWriter:
+class DummyWriter(MaterializeWriterBase):
     """Minimal writer-like object (only used for type preflight on .to())."""
 
     def __init__(self, input_type=object):

@@ -36,7 +36,7 @@ pip install -e .[gpu]
 ```
 
 ## 3) Checkout the examples
-`demo.py` shows you how to build a basic pipeline for creating a WebDataset
+`demo.py` shows you how to build a basic pipeline for creating a WebDataset (A materializing pipeline)
 ```python
 p = (
     WSIGrid(slides=slides, level=0, use_gpu=True)
@@ -46,7 +46,7 @@ p = (
     .then(PNGEncoder())
     .to(WebDatasetWriter(shard_size=300, shuffle_buffer_size=500))
 )
-p.run(cpu_processes=4)
+p.materialize(cpu_processes=4)
 ```
 
 `numpy_mem_writer_demo.py` shows you how to build a basic pipeline for patching up a wsi in memory, without the need of writing to disk (RAM heavy for larger datasets, obviously).
@@ -58,7 +58,9 @@ p = (
     .then(MacenkoNormalizer())
     .to(NumpyMemoryWriter(layout="NCHW"))
 )
-np_patch_array, np_coords_array, list_of_wsi_ids = p.run(cpu_processes=2)
+stream = p.stream(cpu_processes=2, profile=False, verbosity_level="INFO")
+for wsi_ids, final_images, final_coords, meta in stream:
+    ...
 ```
 
 ## 4) Check out the currently available components:
@@ -66,10 +68,12 @@ np_patch_array, np_coords_array, list_of_wsi_ids = p.run(cpu_processes=2)
 - `WSIGrid`: Your starter block!
 - `AttachROIs`: Attach an ROI provider class to ensure that only your regions of interest are patched up. There are two basic ROI providers implemented, being a `RectROIProvider`, and a `RectROIfromXMLProvider`. More to come when needed.
 - `PatchExtractor`: A necessary component in every pipeline. This will nicely read and batch up all your patches. 
-- A sink component to define what the output should be. Currently implemented are:
-  - `WebDatasetWriter`: For writing to a webdataset. Comes with a WebDataset Loader for then reading in the the webdataset in a streamed format to a Torch dataloader.
-  - `NumpyMemoryWriter`: For obtaining numpy patches as one big np.ndarray. 
-  - `TorchMemoryWriter`: For obtaining all your patches as a Torch dataset.
+- A sink component to define what the output should be. There are two types of writers:
+  - `MaterializeWriterBase` writers: For writers that materialize data (i.e. write to disk). These types of writers are particularly useful for making large training datasets. Examples include:
+    - `WebdatasetWriter`: For writing to/creating a webdataset.
+  - `StreamWriterBase` writers: For writers that stream batches of data to memory. These types of writers are particularly useful for patching during inference or in any situation where you don't necessarily want to write to your disk. Examples include:
+    - `NumpyStreamWriter`: For obtaining numpy patches. 
+    - `TorchStreamWriter`: For obtaining torch tensors.
 
 #### Other components
 - Filters: For filtering out your patches that you do not need
@@ -113,9 +117,9 @@ class CustomStage(Stage):
 
 #### Creating a custom sink component:
 ```python
-from wsi_patching.custom_component import WriterBase, # <PreviousStageOutputType> can also be found here
+from wsi_patching.custom_component import StreamWriterBase, MaterializeWriterBase, # <PreviousStageOutputType> can also be found here
 
-class CustomWriter(WriterBase):
+class CustomWriter(MaterializeWriterBase):
     def __init__(self, ...):
             ...
     def open(self) -> None:
@@ -128,6 +132,8 @@ class CustomWriter(WriterBase):
     
     def get_output(self) -> Any:
             # Optional: if you want to output something in memory.
+
+# StreamWriterBase is slightly simpler
 ```
 
 #### Profiling runtime of a custom component:
