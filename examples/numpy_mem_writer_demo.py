@@ -5,8 +5,7 @@ import numpy as np
 from wsi_patching.core import PatchExtractor, WSIGrid
 from wsi_patching.filtering import LowContrastBackgroundFilter, OtsuFilter, PenArtifactFilter
 from wsi_patching.transforms import MacenkoNormalizer
-from wsi_patching.utils import visualize_selected_patches
-from wsi_patching.writers import NumpyMemoryWriter
+from wsi_patching.writers import NumpyStreamWriter
 
 
 def main():
@@ -20,18 +19,12 @@ def main():
         .then(PenArtifactFilter())
         .then(OtsuFilter(min_tissue_fraction=0.1, tissue_is_darker=True))
         .then(MacenkoNormalizer())
-        .to(NumpyMemoryWriter(layout="NCHW"))
+        .to(NumpyStreamWriter(layout="NCHW"))
     )
 
-    wsi_ids, final_images, final_coords, meta = p.run(cpu_processes=2, profile=False, verbosity_level="INFO")
-    visualize_selected_patches(
-        slides[0],
-        coords=final_coords,
-        patch_size=256,
-        patch_images=final_images.astype(np.uint8),
-        stride=256,
-        save_path="selected_patches_demo.png",
-    )
+    stream = p.stream(cpu_processes=2, profile=False, verbosity_level="INFO")
+    for wsi_ids, final_images, final_coords, meta in stream:
+        ...
 
 
 if __name__ == "__main__":

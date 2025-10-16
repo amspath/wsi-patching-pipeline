@@ -9,7 +9,6 @@ from pathlib import Path
 
 from wsi_patching.core import PatchExtractor, WSIGrid
 from wsi_patching.encoders import PNGEncoder
-from wsi_patching.filtering import CellVitTissueClassifierFilter
 from wsi_patching.regions_of_interest import AttachROIs, RectROIProvider
 from wsi_patching.writers import WebDatasetWriter
 
@@ -49,7 +48,7 @@ def main(argv=None):
     )
 
     start_time = time.time()
-    p.run(cpu_processes=args.procs, profile=args.profile, verbosity_level="INFO")
+    p.materialize(cpu_processes=args.procs, profile=args.profile, verbosity_level="INFO")
     logging.info(f"Done in {time.time() - start_time:.1f} seconds.")
 
     if args.profile:
