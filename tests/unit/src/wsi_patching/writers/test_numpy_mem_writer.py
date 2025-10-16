@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 
 from wsi_patching.core.types.types import CollatedPatchBatch
-from wsi_patching.writers.numpy_mem_writer import NumpyMemoryWriter
+from wsi_patching.writers.numpy_stream_writer import NumpyMemoryWriter
 
 
 def _mk_bhwc(n, h, w, c, dtype=np.float32):

@@ -4,7 +4,7 @@ import torch
 
 from wsi_patching.core.types.types import CollatedPatchBatch
 from wsi_patching.utils.meta_typing import PipelineContext
-from wsi_patching.writers.torch_mem_writer import InMemoryPatchDataset, TorchMemoryWriter
+from wsi_patching.writers.torch_stream_writer import InMemoryPatchDataset, TorchMemoryWriter
 
 
 def _mk_bhwc(n, h, w, c, dtype=np.float32):
