@@ -1,12 +1,12 @@
 [![Unit tests](https://github.com/amspath/wsi-patching-pipeline/actions/workflows/unit_tests.yaml/badge.svg)](https://github.com/amspath/wsi-patching-pipeline/actions/workflows/unit_tests.yaml)
 
 # wsi-patching-pipeline
-A pragmatic pipeline for streaming whole-slide image (WSI) patches with region prefetch, per-WSI multiprocessing producers, and a single async WebDataset writer. It’s designed as a runnable skeleton you can extend: swap in your own ROI logic, classifiers, encoders, or sinks by building components on the `custom_component` module facilities.
+A pragmatic pipeline for streaming whole-slide image (WSI) patches with region prefetch, per-WSI multiprocessing producers, and an async writer. It's ideal for building pipelines that create datasets, or for patching in a streaming fashion during inference without overloading your memory. It’s designed as a runnable skeleton you can extend: swap in your own ROI logic, classifiers, encoders, or sinks by building components on the `custom_component` module facilities.
 
 ✨ What you get
 - Streaming, regionized tiling of WSIs (cuCIM preferred; Pillow fallback for small images).
 - Per-slide producers (multiprocessing) feeding a bounded MP queue.
-- Single writer process for continuous writing in the sink (i.e. to a webdataset).
+- Single writer process for continuous writing in the sink (i.e. to a webdataset, or numpy arrays).
 - Batched GPU steps.
 - Built-in isolated stage profiling per slide + aggregated stats.
 
