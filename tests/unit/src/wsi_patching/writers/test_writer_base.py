@@ -1,7 +1,7 @@
 import logging
 
 from wsi_patching.core.types.util_types import EndOfQueue, EndOfStream
-from wsi_patching.writers.writer_base import WriterBase
+from wsi_patching.writers.materialize_writer_base import WriterBase
 
 
 class FakeQueue:

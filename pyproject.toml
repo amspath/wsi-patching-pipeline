@@ -41,6 +41,9 @@ indent-style = "space"
 skip-magic-trailing-comma = true
 docstring-code-format = false
 
+[tool.ruff.lint]
+ignore = ["E731"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests/unit"]
 addopts = [

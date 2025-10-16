@@ -1,13 +1,13 @@
-from typing import List, Literal, Tuple
+from typing import Iterable, List, Literal, Tuple
 
 import numpy as np
 
 from wsi_patching.backends.cupy_numpy import ensure_numpy
 from wsi_patching.core.types.types import CollatedPatchBatch
-from wsi_patching.writers.writer_base import WriterBase
+from wsi_patching.writers.stream_writer_base import StreamWriterBase
 
 
-class NumpyMemoryWriter(WriterBase):
+class NumpyMemoryWriter(StreamWriterBase):
     """
     Collects CollatedPatchBatch (assumed BCHW) and builds an in-memory NumPy dataset.
     Eagerly copies to float32 NumPy arrays; no torch involved.
@@ -26,13 +26,7 @@ class NumpyMemoryWriter(WriterBase):
 
         self.final_images, self.final_coords = None, None
 
-        self.log.info("Initialized. NOTE: Memory heavy — stores all patches as float32 NumPy arrays in RAM.")
-
-    # --- WriterBase hooks ---
-    def open(self) -> None:
-        self.log.info("Opening... layout=%s dtype=%s", self.layout, self.dtype)
-
-    def write(self, batch: CollatedPatchBatch) -> None:
+    def stream(self, batch: CollatedPatchBatch) -> Iterable[Tuple[str, np.ndarray, np.ndarray, dict]]:
         self.log.info(f"Received batch from wsi: {batch.wsi_id} size: {len(batch.patches)}")
 
         # coords -> np.int64
@@ -47,39 +41,5 @@ class NumpyMemoryWriter(WriterBase):
             # BHWC -> BCHW
             images_np = np.transpose(images_np, (0, 3, 1, 2))
 
-        # accumulate
-        self._images_chunks.append(images_np)
-        self._coords_chunks.append(coords_np)
-        self.meta.extend(batch.metadata.get_all_row_wise())
-        self.wsi_ids.extend([batch.wsi_id] * images_np.shape[0])
-
-    def close(self) -> None:
-        if self.final_images is not None:
-            return
-
-        if not self._images_chunks:
-            self.final_images = np.empty((0, 1, 1, 1), dtype=self.dtype)
-            self.final_coords = np.empty((0, 2), dtype=np.int64)
-            self.log.info("Closed with empty dataset.")
-            return
-
-        self.final_images = np.concatenate(self._images_chunks, axis=0)
-        self.final_coords = np.concatenate(self._coords_chunks, axis=0)
-
-        # free chunks
-        self._images_chunks.clear()
-        self._coords_chunks.clear()
-
-        self.log.info(
-            "Closed. Final dataset: N=%d, shape=%s, layout=%s, dtype=%s",
-            len(self.final_images),
-            tuple(self.final_images.shape),
-            self.layout,
-            self.final_images.dtype,
-        )
-
-    def get_output(self) -> Tuple[np.ndarray, np.ndarray, List[str], List[dict]]:
-        if self.final_images is None:
-            self.close()
-        assert self.final_images is not None
-        return self.wsi_ids, self.final_images, self.final_coords, self.meta
+        # yield
+        yield batch.wsi_id, images_np, coords_np, batch.metadata.get_all_row_wise()

@@ -5,7 +5,7 @@ import torch
 
 from wsi_patching.backends.torch_device import get_torch_device
 from wsi_patching.core.types.types import CollatedPatchBatch
-from wsi_patching.writers.writer_base import WriterBase
+from wsi_patching.writers.stream_writer_base import StreamWriterBase
 
 if TYPE_CHECKING:
     import cupy as cp
@@ -43,7 +43,7 @@ class InMemoryPatchDataset(torch.utils.data.Dataset):
         }
 
 
-class TorchMemoryWriter(WriterBase):
+class TorchMemoryWriter(StreamWriterBase):
     """
     Collects CollatedPatchBatch (assumed [B, C, H, W]) and builds an in-memory torch Dataset.
     Eagerly tensorizes to float32 on CPU/GPU (based on ctx['use_gpu']).
