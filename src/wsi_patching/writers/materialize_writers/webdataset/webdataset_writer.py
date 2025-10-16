@@ -6,7 +6,7 @@ import orjson
 import webdataset as wds
 
 from wsi_patching.core.types.types import EncodedCollatedPatchBatch
-from wsi_patching.writers.materialize_writer_base import MaterializeWriterBase
+from wsi_patching.writers.materialize_writers.materialize_writer_base import MaterializeWriterBase
 
 
 class WebDatasetWriter(MaterializeWriterBase):

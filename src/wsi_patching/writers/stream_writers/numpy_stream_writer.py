@@ -1,10 +1,10 @@
-from typing import Iterable, List, Literal, Tuple
+from typing import Iterable, Literal, Tuple
 
 import numpy as np
 
 from wsi_patching.backends.cupy_numpy import ensure_numpy
 from wsi_patching.core.types.types import CollatedPatchBatch
-from wsi_patching.writers.stream_writer_base import StreamWriterBase
+from wsi_patching.writers.stream_writers.stream_writer_base import StreamWriterBase
 
 
 class NumpyStreamWriter(StreamWriterBase):

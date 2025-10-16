@@ -1,10 +1,10 @@
-from typing import TYPE_CHECKING, Iterable, Literal, Optional, Union
+from typing import TYPE_CHECKING, Iterable, Literal, Optional, Tuple, Union
 
 import numpy as np
 import torch
 
 from wsi_patching.core.types.types import CollatedPatchBatch
-from wsi_patching.writers.stream_writer_base import StreamWriterBase
+from wsi_patching.writers.stream_writers.stream_writer_base import StreamWriterBase
 
 if TYPE_CHECKING:
     import cupy as cp
@@ -31,7 +31,7 @@ class TorchStreamWriter(StreamWriterBase):
         if self.device is None:
             self.device = torch.device("cuda" if self._ctx["use_gpu"] else "cpu")
 
-    def stream(self, batch: Iterable[CollatedPatchBatch]) -> Iterable:
+    def stream(self, batch: Iterable[CollatedPatchBatch]) -> Iterable[Tuple[str, torch.Tensor, torch.Tensor, dict]]:
         self.log.info(f"Received batch from wsi: {batch.wsi_id} size: {len(batch.patches)}")
 
         # coords -> torch.long on target device

@@ -1,12 +1,12 @@
 import logging
 import multiprocessing as mp
-from queue import Full
 import sys
 import threading
 from dataclasses import dataclass, field
 from multiprocessing.queues import Queue as MPQueue
 from multiprocessing.synchronize import Event as MpEvent
 from pathlib import Path
+from queue import Full
 from threading import Thread
 from typing import Any, Iterable, Iterator, List, Optional, Tuple, Union
 
@@ -16,8 +16,8 @@ from wsi_patching.core.types.util_types import EndOfQueue, EndOfStream
 from wsi_patching.utils.logging_config import LogLevel, init_logging
 from wsi_patching.utils.meta_typing import ContextAware, PipelineContext, StageMeta
 from wsi_patching.utils.profiling import PipelineProfileAggregator, Profiler, get_current_profiler, set_current_profiler
-from wsi_patching.writers.materialize_writer_base import MaterializeWriterBase
-from wsi_patching.writers.stream_writer_base import StreamWriterBase
+from wsi_patching.writers.materialize_writers.materialize_writer_base import MaterializeWriterBase
+from wsi_patching.writers.stream_writers.stream_writer_base import StreamWriterBase
 
 try:
     # Consistent across 3.8/3.9 and supports typing_extensions constructs
@@ -175,9 +175,8 @@ class Pipeline(Stage):
         verbosity_level: LogLevel = "WARNING",
         gracefully_handle_producer_errors: bool = False,
     ):
-        """
-        Streaming mode: returns an iterator from the StreamWriterBase.
-        """
+        """Streaming mode: returns an iterator from the StreamWriterBase."""
+        raise RuntimeError()
         if not isinstance(self.writer, StreamWriterBase):
             raise RuntimeError("Pipeline writer is not a StreamWriterBase; use .materialize() instead.")
 
