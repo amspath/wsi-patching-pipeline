@@ -117,7 +117,11 @@ class Pipeline(Stage):
         return Pipeline(self.stages + [nxt], prof_agg=self.prof_agg, context=self._context)
 
     def to(self, writer: Union[MaterializeWriterBase, StreamWriterBase]) -> "Pipeline":
-        return Pipeline(stages=self.stages, writer=writer, prof_agg=self.prof_agg, context=self._context)
+        if isinstance(writer, StreamWriterBase):
+            return StreamPipeline(stages=self.stages, writer=writer, prof_agg=self.prof_agg, context=self._context)
+        if isinstance(writer, MaterializeWriterBase):
+            return MaterializePipeline(stages=self.stages, writer=writer, prof_agg=self.prof_agg, context=self._context)
+        raise TypeError(f"Writer must be a StreamWriterBase or MaterializeWriterBase, got {type(writer)}")
 
     def _preflight_types(self) -> None:
         errors: List[str] = []
@@ -167,60 +171,6 @@ class Pipeline(Stage):
         if self.prof_agg is None:
             self.prof_agg = PipelineProfileAggregator()
 
-    def stream(
-        self,
-        cpu_processes: int = 4,
-        writer_prefetch_factor: int = 2,
-        profile: bool = False,
-        verbosity_level: LogLevel = "WARNING",
-        gracefully_handle_producer_errors: bool = False,
-    ):
-        """Streaming mode: returns an iterator from the StreamWriterBase."""
-        raise RuntimeError()
-        if not isinstance(self.writer, StreamWriterBase):
-            raise RuntimeError("Pipeline writer is not a StreamWriterBase; use .materialize() instead.")
-
-        sink_runner: Callable[[MPQueue], Iterable[Any]] = lambda q, v, e: self.writer.start_writer(q, v, stop_event=e)
-
-        yield from self._orchestrate(
-            cpu_processes=cpu_processes,
-            writer_prefetch_factor=writer_prefetch_factor,
-            profile=profile,
-            verbosity=verbosity_level,
-            gracefully_handle_producer_errors=gracefully_handle_producer_errors,
-            sink_runner=sink_runner,
-            streaming=True,
-        )
-
-    def materialize(
-        self,
-        cpu_processes: int = 4,
-        writer_prefetch_factor: int = 2,
-        profile: bool = False,
-        verbosity_level: LogLevel = "WARNING",
-        gracefully_handle_producer_errors: bool = False,
-    ):
-        """
-        Materialize mode: runs a sink that writes to disk (e.g., WebDatasetWriter).
-        Returns whatever the writer exposes as its "result" (optional).
-        """
-        if isinstance(self.writer, StreamWriterBase):
-            raise RuntimeError("Pipeline has a StreamWriterBase; use .stream() instead of .materialize().")
-
-        sink_runner: Callable[[MPQueue], Iterable[Any] | Any] = lambda q, v, e: self.writer.start_writer(
-            q, v, stop_event=e
-        )
-
-        return self._orchestrate(
-            cpu_processes=cpu_processes,
-            writer_prefetch_factor=writer_prefetch_factor,
-            profile=profile,
-            verbosity=verbosity_level,
-            gracefully_handle_producer_errors=gracefully_handle_producer_errors,
-            sink_runner=sink_runner,
-            streaming=False,
-        )
-
     def _orchestrate(
         self,
         *,
@@ -263,37 +213,43 @@ class Pipeline(Stage):
         sink_exc_box: List[BaseException] = []
 
         if streaming:
-            try:
-                for item in sink_runner(producer_queue, verbosity, stop_event):  # <-- pass stop_event
+
+            def _stream():
+                try:
+                    for item in sink_runner(producer_queue, verbosity, stop_event):  # <-- pass stop_event
+                        if fail_box:
+                            raise RuntimeError(fail_box[0])
+                        yield item
+                    sup_thread.join(timeout=5.0)
                     if fail_box:
                         raise RuntimeError(fail_box[0])
-                    yield item
-                sup_thread.join(timeout=5.0)
-                if fail_box:
-                    raise RuntimeError(fail_box[0])
-                if failed_slides:
-                    self.log.warning(f"Streaming completed with errors on slides (skipped): {', '.join(failed_slides)}")
-                else:
-                    self.log.info("Streaming completed.")
-            except GeneratorExit:
-                self.log.info("Consumer stopped early; terminating producers.")
-                stop_event.set()
-                try:
-                    producer_queue.put(EndOfQueue(), block=True, timeout=0.5)
+                    if failed_slides:
+                        self.log.warning(
+                            f"Streaming completed with errors on slides (skipped): {', '.join(failed_slides)}"
+                        )
+                    else:
+                        self.log.info("Streaming completed.")
+                except GeneratorExit:
+                    self.log.info("Consumer stopped early; terminating producers.")
+                    stop_event.set()
+                    try:
+                        producer_queue.put(EndOfQueue(), block=True, timeout=0.5)
+                    except Exception:
+                        pass
+                    stop_all()
+                    raise
                 except Exception:
-                    pass
-                stop_all()
-                raise
-            except Exception:
-                stop_event.set()
-                try:
-                    producer_queue.put(EndOfQueue(), block=True, timeout=0.5)
-                except Exception:
-                    pass
-                stop_all()
-                raise
-            finally:
-                sup_thread.join(timeout=5.0)
+                    stop_event.set()
+                    try:
+                        producer_queue.put(EndOfQueue(), block=True, timeout=0.5)
+                    except Exception:
+                        pass
+                    stop_all()
+                    raise
+                finally:
+                    sup_thread.join(timeout=5.0)
+
+            return _stream()
         else:
 
             def _run_sink():
@@ -492,6 +448,75 @@ class Pipeline(Stage):
         sup = Thread(target=supervisor, name="supervisor", daemon=True)
         sup.start()
         return sup, stop_all, fail_box, failed_slides
+
+    def stream(self, *args, **kwargs) -> Iterable[Any]:
+        if isinstance(self.writer, MaterializeWriterBase):
+            raise RuntimeError(
+                f"The writer {self.writer.__class__} is a MaterializeWriterBase; use .materialize() instead."
+            )
+        raise NotImplementedError("This method is implemented for this Pipeline.")
+
+    def materialize(self, *args, **kwargs) -> None:
+        if isinstance(self.writer, StreamWriterBase):
+            raise RuntimeError(f"The writer {self.writer.__class__} is a StreamWriterBase; use .stream() instead.")
+        raise NotImplementedError("This method is implemented for this Pipeline.")
+
+
+class StreamPipeline(Pipeline):
+    def stream(
+        self,
+        cpu_processes: int = 4,
+        writer_prefetch_factor: int = 2,
+        profile: bool = False,
+        verbosity_level: LogLevel = "WARNING",
+        gracefully_handle_producer_errors: bool = False,
+    ):
+        """Streaming mode: returns an iterator from the StreamWriterBase."""
+        if not isinstance(self.writer, StreamWriterBase):
+            raise RuntimeError("Pipeline writer is not a StreamWriterBase; use .materialize() instead.")
+
+        sink_runner: Callable[[MPQueue], Iterable[Any]] = lambda q, v, e: self.writer.start_writer(q, v, stop_event=e)
+
+        yield from self._orchestrate(
+            cpu_processes=cpu_processes,
+            writer_prefetch_factor=writer_prefetch_factor,
+            profile=profile,
+            verbosity=verbosity_level,
+            gracefully_handle_producer_errors=gracefully_handle_producer_errors,
+            sink_runner=sink_runner,
+            streaming=True,
+        )
+
+
+class MaterializePipeline(Pipeline):
+    def materialize(
+        self,
+        cpu_processes: int = 4,
+        writer_prefetch_factor: int = 2,
+        profile: bool = False,
+        verbosity_level: LogLevel = "WARNING",
+        gracefully_handle_producer_errors: bool = False,
+    ):
+        """
+        Materialize mode: runs a sink that writes to disk (e.g., WebDatasetWriter).
+        Returns whatever the writer exposes as its "result" (optional).
+        """
+        if isinstance(self.writer, StreamWriterBase):
+            raise RuntimeError("Pipeline has a StreamWriterBase; use .stream() instead of .materialize().")
+
+        sink_runner: Callable[[MPQueue], Iterable[Any] | Any] = lambda q, v, e: self.writer.start_writer(
+            q, v, stop_event=e
+        )
+
+        return self._orchestrate(
+            cpu_processes=cpu_processes,
+            writer_prefetch_factor=writer_prefetch_factor,
+            profile=profile,
+            verbosity=verbosity_level,
+            gracefully_handle_producer_errors=gracefully_handle_producer_errors,
+            sink_runner=sink_runner,
+            streaming=False,
+        )
 
 
 def _producer_worker(
