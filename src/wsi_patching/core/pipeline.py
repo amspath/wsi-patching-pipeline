@@ -8,9 +8,7 @@ from multiprocessing.synchronize import Event as MpEvent
 from pathlib import Path
 from queue import Full
 from threading import Thread
-from typing import Any, Iterable, Iterator, List, Optional, Tuple, Union
-
-from pyparsing import Callable
+from typing import Any, Callable, Iterable, Iterator, List, Optional, Tuple, Union
 
 from wsi_patching.core.types.util_types import EndOfQueue, EndOfStream
 from wsi_patching.utils.logging_config import LogLevel, init_logging
