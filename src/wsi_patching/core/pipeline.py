@@ -67,6 +67,11 @@ class Stage(ContextAware, metaclass=StageMeta):
         raise NotImplementedError
 
     def then(self, nxt: "Stage") -> "Pipeline":
+        """Add a stage to the pipeline and return a new Pipeline instance.
+
+        Args:
+            nxt: The next stage to add to the pipeline.
+        """
         return Pipeline([self, nxt])
 
     def for_slide(self, slide_path: str) -> "Stage":
@@ -109,6 +114,11 @@ class Pipeline(Stage):
         return stream
 
     def then(self, nxt: Stage) -> "Pipeline":
+        """Add a stage to the pipeline and return a new Pipeline instance.
+
+        Args:
+            nxt: The next stage to add to the pipeline.
+        """
         if self.writer is not None:
             raise RuntimeError("Cannot add stages after a writer. A writer is the last stage.")
 
@@ -203,7 +213,6 @@ class Pipeline(Stage):
             stop_event=stop_event,
         )
 
-        sink_result_box: List[Any] = []
         sink_exc_box: List[BaseException] = []
 
         if streaming:
@@ -248,13 +257,7 @@ class Pipeline(Stage):
 
             def _run_sink():
                 try:
-                    out = sink_runner(producer_queue, verbosity, stop_event)
-                    if isinstance(out, Iterable):
-                        for _ in out:
-                            if fail_box:
-                                raise RuntimeError(fail_box[0])
-                    else:
-                        sink_result_box.append(out)
+                    sink_runner(producer_queue, verbosity, stop_event)
                 except BaseException as e:
                     sink_exc_box.append(e)
 
@@ -274,9 +277,6 @@ class Pipeline(Stage):
                     )
                 else:
                     self.log.info("Materialization completed.")
-                if sink_result_box:
-                    return sink_result_box[0]
-                return getattr(self.writer, "result", None)
             except Exception:
                 stop_event.set()
                 try:
@@ -450,8 +450,20 @@ class Pipeline(Stage):
         profile: bool = False,
         verbosity_level: LogLevel = "WARNING",
         gracefully_handle_producer_errors: bool = False,
-    ):
-        """Streaming mode: returns an iterator from the StreamWriterBase."""
+    ) -> Iterable[Any]:
+        """Streaming mode: returns a generator that can be streamed to obtain your patches.
+
+        Args:
+            cpu_processes: Number of producer processes, one per slide concurrently (default=4).
+            writer_prefetch_factor: Number of batches to prefetch for the writer per producer process (default=2).
+            profile: Enable per-stage profiling for producers (default=False).
+            verbosity_level: Logging verbosity level (default="WARNING").
+            gracefully_handle_producer_errors: Skip slides that cause errors instead of failing the entire pipeline
+                (default=False).
+
+        Returns:
+            An iterable generator yielding items from the writer.
+        """
         if isinstance(self.writer, MaterializeWriterBase):
             raise RuntimeError(
                 f"The writer {self.writer.__class__} is a MaterializeWriterBase; use .materialize() instead."
@@ -476,10 +488,19 @@ class Pipeline(Stage):
         profile: bool = False,
         verbosity_level: LogLevel = "WARNING",
         gracefully_handle_producer_errors: bool = False,
-    ):
-        """
-        Materialize mode: runs a sink that writes to disk (e.g., WebDatasetWriter).
-        Returns whatever the writer exposes as its "result" (optional).
+    ) -> None:
+        """Materializes the pipeline.
+
+        Args:
+            cpu_processes: Number of producer processes, one per slide concurrently (default=4).
+            writer_prefetch_factor: Number of batches to prefetch for the writer per producer process (default=2).
+            profile: Enable per-stage profiling for producers (default=False).
+            verbosity_level: Logging verbosity level (default="WARNING").
+            gracefully_handle_producer_errors: Skip slides that cause errors instead of failing the entire pipeline
+                (default=False).
+
+        Returns:
+            Nothing. Materialization is performed by the writer.
         """
         if isinstance(self.writer, StreamWriterBase):
             raise RuntimeError(f"The writer {self.writer.__class__} is a StreamWriterBase; use .stream() instead.")
@@ -488,7 +509,7 @@ class Pipeline(Stage):
             q, v, stop_event=e
         )
 
-        return self._orchestrate(
+        self._orchestrate(
             cpu_processes=cpu_processes,
             writer_prefetch_factor=writer_prefetch_factor,
             profile=profile,
