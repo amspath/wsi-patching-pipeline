@@ -115,11 +115,7 @@ class Pipeline(Stage):
         return Pipeline(self.stages + [nxt], prof_agg=self.prof_agg, context=self._context)
 
     def to(self, writer: Union[MaterializeWriterBase, StreamWriterBase]) -> "Pipeline":
-        if isinstance(writer, StreamWriterBase):
-            return StreamPipeline(stages=self.stages, writer=writer, prof_agg=self.prof_agg, context=self._context)
-        if isinstance(writer, MaterializeWriterBase):
-            return MaterializePipeline(stages=self.stages, writer=writer, prof_agg=self.prof_agg, context=self._context)
-        raise TypeError(f"Writer must be a StreamWriterBase or MaterializeWriterBase, got {type(writer)}")
+        return Pipeline(stages=self.stages, writer=writer, prof_agg=self.prof_agg, context=self._context)
 
     def _preflight_types(self) -> None:
         errors: List[str] = []
@@ -447,20 +443,6 @@ class Pipeline(Stage):
         sup.start()
         return sup, stop_all, fail_box, failed_slides
 
-    def stream(self, *args, **kwargs) -> Iterable[Any]:
-        if isinstance(self.writer, MaterializeWriterBase):
-            raise RuntimeError(
-                f"The writer {self.writer.__class__} is a MaterializeWriterBase; use .materialize() instead."
-            )
-        raise NotImplementedError("This method is implemented for this Pipeline.")
-
-    def materialize(self, *args, **kwargs) -> None:
-        if isinstance(self.writer, StreamWriterBase):
-            raise RuntimeError(f"The writer {self.writer.__class__} is a StreamWriterBase; use .stream() instead.")
-        raise NotImplementedError("This method is implemented for this Pipeline.")
-
-
-class StreamPipeline(Pipeline):
     def stream(
         self,
         cpu_processes: int = 4,
@@ -470,8 +452,10 @@ class StreamPipeline(Pipeline):
         gracefully_handle_producer_errors: bool = False,
     ):
         """Streaming mode: returns an iterator from the StreamWriterBase."""
-        if not isinstance(self.writer, StreamWriterBase):
-            raise RuntimeError("Pipeline writer is not a StreamWriterBase; use .materialize() instead.")
+        if isinstance(self.writer, MaterializeWriterBase):
+            raise RuntimeError(
+                f"The writer {self.writer.__class__} is a MaterializeWriterBase; use .materialize() instead."
+            )
 
         sink_runner: Callable[[MPQueue], Iterable[Any]] = lambda q, v, e: self.writer.start_writer(q, v, stop_event=e)
 
@@ -485,8 +469,6 @@ class StreamPipeline(Pipeline):
             streaming=True,
         )
 
-
-class MaterializePipeline(Pipeline):
     def materialize(
         self,
         cpu_processes: int = 4,
@@ -500,7 +482,7 @@ class MaterializePipeline(Pipeline):
         Returns whatever the writer exposes as its "result" (optional).
         """
         if isinstance(self.writer, StreamWriterBase):
-            raise RuntimeError("Pipeline has a StreamWriterBase; use .stream() instead of .materialize().")
+            raise RuntimeError(f"The writer {self.writer.__class__} is a StreamWriterBase; use .stream() instead.")
 
         sink_runner: Callable[[MPQueue], Iterable[Any] | Any] = lambda q, v, e: self.writer.start_writer(
             q, v, stop_event=e
