@@ -128,7 +128,7 @@ class MacenkoNormalizer(Stage):
 
         # Least squares for C on fit pixels to get per-stain 99th percentile
         C, *_ = self._xp.linalg.lstsq(H_mat, OD.T, rcond=None)
-        max_sat = self._xp.percentile(C, 99.0, axis=1, keepdims=True).astype(self._xp.float32)
+        max_sat = self._xp.percentile(C, 99.0, axis=(1,), keepdims=True).astype(self._xp.float32)
         max_sat = self._xp.where(max_sat == 0, self._xp.asarray(1.0, dtype=self._xp.float32), max_sat)
 
         return H_mat, max_sat
