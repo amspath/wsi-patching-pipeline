@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "wsi-patching"
 version = "0.1.0"
 description = "A High Performance Patching Library for Digital Pathology AI dataset creation."
-requires-python = ">=3.8,<3.12"
+requires-python = ">=3.8,<3.14"
 authors = [{ name = "Robin van Hoorn", email = "r.d.vanhoorn@amsterdamumc.nl" }]
 dependencies = [
     "numpy",
@@ -22,7 +22,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-gpu = ["cucim-cu12", "cupy-cuda12x"]
+gpu = [
+    'cucim; python_version < "3.9" and platform_system != "Darwin"',
+    'cucim-cu12; python_version >= "3.9" and platform_system != "Darwin"',
+    'cupy-cuda12x; platform_system != "Darwin"',
+]
 dev = ["ruff", "pytest"]
 
 [tool.hatch.build.targets.wheel]
