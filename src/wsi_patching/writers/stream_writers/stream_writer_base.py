@@ -1,9 +1,8 @@
 import logging
-from collections.abc import Iterable
 from multiprocessing.queues import Queue as MPQueue
 from multiprocessing.synchronize import Event as MpEvent
 from queue import Empty
-from typing import Any, Optional
+from typing import Any, Iterable, Optional
 
 from wsi_patching.core.types.util_types import EndOfQueue, EndOfStream
 from wsi_patching.utils.logging_config import LogLevel, init_logging

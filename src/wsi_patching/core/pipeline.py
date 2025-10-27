@@ -177,7 +177,7 @@ class Pipeline(Stage):
         profile: bool,
         verbosity: LogLevel,
         gracefully_handle_producer_errors: bool,
-        sink_runner: Callable[[MPQueue], Iterable[Any] | Any],
+        sink_runner: Callable[[MPQueue], Union[Iterable[Any], Any]],
         streaming: bool,
     ):
         """
