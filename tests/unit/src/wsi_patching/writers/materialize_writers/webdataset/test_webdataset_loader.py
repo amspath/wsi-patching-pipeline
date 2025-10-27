@@ -6,7 +6,7 @@ import orjson
 import pytest
 import torch
 
-from wsi_patching.writers.webdataset.webdataset_loader import WebDatasetLoader
+from wsi_patching.writers.materialize_writers.webdataset.webdataset_loader import WebDatasetLoader
 
 
 # ------------------------ helpers ------------------------

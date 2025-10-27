@@ -6,10 +6,10 @@ import orjson
 import webdataset as wds
 
 from wsi_patching.core.types.types import EncodedCollatedPatchBatch
-from wsi_patching.writers.writer_base import WriterBase
+from wsi_patching.writers.materialize_writers.materialize_writer_base import MaterializeWriterBase
 
 
-class WebDatasetWriter(WriterBase):
+class WebDatasetWriter(MaterializeWriterBase):
     """Writer for WebDataset shards."""
 
     def __init__(
@@ -33,6 +33,7 @@ class WebDatasetWriter(WriterBase):
         self._sink = wds.ShardWriter(self.shard_pattern, maxcount=self.shard_size, verbose=0)
 
     def write(self, batch: EncodedCollatedPatchBatch) -> None:
+        self.log.info(f"Received batch from wsi: {batch.wsi_id} size: {len(batch.encoded_patches)}")
         for sample_idx in range(batch.coords.shape[0]):
             wsi_id, coord, _, meta = batch.get(sample_idx)
             key = f"{wsi_id}_{coord[0]}_{coord[1]}"

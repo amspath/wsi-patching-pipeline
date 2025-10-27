@@ -54,7 +54,7 @@ class AddCellAnnotationFromCSV(Stage):
         assert x_arr is not None and y_arr is not None and lbl_arr is not None and rtx is not None
 
         tile_size: int = int(self.ctx["tile_size"])
-        EMPTY = np.empty((0, 3), dtype=object)
+        EMPTY = np.empty((0, 3))
 
         for batch in it:
             all_annotations: List[np.ndarray] = []

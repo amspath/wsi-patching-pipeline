@@ -28,7 +28,7 @@ def test_attach_rois_combines_providers_and_defaults_with_warning(caplog):
         def for_slide(self, slide):
             raise RuntimeError("bang")
 
-    attach = AttachROIs([FailingProv(), StaticProv()], preclip_to_slide=True)
+    attach = AttachROIs([FailingProv(), StaticProv()], on_empty="whole_slide")
 
     caplog.set_level("INFO")
     out = list(attach(iter([slideA, slideB])))

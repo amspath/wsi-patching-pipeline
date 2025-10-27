@@ -1,13 +1,15 @@
 import logging
 from multiprocessing.queues import Queue as MPQueue
-from typing import Any, Union
+from multiprocessing.synchronize import Event as MpEvent
+from queue import Empty
+from typing import Any, Optional
 
 from wsi_patching.core.types.util_types import EndOfQueue, EndOfStream
 from wsi_patching.utils.logging_config import LogLevel, init_logging
 from wsi_patching.utils.meta_typing import ContextAware, WriterMeta
 
 
-class WriterBase(ContextAware, metaclass=WriterMeta):
+class MaterializeWriterBase(ContextAware, metaclass=WriterMeta):
     """
     Base class for sink stages (writers). It hides multiprocessing queue handling and
     special control messages (EndOfStream / EndOfQueue).
@@ -46,13 +48,6 @@ class WriterBase(ContextAware, metaclass=WriterMeta):
         """Flush and close resources."""
         pass
 
-    def get_output(self) -> Any:
-        """Return the output of the writer, if any. Default: None.
-
-        The output is always returned by the run() method in the pipeline.
-        """
-        return None
-
     # ----- helpers -----
     def _ensure_open(self) -> None:
         if not self._is_open:
@@ -60,7 +55,9 @@ class WriterBase(ContextAware, metaclass=WriterMeta):
             self._is_open = True
 
     # ----- Multiprocess consumer entrypoint -----
-    def start_writer(self, queue: MPQueue, verbosity_level: LogLevel) -> None:
+    def start_writer(
+        self, queue: MPQueue, verbosity_level: LogLevel, stop_event: Optional[MpEvent] = None, poll_s: float = 0.5
+    ) -> None:
         """
         Multi-process: consume from a queue. Handles EndOfStream/EndOfQueue for you.
         Subclasses SHOULD NOT override this; implement open/write/on_end_of_stream/close instead.
@@ -70,7 +67,14 @@ class WriterBase(ContextAware, metaclass=WriterMeta):
         self._ensure_open()
         try:
             while True:
-                msg: Union[Any, EndOfStream, EndOfQueue] = queue.get()
+                try:
+                    msg = queue.get(timeout=poll_s)
+                except Empty:
+                    if stop_event is not None and stop_event.is_set():
+                        self.log.info("Stop event set; writer exiting.")
+                        break
+                    continue
+
                 if isinstance(msg, EndOfQueue):
                     self.log.info("Writer received EndOfQueue (shutdown).")
                     break

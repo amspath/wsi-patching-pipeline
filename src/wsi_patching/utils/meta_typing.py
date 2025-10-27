@@ -20,7 +20,9 @@ class WriterMeta(type):
     def __new__(mcls, name, bases, ns, **kw):
         cls = super().__new__(mcls, name, bases, ns)
         in_t = getattr(cls, "input_type", object)
-        in_t, _ = _infer_types_from_annotations(ns.get("write"), in_key="batch", default_in=in_t, default_out=None)
+        in_t, _ = _infer_types_from_annotations(
+            ns.get("write") or ns.get("stream"), in_key="batch", default_in=in_t, default_out=None
+        )
         cls.input_type = in_t
         if cls.input_type is object:
             raise ValueError(f"{name}: write() must annotate its 'batch' parameter type")

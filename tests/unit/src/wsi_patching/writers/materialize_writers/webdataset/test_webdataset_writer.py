@@ -5,7 +5,7 @@ import numpy as np
 
 from wsi_patching.core.types.types import CollatedPatchBatch
 from wsi_patching.encoders.pngencoder import PNGEncoder
-from wsi_patching.writers.webdataset.webdataset_writer import WebDatasetWriter
+from wsi_patching.writers.materialize_writers.webdataset.webdataset_writer import WebDatasetWriter
 
 
 def get_encoded_cbp(key: str, h: int = 2, w: int = 3, c: int = 3):
