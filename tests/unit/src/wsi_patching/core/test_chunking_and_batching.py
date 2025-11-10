@@ -62,6 +62,66 @@ def test_tileplanner_warns_when_no_tiles(caplog):
     assert "No tiles found for slide S ROI 0" in caplog.text
 
 
+def test_tileplanner_roi_smaller_than_tile_size_single_tile():
+    """
+    ROI is smaller than the tile size: we should only get a single tile
+    anchored at the ROI start, even if stride < tile_size.
+    """
+    # ROI 1000x1000, tile_size 1024, stride 700
+    slide = SlideWithROIs("S", "/s", (1000, 1000), {}, rois=[BoxROI(0, 0, 1000, 1000)])
+    tp = TilePlanner(tile_size=1024, stride=700, tile_selection_mode="any_overlap")
+
+    tp.attach_context(PipelineContext({"tile_size": 1024, "stride": 700, "level": 0}))
+    tp.validate()
+
+    plans = list(tp(iter([slide])))
+    assert len(plans) == 1
+    plan = plans[0]
+
+    # Only a single tile is needed to cover the ROI
+    assert len(plan.tiles) == 1
+    assert plan.tiles[0] == (0, 0)
+
+
+def test_tileplanner_large_roi_with_overlap_no_redundant_tiles():
+    """
+    ROI larger than tile, stride < tile_size:
+    We want overlapping tiles that cover the ROI, but *not* an extra
+    last row/column of redundant tiles (the 9 vs 4 bug).
+    """
+    # ROI 2000x2000, tile_size 1200, stride 900
+    # Old behavior: 3x3 grid = 9 tiles.
+    # New behavior (axis_positions): starts at [0, 900] -> 2x2 grid = 4 tiles.
+    slide = SlideWithROIs("S", "/s", (2000, 2000), {}, rois=[BoxROI(0, 0, 2000, 2000)])
+    tp = TilePlanner(tile_size=1200, stride=900, tile_selection_mode="any_overlap")
+
+    tp.attach_context(PipelineContext({"tile_size": 1200, "stride": 900, "level": 0}))
+    tp.validate()
+
+    plans = list(tp(iter([slide])))
+    assert len(plans) == 1
+    plan = plans[0]
+
+    # Expect exactly 4 tiles at the useful start positions
+    expected_tiles = {(0, 0), (900, 0), (0, 900), (900, 900)}
+    assert set(plan.tiles) == expected_tiles
+    assert len(plan.tiles) == 4
+
+
+def test_tileplanner_validate_warns_when_stride_larger_than_tile_size(caplog):
+    """
+    When stride > tile_size, validate() should emit a warning about gaps
+    between tiles (behavior is allowed, but not guaranteed to cover ROI).
+    """
+    tp = TilePlanner(tile_size=16, stride=32, tile_selection_mode="any_overlap")
+    tp.attach_context(PipelineContext({"tile_size": 16, "stride": 32, "level": 0}))
+
+    caplog.set_level("WARNING")
+    tp.validate()
+
+    assert "Stride is larger than tile size" in caplog.text
+
+
 # ------------------- ReadWindowChunker -------------------
 def test_readwindowchunker_validate_defaults_and_guards(caplog):
     r = ReadWindowChunker(max_window_size=None)

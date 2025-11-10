@@ -42,6 +42,17 @@ class TilePlanner(Stage):
         ctx["tile_size"] = self.tile_size
         ctx["stride"] = self.stride
 
+    def validate(self) -> None:
+        self.ctx.require_key("tile_size")
+        self.ctx.require_key("stride")
+
+        if self.ctx["tile_size"] <= 0:
+            raise ValueError("Tile size must be positive")
+        if self.ctx["stride"] <= 0:
+            raise ValueError("Stride must be positive")
+        if self.ctx["stride"] > self.ctx["tile_size"]:
+            self.log.warning("Stride is larger than tile size, resulting in gaps between tiles.")
+
     def __call__(self, it: Iterable[Union[Slide, SlideWithROIs]]) -> Iterable[TilePlan]:
         tile_size = int(self.ctx["tile_size"])
         stride = int(self.ctx["stride"])
@@ -54,14 +65,14 @@ class TilePlanner(Stage):
                 x1 = min(bx + bw, W)
                 y1 = min(by + bh, H)
                 tiles: List[Tuple[int, int]] = []
-                y = by
-                while y <= y1:
-                    x = bx
-                    while x <= x1:
+
+                xs = self._axis_positions(bx, x1, tile_size, stride)
+                ys = self._axis_positions(by, y1, tile_size, stride)
+
+                for y in ys:
+                    for x in xs:
                         if self._accept_tile(roi, x, y, tile_size):
                             tiles.append((x, y))
-                        x += stride
-                    y += stride
 
                 if tiles:
                     yield TilePlan(
@@ -80,6 +91,30 @@ class TilePlanner(Stage):
                     )
                 else:
                     self.log.warning(f"No tiles found for slide {s.wsi_id} ROI {idx} bounds {bx, by, bw, bh}")
+
+    def _axis_positions(self, start: int, end: int, tile_size: int, stride: int) -> List[int]:
+        """
+        Generate tile start positions along a single axis.
+
+        Assumes stride < tile_size if you want overlap & full coverage.
+        """
+        roi_len = end - start
+
+        # 1) ROI smaller than a tile: just one tile anchored at start.
+        if roi_len <= tile_size:
+            return [start]
+
+        # 2) Normal case: stride < tile_size, ROI larger than tile.
+        positions: List[int] = []
+        pos = start
+
+        # keep stepping as long as "previous start + tile_size" still needs to reach 'end'
+        last_tile_correction = -stride + tile_size if stride < tile_size else 0
+        while pos + last_tile_correction < end:
+            positions.append(pos)
+            pos += stride
+
+        return positions
 
     def _accept_tile(self, roi: ROI, tx: int, ty: int, tile_size: int) -> bool:
         mode = self.tile_selection_mode
