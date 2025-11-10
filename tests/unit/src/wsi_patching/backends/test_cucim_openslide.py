@@ -18,6 +18,9 @@ class FakeCuImage:
         w, h = size
         return np.full((h, w, 3), 7, dtype=np.uint8)
 
+    def close(self):
+        pass
+
 
 class FakePILImage:
     """Minimal object with .convert('RGB') returning an array-compatible object."""
@@ -42,6 +45,9 @@ class FakeOpenSlide:
         w, h = size
         return FakePILImage(w, h, fill=5)
 
+    def close(self):
+        pass
+
 
 # ---------- tests ----------
 def test_validate_slide_backend_raises_when_gpu_requested_but_cucim_missing(monkeypatch):
@@ -63,11 +69,15 @@ def test_get_dimensions_for_level_cpu(monkeypatch):
 
 
 def test_get_dimensions_for_level_gpu_with_cucim(monkeypatch):
+    # Pretend cuCIM is available
     monkeypatch.setattr(mod, "_cucim_available", True, raising=True)
+
+    # CuImage is the constructor, CuImageType is the type used in isinstance(...)
     monkeypatch.setattr(mod, "CuImage", FakeCuImage, raising=False)
+    monkeypatch.setattr(mod, "CuImageType", FakeCuImage, raising=False)
 
     W, H = mod.get_dimensions_for_level("dummy.tif", level=1, use_gpu=True)
-    assert (W, H) == (25, 10)
+    assert (W, H) == (25, 10)  # from FakeCuImage.resolutions["level_dimensions"][1]
     assert isinstance(W, int) and isinstance(H, int)
 
 
@@ -83,6 +93,7 @@ def test_read_region_cpu_returns_numpy_and_uses_openslide(monkeypatch):
 
 
 def test_read_region_gpu_returns_numpy_and_passes_num_workers(monkeypatch):
+    # Pretend cuCIM is available
     monkeypatch.setattr(mod, "_cucim_available", True, raising=True)
 
     fake = FakeCuImage("gpu.tif")
@@ -93,6 +104,8 @@ def test_read_region_gpu_returns_numpy_and_passes_num_workers(monkeypatch):
         return fake
 
     monkeypatch.setattr(mod, "CuImage", _ctor, raising=False)
+    # CuImageType is the type for isinstance(...); fake is an instance of FakeCuImage
+    monkeypatch.setattr(mod, "CuImageType", FakeCuImage, raising=False)
 
     arr = mod.read_region(path="gpu.tif", x=1, y=2, w=4, h=6, level=1, use_gpu=True, num_workers_cucim=13)
     assert isinstance(arr, np.ndarray)
