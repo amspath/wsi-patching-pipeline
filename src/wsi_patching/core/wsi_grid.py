@@ -1,7 +1,11 @@
 from pathlib import Path
-from typing import Any, Iterable, List
+from typing import Any, Iterable, List, Literal
 
-from wsi_patching.backends.cucim_openslide import get_dimensions_for_level, validate_slide_backend
+from wsi_patching.backends.cucim_openslide import (
+    get_dimensions_for_level,
+    get_level_for_resolution,
+    validate_slide_backend,
+)
 from wsi_patching.backends.cupy_numpy import validate_xp_backend
 from wsi_patching.backends.torch_device import get_torch_device
 from wsi_patching.core.pipeline import PipelineContext, Stage
@@ -14,14 +18,25 @@ class WSIGrid(Stage):
     (MVP simplified: we do not enumerate *all tiles* here; Regionize will do per-ROI tiling.)
     """
 
-    def __init__(self, slides: List[str], use_gpu: bool, level: int = 0):
+    def __init__(
+        self,
+        slides: List[str],
+        use_gpu: bool,
+        resolution: float,
+        unit: Literal["level", "mpp", "downsample"],
+        fallback_mode: Literal["nearest", "floor", "ceil", "error"] = "error",
+    ):
         self.slides = list(slides)
         self.use_gpu = use_gpu
-        self.level = level
+        self.resolution = resolution
+        self.unit = unit
+        self.fallback_mode = fallback_mode
 
     def export_context(self, ctx: "PipelineContext") -> None:
         # Seed/override global grid parameters for other stages to read.
-        ctx["level"] = self.level
+        ctx["resolution"] = self.resolution
+        ctx["unit"] = self.unit
+        ctx["fallback_mode"] = self.fallback_mode
         ctx["use_gpu"] = self.use_gpu
 
     def validate(self) -> None:
@@ -30,7 +45,13 @@ class WSIGrid(Stage):
         get_torch_device(self.use_gpu)
 
     def for_slide(self, slide_path: str) -> "Stage":
-        return WSIGrid(slides=[slide_path], use_gpu=self.use_gpu, level=self.level)
+        return WSIGrid(
+            slides=[slide_path],
+            use_gpu=self.use_gpu,
+            resolution=self.resolution,
+            unit=self.unit,
+            fallback_mode=self.fallback_mode,
+        )
 
     def __call__(self, it: Iterable[Any]) -> Iterable[Slide]:
         for path in self.slides:
@@ -39,13 +60,23 @@ class WSIGrid(Stage):
                 raise FileNotFoundError(f"Slide path does not exist: {path}")
 
             wsi_id = Path(path).stem
-            W, H = get_dimensions_for_level(path, self.level, self.use_gpu)
+            selected_level = get_level_for_resolution(path, self.resolution, self.unit, self.fallback_mode)
+            W, H = get_dimensions_for_level(path, selected_level)
+
             self.log.info(f"Starting on Slide {wsi_id}")
             yield Slide(
                 wsi_id=wsi_id,
                 wsi_path=path,
                 dims=(W, H),
-                meta={"slide.wsi_id": wsi_id, "slide.level": self.level, "slide.path": path},
+                level=selected_level,
+                meta={
+                    "slide.wsi_id": wsi_id,
+                    "slide.requested_resolution": self.resolution,
+                    "slide.requested_unit": self.unit,
+                    "slide.requested_fallback_mode": self.fallback_mode,
+                    "slide.selected_level": selected_level,
+                    "slide.path": path,
+                },
             )
 
     def check_slide_exists(self, path: str) -> bool:

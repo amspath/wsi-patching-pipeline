@@ -79,6 +79,7 @@ class TilePlanner(Stage):
                         wsi_id=s.wsi_id,
                         wsi_path=s.wsi_path,
                         dims=s.dims,
+                        level=s.level,
                         roi_index=idx,
                         roi_bounds=(bx, by, bw, bh),
                         tiles=tiles,
@@ -194,6 +195,7 @@ class ReadWindowChunker(Stage):
                             wsi_id=plan.wsi_id,
                             wsi_path=plan.wsi_path,
                             wsi_dims=plan.dims,
+                            level=plan.level,
                             region=(x_region_start, y_region_start, region_width, region_height),
                             tiles=in_window,
                             meta=plan.meta,
@@ -244,7 +246,6 @@ class RegionReadAndBatch(Stage):
 
     def validate(self) -> None:
         self.ctx.require_key("tile_size")
-        self.ctx.require_key("level")
         self.ctx.require_key("use_gpu")
 
         if self.wsi_edge_policy not in {"drop", "pad_with_zeros", "pad_with_edge"}:
@@ -253,7 +254,6 @@ class RegionReadAndBatch(Stage):
     def __call__(self, it: Iterable[RegionTask]) -> Iterable[CollatedPatchBatch]:
         xp = get_xp_backend(self.ctx["use_gpu"])
         tile_size = int(self.ctx["tile_size"])
-        level = int(self.ctx["level"])
 
         for task in it:
             x0, y0, w, h = task.region
@@ -267,7 +267,7 @@ class RegionReadAndBatch(Stage):
                     h = min(h, task.wsi_dims[1])
 
             region_img = read_region(
-                task.wsi_path, x0, y0, w, h, level, use_gpu=self.ctx["use_gpu"], num_workers_cucim=self.num_workers
+                task.wsi_path, x0, y0, w, h, task.level, use_gpu=self.ctx["use_gpu"], num_workers_cucim=self.num_workers
             )
 
             coords: List[Tuple[int, int]] = []
