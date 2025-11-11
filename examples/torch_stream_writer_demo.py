@@ -12,7 +12,7 @@ def main():
     roi_xml = {"RT14-09099_HE": "./data/RT14-09099_HE.xml"}
 
     p = (
-        WSIGrid(slides=slides, level=0, use_gpu=True)
+        WSIGrid(slides=slides, resolution=0, unit="level", use_gpu=True)
         .then(AttachROIs(providers=[RectROIfromXMLProvider(rois=roi_xml)]))
         .then(PatchExtractor(tile_size=256, stride=256, max_batch_size=800, num_workers=4))
         .then(PenArtifactFilter())
