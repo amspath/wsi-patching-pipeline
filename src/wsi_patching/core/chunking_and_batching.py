@@ -34,6 +34,15 @@ class TilePlanner(Stage):
         stride: int,
         tile_selection_mode: Literal["any_overlap", "full_inside_bounds", "center_in_roi"] = "any_overlap",
     ):
+        """
+        Args:
+            tile_size: size of square patches to extract
+            stride: spacing between patch top-left corners of each of the patches
+            tile_selection_mode: how to select tiles with respect to ROIs.
+                - "any_overlap": accept tile if any pixel overlaps ROI.
+                - "full_inside_bounds": accept tile only if fully inside ROI bounds rectangle (exact for BoxROI).
+                - "center_in_roi": accept tile if its center is inside ROI.
+        """
         self.tile_size = tile_size
         self.stride = stride
         self.tile_selection_mode = tile_selection_mode
@@ -224,7 +233,7 @@ class RegionReadAndBatch(Stage):
         dtype: str = np.uint8,
     ):
         """
-        Parameters:
+        Args:
             batch_size: Maximum number of patches per output batch
             num_workers: number of parallel workers for reading WSI images using cuCIM
             wsi_edge_policy: how to handle tiles that extend beyond the WSI edge.
@@ -340,7 +349,7 @@ class PatchExtractor(Stage):
         max_window_size: Optional[int] = None,
     ):
         """
-        Parameters:
+        Args:
             tile_size: size of square patches to extract
             stride: spacing between patch top-left corners of each of the patches
             tile_selection_mode: how to select tiles with respect to ROIs.

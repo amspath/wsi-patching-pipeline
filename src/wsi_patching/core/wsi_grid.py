@@ -26,6 +26,17 @@ class WSIGrid(Stage):
         unit: Literal["level", "mpp", "downsample"],
         fallback_mode: Literal["nearest", "floor", "ceil", "error"] = "error",
     ):
+        """
+        Initializes the WSIGrid stage, the starting point of a WSI patching pipeline.
+
+        Args:
+            slides: List of file paths to whole slide images (WSIs).
+            use_gpu: Whether to use GPU-accelerated backends when possible (e.g., cuCIM, CuPy).
+            resolution: Desired resolution for patch extraction.
+            unit: Unit of the resolution ("level", "mpp", or "downsample").
+            fallback_mode: Strategy for selecting resolution if exact match is unavailable (default is "error").
+                Options are ("nearest", "floor", "ceil", "error").
+        """
         self.slides = list(slides)
         self.use_gpu = use_gpu
         self.resolution = resolution
