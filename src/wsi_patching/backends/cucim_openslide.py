@@ -1,5 +1,8 @@
 import logging
-from typing import Optional, Tuple, Union
+from typing import Literal, Optional, Tuple, Union
+
+import numpy as np
+from openslide import OpenSlide
 
 try:
     from cucim import CuImage
@@ -9,8 +12,6 @@ try:
 except ImportError:
     _cucim_available = False
 
-import numpy as np
-from openslide import OpenSlide
 
 logger = logging.getLogger(__name__)
 _raised_warning = False
@@ -33,18 +34,12 @@ def _open_slide(path: str, use_gpu: bool) -> Union["CuImage", "OpenSlide"]:
                     "Falling back to OpenSlide."
                 )
                 _raised_warning = True
+
     return OpenSlide(str(path))
 
 
-def get_dimensions_for_level(path: str, level: int, use_gpu: bool) -> Tuple[int, int]:
-    slide = _open_slide(path, use_gpu)
-    if _cucim_available and isinstance(slide, CuImageType):
-        W, H = slide.resolutions["level_dimensions"][level]
-    else:
-        W, H = slide.level_dimensions[level]
-
-    slide.close()
-    return int(W), int(H)
+def _open_slide_using_openslide(path: str) -> "OpenSlide":
+    return OpenSlide(str(path))
 
 
 def read_region(
@@ -63,3 +58,120 @@ def read_region(
 
     img.close()
     return np.asarray(region)
+
+
+def get_dimensions_for_level(path: str, level: int) -> Tuple[int, int]:
+    """
+    Returns:
+        W: int
+        H: int
+    """
+    slide = _open_slide_using_openslide(path)
+    try:
+        assert 0 <= level < slide.level_count, f"Level {level} exceeds maximum level {slide.level_count - 1}."
+        W, H = slide.level_dimensions[level]
+        return int(W), int(H)
+    finally:
+        slide.close()
+
+
+def get_level_for_resolution(
+    path: str,
+    resolution: float,
+    unit: Literal["level", "mpp", "downsample"],
+    fallback_mode: Literal["nearest", "floor", "ceil", "error"],
+) -> int:
+    """
+    Determine which pyramid level to use for a given resolution specification.
+
+    Args:
+        path: Path to the WSI.
+        resolution: Requested resolution value.
+            - If unit == "level": pyramid level index (0, 1, 2, ...)
+            - If unit == "mpp": microns per pixel.
+            - If unit == "downsample": Downsample factor relative to level 0.
+        unit: Resolution unit ("level", "mpp", or "downsample").
+        fallback_mode:
+            - "nearest": pick level whose value is closest to 'resolution'.
+            - "floor":   pick coarsest level with value >= 'resolution'
+                         (if none, use coarsest level).
+            - "ceil":    pick finest level with value <= 'resolution'
+                         (if none, use finest level, i.e. level 0).
+            - "error":   require (almost) exact match, otherwise raise ValueError.
+
+    Returns:
+        level_idx: int
+    """
+    slide = _open_slide_using_openslide(path)
+
+    try:
+        # --- Trivial case: unit == "level" ---------------------------------
+        if unit == "level":
+            if not float(resolution).is_integer():
+                raise ValueError("When unit is 'level', resolution must be an integer.")
+            level_idx = int(resolution)
+            if level_idx < 0:
+                raise ValueError("Level must be non-negative.")
+            if level_idx >= slide.level_count:
+                raise ValueError(f"Requested level {level_idx} exceeds maximum level {slide.level_count - 1}.")
+            return level_idx
+
+        # --- Compute per-level values for mpp / downsample --------------------
+        level_downsamples = list(slide.level_downsamples)  # e.g. [1.0, 2.0, 4.0, ...]
+        requested = float(resolution)
+
+        if unit == "mpp":
+            mpp0 = slide.properties.get("openslide.mpp-x")
+            if mpp0 is None:
+                raise ValueError("Slide does not expose 'openslide.mpp-x' mpp metadata.")
+            mpp0 = float(mpp0)
+            # Effective mpp per level
+            values = [mpp0 * float(ds) for ds in level_downsamples]
+
+        elif unit == "downsample":
+            # Downsample factor vs level 0
+            values = [float(ds) for ds in level_downsamples]
+
+        else:
+            raise ValueError(f"Unknown unit: {unit}")
+
+        # --- Helper: nearest index -----------------------------------------
+        def nearest_idx() -> int:
+            return min(range(len(values)), key=lambda i: abs(values[i] - requested))
+
+        # --- Select level according to fallback_mode ------------------------
+        if fallback_mode == "nearest":
+            level_idx = nearest_idx()
+
+        elif fallback_mode == "floor":
+            # coarsest level with value >= requested (larger value = coarser)
+            eligible = [i for i, v in enumerate(values) if v >= requested]
+            if eligible:
+                level_idx = min(eligible, key=lambda i: values[i])
+            else:
+                # if none >= requested, use coarsest (last) level
+                level_idx = len(values) - 1
+
+        elif fallback_mode == "ceil":
+            # finest level with value <= requested
+            eligible = [i for i, v in enumerate(values) if v <= requested]
+            if eligible:
+                level_idx = max(eligible, key=lambda i: values[i])
+            else:
+                # if none <= requested, use finest (level 0)
+                level_idx = 0
+
+        elif fallback_mode == "error":
+            tol = 1e-6
+            matches = [i for i, v in enumerate(values) if abs(v - requested) <= tol * max(1.0, abs(requested))]
+            if not matches:
+                raise ValueError(f"No exact {unit} match for requested {requested}; available values: {values}")
+            level_idx = matches[0]
+
+        else:
+            raise ValueError(f"Unknown fallback_mode: {fallback_mode}")
+
+        return level_idx
+
+    finally:
+        slide.close()

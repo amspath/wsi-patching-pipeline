@@ -11,12 +11,13 @@ class SlideStub:
     wsi_id: str
     wsi_path: str
     dims: Tuple[int, int]  # (W, H)
+    level: int
     meta: dict
 
 
 def test_attach_rois_combines_providers_and_defaults_with_warning(caplog):
-    slideA = SlideStub("A", "/a", (100, 100), {})
-    slideB = SlideStub("B", "/b", (50, 40), {})
+    slideA = SlideStub("A", "/a", (100, 100), 0, {})
+    slideB = SlideStub("B", "/b", (50, 40), 0, {})
 
     class StaticProv(ROIProvider):
         def for_slide(self, slide):

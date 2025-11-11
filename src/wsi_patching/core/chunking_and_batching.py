@@ -34,6 +34,15 @@ class TilePlanner(Stage):
         stride: int,
         tile_selection_mode: Literal["any_overlap", "full_inside_bounds", "center_in_roi"] = "any_overlap",
     ):
+        """
+        Args:
+            tile_size: size of square patches to extract
+            stride: spacing between patch top-left corners of each of the patches
+            tile_selection_mode: how to select tiles with respect to ROIs.
+                - "any_overlap": accept tile if any pixel overlaps ROI.
+                - "full_inside_bounds": accept tile only if fully inside ROI bounds rectangle (exact for BoxROI).
+                - "center_in_roi": accept tile if its center is inside ROI.
+        """
         self.tile_size = tile_size
         self.stride = stride
         self.tile_selection_mode = tile_selection_mode
@@ -79,6 +88,7 @@ class TilePlanner(Stage):
                         wsi_id=s.wsi_id,
                         wsi_path=s.wsi_path,
                         dims=s.dims,
+                        level=s.level,
                         roi_index=idx,
                         roi_bounds=(bx, by, bw, bh),
                         tiles=tiles,
@@ -194,6 +204,7 @@ class ReadWindowChunker(Stage):
                             wsi_id=plan.wsi_id,
                             wsi_path=plan.wsi_path,
                             wsi_dims=plan.dims,
+                            level=plan.level,
                             region=(x_region_start, y_region_start, region_width, region_height),
                             tiles=in_window,
                             meta=plan.meta,
@@ -222,7 +233,7 @@ class RegionReadAndBatch(Stage):
         dtype: str = np.uint8,
     ):
         """
-        Parameters:
+        Args:
             batch_size: Maximum number of patches per output batch
             num_workers: number of parallel workers for reading WSI images using cuCIM
             wsi_edge_policy: how to handle tiles that extend beyond the WSI edge.
@@ -244,7 +255,6 @@ class RegionReadAndBatch(Stage):
 
     def validate(self) -> None:
         self.ctx.require_key("tile_size")
-        self.ctx.require_key("level")
         self.ctx.require_key("use_gpu")
 
         if self.wsi_edge_policy not in {"drop", "pad_with_zeros", "pad_with_edge"}:
@@ -253,7 +263,6 @@ class RegionReadAndBatch(Stage):
     def __call__(self, it: Iterable[RegionTask]) -> Iterable[CollatedPatchBatch]:
         xp = get_xp_backend(self.ctx["use_gpu"])
         tile_size = int(self.ctx["tile_size"])
-        level = int(self.ctx["level"])
 
         for task in it:
             x0, y0, w, h = task.region
@@ -267,7 +276,7 @@ class RegionReadAndBatch(Stage):
                     h = min(h, task.wsi_dims[1])
 
             region_img = read_region(
-                task.wsi_path, x0, y0, w, h, level, use_gpu=self.ctx["use_gpu"], num_workers_cucim=self.num_workers
+                task.wsi_path, x0, y0, w, h, task.level, use_gpu=self.ctx["use_gpu"], num_workers_cucim=self.num_workers
             )
 
             coords: List[Tuple[int, int]] = []
@@ -340,7 +349,7 @@ class PatchExtractor(Stage):
         max_window_size: Optional[int] = None,
     ):
         """
-        Parameters:
+        Args:
             tile_size: size of square patches to extract
             stride: spacing between patch top-left corners of each of the patches
             tile_selection_mode: how to select tiles with respect to ROIs.

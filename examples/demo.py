@@ -40,7 +40,7 @@ def main(argv=None):
     rois_dict = {Path(s).stem: [(0, 0, 4000, 4000)] for s in slides}
 
     p = (
-        WSIGrid(slides=slides, level=0, use_gpu=True)
+        WSIGrid(slides=slides, resolution=0, unit="level", use_gpu=True)
         .then(AttachROIs(providers=[RectROIProvider(rois_dict)]))
         .then(PatchExtractor(tile_size=224, stride=224, max_batch_size=args.batch, num_workers=args.num_workers))
         .then(PNGEncoder())

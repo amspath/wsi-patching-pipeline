@@ -17,6 +17,7 @@ class SlideBase:
     wsi_id: str
     wsi_path: str
     dims: Tuple[int, int]
+    level: int
     meta: Dict[str, Any] = field(default_factory=dict)
 
 
@@ -35,6 +36,7 @@ class TilePlan:
     wsi_id: str
     wsi_path: str
     dims: Tuple[int, int]
+    level: int
     roi_index: int
     roi_bounds: Box
     tiles: List[Tuple[int, int]]
@@ -46,6 +48,7 @@ class RegionTask:
     wsi_id: str
     wsi_path: str
     wsi_dims: Tuple[int, int]
+    level: int
     region: Box
     tiles: List[Tuple[int, int]]
     meta: Dict[str, Any] = field(default_factory=dict)

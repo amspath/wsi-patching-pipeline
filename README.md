@@ -39,7 +39,7 @@ pip install -e .[gpu]
 `demo.py` shows you how to build a basic pipeline for creating a WebDataset (A materializing pipeline)
 ```python
 p = (
-    WSIGrid(slides=slides, level=0, use_gpu=True)
+    WSIGrid(slides=slides, resolution=0, unit="level", use_gpu=True)
     .then(AttachROIs(providers=[RectROIProvider(rois_dict)]))
     .then(PatchExtractor(tile_size=224, stride=224, max_batch_size=800))
     .then(CellVitTissueClassifierFilter())
@@ -52,7 +52,7 @@ p.materialize(cpu_processes=4)
 `numpy_mem_writer_demo.py` shows you how to build a basic pipeline for patching up a wsi in memory, without the need of writing to disk (RAM heavy for larger datasets, obviously).
 ```python
 p = (
-    WSIGrid(slides=slides, level=0, use_gpu=True)
+    WSIGrid(slides=slides, resolution=0, unit="level", use_gpu=True)
     .then(PatchExtractor(tile_size=256, stride=256, max_batch_size=800, num_workers=4))
     .then(LowContrastBackgroundFilter(range_threshold=0.2))
     .then(MacenkoNormalizer())
