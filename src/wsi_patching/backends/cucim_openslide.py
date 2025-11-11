@@ -49,7 +49,7 @@ def read_region(
     Return requested region at the given level.
     """
     img = _open_slide(path, use_gpu)
-    if isinstance(img, CuImageType):
+    if _cucim_available and isinstance(img, CuImageType):
         # Use cuCIM
         region = img.read_region(location=(x, y), size=(w, h), level=level, num_workers=num_workers_cucim)
     else:
