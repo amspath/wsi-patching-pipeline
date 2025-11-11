@@ -1,10 +1,10 @@
 [build-system]
-requires = ["hatchling>=1.25"]
+requires = ["hatchling>=1.25", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
 name = "wsi-patching"
-version = "0.2.0"
+dynamic = ["version"]
 description = "A High Performance Patching Library for Digital Pathology AI dataset creation."
 requires-python = ">=3.8,<3.14"
 authors = [{ name = "Robin van Hoorn", email = "r.d.vanhoorn@amsterdamumc.nl" }]
@@ -29,12 +29,26 @@ gpu = [
 ]
 dev = ["ruff", "pytest"]
 
+# --- Hatch VCS versioning (default-ish behavior) ---
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.version.vcs]
+# Strip the leading "v" from tags like "v0.2.0"
+tag-pattern = "v(?P<base>.*)"
+# Use the standard dev scheme: 0.2.0 on tag, 0.2.0.devN+gHASH ahead of tag
+version-scheme = "guess-next-dev"
+local-scheme = "node-and-date"
+# (version-scheme/local-scheme here mirror the usual setuptools-scm defaults)
+
+# --- Build config ---
 [tool.hatch.build.targets.wheel]
 packages = ["src/wsi_patching"]
 
 [tool.hatch.build]
 exclude = ["/data", "/output", ".vscode", ".git", "__pycache__"]
 
+# --- Ruff ---
 [tool.ruff]
 line-length = 120
 select = ["E", "F", "I"]
@@ -48,6 +62,7 @@ docstring-code-format = false
 [tool.ruff.lint]
 ignore = ["E731"]
 
+# --- Pytest ---
 [tool.pytest.ini_options]
 testpaths = ["tests/unit"]
 addopts = [
