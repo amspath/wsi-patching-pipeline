@@ -129,8 +129,8 @@ def test_readwindowchunker_validate_defaults_and_guards(caplog):
     r.attach_context(PipelineContext({"tile_size": 32, "stride": 16}))
     caplog.set_level("INFO")
     r.validate()
-    # default set to 20 * tile_size
-    assert r.max_window_size == 640
+    # default set to 20 * stride
+    assert r.max_window_size == 320
     assert "Defaulting max_window_size" in caplog.text
 
     # now test guard for non-multiple

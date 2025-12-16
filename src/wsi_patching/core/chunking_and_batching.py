@@ -162,12 +162,12 @@ class ReadWindowChunker(Stage):
         self.ctx.require_key("stride")
 
         if self.max_window_size is None:
-            self.max_window_size = 20 * int(self.ctx["tile_size"])
-            self.log.info(f"Defaulting max_window_size to 20*tile_size={self.max_window_size}")
+            self.max_window_size = 20 * int(self.ctx["stride"])
+            self.log.info(f"Defaulting max_window_size to 20*stride={self.max_window_size}")
 
-        if self.max_window_size % self.ctx["tile_size"] != 0:
+        if self.max_window_size % self.ctx["stride"] != 0:
             raise ValueError(
-                "ReadWindowChunker: max_window_size must be a multiple of tile_size to avoid unnecessary padding"
+                "ReadWindowChunker: max_window_size must be a multiple of stride to avoid unnecessary padding"
             )
 
         if self.max_window_size > 10000:
@@ -177,6 +177,10 @@ class ReadWindowChunker(Stage):
             )
 
     def __call__(self, it: Iterable[TilePlan]) -> Iterable[RegionTask]:
+        tile_size = int(self.ctx["tile_size"])
+        stride = int(self.ctx["stride"])
+        overlap = max(0, tile_size - stride)  # e.g. 64 when tile_size=1022, stride=958
+
         for plan in it:
             bx, by, bw, bh = plan.roi_bounds
             W, H = plan.dims
@@ -186,15 +190,25 @@ class ReadWindowChunker(Stage):
 
             x_roi_end, y_roi_end = min(bx + bw, W), min(by + bh, H)
 
+            # We iterate base (non-overlapping) assignment windows of size max_window_size,
+            # but we READ a region that is expanded by `overlap` to the right/bottom
+            # to ensure any overlapping tiles near the boundary can be sliced without padding.
             for y_region_start in range(by, y_roi_end, self.max_window_size):
                 for x_region_start in range(bx, x_roi_end, self.max_window_size):
                     in_window: List[Tuple[int, int]] = []
 
-                    region_width, region_height = (
-                        min(self.max_window_size, x_roi_end - x_region_start),
-                        min(self.max_window_size, y_roi_end - y_region_start),
-                    )
-                    x_region_end, y_region_end = x_region_start + region_width, y_region_start + region_height
+                    # Base window size (defines which tiles belong to this chunk)
+                    base_w = min(self.max_window_size, x_roi_end - x_region_start)
+                    base_h = min(self.max_window_size, y_roi_end - y_region_start)
+                    x_region_end = x_region_start + base_w
+                    y_region_end = y_region_start + base_h
+
+                    # Read window size (expanded to include overlap, clamped to ROI end)
+                    read_w = min(base_w + overlap, x_roi_end - x_region_start)
+                    read_h = min(base_h + overlap, y_roi_end - y_region_start)
+
+                    # Assign tiles by their top-left being inside the BASE window.
+                    # The READ window is larger so tiles near the boundary still have full pixel support.
                     for tx, ty in plan.tiles:
                         if (x_region_start <= tx < x_region_end) and (y_region_start <= ty < y_region_end):
                             in_window.append((tx, ty))
@@ -205,7 +219,7 @@ class ReadWindowChunker(Stage):
                             wsi_path=plan.wsi_path,
                             wsi_dims=plan.dims,
                             level=plan.level,
-                            region=(x_region_start, y_region_start, region_width, region_height),
+                            region=(x_region_start, y_region_start, read_w, read_h),
                             tiles=in_window,
                             meta=plan.meta,
                         )
