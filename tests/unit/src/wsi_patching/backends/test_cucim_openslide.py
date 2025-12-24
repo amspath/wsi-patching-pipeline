@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-import wsi_patching.backends.cucim_openslide as mod
+import wsi_patching.backends.cucim_openslide_isyntax as mod
 
 
 class FakeCuImage:
@@ -79,11 +79,11 @@ def test_validate_slide_backend_raises_when_gpu_requested_but_cucim_missing(monk
 
 def test_get_dimensions_for_level(monkeypatch):
     # Force get_dimensions_for_level to use our fake OpenSlide
-    def _ctor(path):
+    def _ctor(path, use_gpu=False):
         assert path == "dummy.svs"
         return FakeOpenSlide(path)
 
-    monkeypatch.setattr(mod, "_open_slide_using_openslide", _ctor, raising=True)
+    monkeypatch.setattr(mod, "_open_slide", _ctor, raising=True)
 
     W, H = mod.get_dimensions_for_level("dummy.svs", level=1)
     assert (W, H) == (120, 80)  # from FakeOpenSlide.level_dimensions[1]
@@ -91,10 +91,10 @@ def test_get_dimensions_for_level(monkeypatch):
 
 
 def test_get_dimensions_for_level_invalid_level_raises(monkeypatch):
-    def _ctor(path):
+    def _ctor(path, use_gpu=False):
         return FakeOpenSlide(path)
 
-    monkeypatch.setattr(mod, "_open_slide_using_openslide", _ctor, raising=True)
+    monkeypatch.setattr(mod, "_open_slide", _ctor, raising=True)
 
     # level too high
     with pytest.raises(AssertionError):
@@ -102,10 +102,10 @@ def test_get_dimensions_for_level_invalid_level_raises(monkeypatch):
 
 
 def test_get_level_for_resolution_unit_level(monkeypatch):
-    def _ctor(path):
+    def _ctor(path, use_gpu=False):
         return FakeOpenSlide(path)
 
-    monkeypatch.setattr(mod, "_open_slide_using_openslide", _ctor, raising=True)
+    monkeypatch.setattr(mod, "_open_slide", _ctor, raising=True)
 
     # valid integer level
     assert mod.get_level_for_resolution(path="dummy.svs", resolution=1, unit="level", fallback_mode="nearest") == 1
@@ -123,10 +123,10 @@ def test_get_level_for_resolution_unit_level(monkeypatch):
 
 
 def test_get_level_for_resolution_downsample_fallback_modes(monkeypatch):
-    def _ctor(path):
+    def _ctor(path, use_gpu=False):
         return FakeOpenSlide(path)
 
-    monkeypatch.setattr(mod, "_open_slide_using_openslide", _ctor, raising=True)
+    monkeypatch.setattr(mod, "_open_slide", _ctor, raising=True)
 
     # level_downsamples = [1.0, 2.0, 4.0]
 
@@ -157,20 +157,20 @@ def test_get_level_for_resolution_downsample_fallback_modes(monkeypatch):
 
 
 def test_get_level_for_resolution_mpp_requires_metadata(monkeypatch):
-    def _ctor(path):
+    def _ctor(path, use_gpu=False):
         return FakeOpenSlideNoMPP(path)
 
-    monkeypatch.setattr(mod, "_open_slide_using_openslide", _ctor, raising=True)
+    monkeypatch.setattr(mod, "_open_slide", _ctor, raising=True)
 
     with pytest.raises(ValueError):
         mod.get_level_for_resolution(path="dummy.svs", resolution=0.5, unit="mpp", fallback_mode="nearest")
 
 
 def test_get_level_for_resolution_mpp_nearest(monkeypatch):
-    def _ctor(path):
+    def _ctor(path, use_gpu=False):
         return FakeOpenSlide(path)
 
-    monkeypatch.setattr(mod, "_open_slide_using_openslide", _ctor, raising=True)
+    monkeypatch.setattr(mod, "_open_slide", _ctor, raising=True)
 
     # FakeOpenSlide: mpp0 = 0.5, level_downsamples [1.0, 2.0, 4.0]
     # values = [0.5, 1.0, 2.0]
@@ -197,7 +197,7 @@ def test_read_region_gpu_returns_numpy_and_passes_num_workers(monkeypatch):
     fake = FakeCuImage("gpu.tif")
 
     # Replace CuImage constructor to return our single instance (so we can inspect .calls)
-    def _ctor(path):
+    def _ctor(path, use_gpu=False):
         assert path == "gpu.tif"
         return fake
 

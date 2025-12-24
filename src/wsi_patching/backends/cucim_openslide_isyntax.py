@@ -2,6 +2,7 @@ import logging
 from typing import Literal, Optional, Tuple, Union
 
 import numpy as np
+from isyntax import ISyntax
 from openslide import OpenSlide
 
 try:
@@ -14,7 +15,6 @@ except ImportError:
 
 
 logger = logging.getLogger(__name__)
-_raised_warning = False
 
 
 def validate_slide_backend(use_gpu: bool) -> None:
@@ -23,22 +23,11 @@ def validate_slide_backend(use_gpu: bool) -> None:
 
 
 def _open_slide(path: str, use_gpu: bool) -> Union["CuImage", "OpenSlide"]:
-    if _cucim_available and use_gpu:
-        if path.lower().endswith((".tiff", ".tif", ".svs")):
-            return CuImage(str(path))
-        else:
-            global _raised_warning
-            if not _raised_warning:
-                logger.warning(
-                    f"cuCIM only supports tiff and svs, and does not support the file format '{path.split('.')[-1]}'. "
-                    "Falling back to OpenSlide."
-                )
-                _raised_warning = True
+    if _cucim_available and use_gpu and path.lower().endswith((".tiff", ".tif", ".svs")):
+        return CuImage(str(path))
+    if path.lower().endswith(".isyntax"):
+        return ISyntax.open(str(path))
 
-    return OpenSlide(str(path))
-
-
-def _open_slide_using_openslide(path: str) -> "OpenSlide":
     return OpenSlide(str(path))
 
 
@@ -52,6 +41,9 @@ def read_region(
     if _cucim_available and isinstance(img, CuImageType):
         # Use cuCIM
         region = img.read_region(location=(x, y), size=(w, h), level=level, num_workers=num_workers_cucim)
+    elif isinstance(img, ISyntax):
+        # Use ISyntax
+        region = img.read_region(x, y, w, h, level)
     else:
         # Use OpenSlide
         region = img.read_region((x, y), level, (w, h)).convert("RGB")
@@ -66,7 +58,7 @@ def get_dimensions_for_level(path: str, level: int) -> Tuple[int, int]:
         W: int
         H: int
     """
-    slide = _open_slide_using_openslide(path)
+    slide = _open_slide(path, use_gpu=False)
     try:
         assert 0 <= level < slide.level_count, f"Level {level} exceeds maximum level {slide.level_count - 1}."
         W, H = slide.level_dimensions[level]
@@ -102,7 +94,7 @@ def get_level_for_resolution(
     Returns:
         level_idx: int
     """
-    slide = _open_slide_using_openslide(path)
+    slide = _open_slide(path, use_gpu=False)
 
     try:
         # --- Trivial case: unit == "level" ---------------------------------
@@ -121,9 +113,12 @@ def get_level_for_resolution(
         requested = float(resolution)
 
         if unit == "mpp":
-            mpp0 = slide.properties.get("openslide.mpp-x")
-            if mpp0 is None:
-                raise ValueError("Slide does not expose 'openslide.mpp-x' mpp metadata.")
+            if isinstance(slide, ISyntax):
+                mpp0 = slide.mpp_x
+            else:
+                mpp0 = slide.properties.get("openslide.mpp-x")
+                if mpp0 is None:
+                    raise ValueError("Slide does not expose 'openslide.mpp-x' mpp metadata.")
             mpp0 = float(mpp0)
             # Effective mpp per level
             values = [mpp0 * float(ds) for ds in level_downsamples]

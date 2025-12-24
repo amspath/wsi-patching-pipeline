@@ -40,6 +40,8 @@ def visualize_selected_patches(
     Returns:
         PIL Image object of the composite visualization.
     """
+    assert "isyntax" not in str(wsi_path).lower(), "`visualize_selected_patches` does not support iSyntax slides."
+
     if stride is None:
         stride = patch_size
     if stride <= 0 or patch_size <= 0:
