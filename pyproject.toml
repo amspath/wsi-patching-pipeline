@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "wsi-patching"
 dynamic = ["version"]
 description = "A High Performance Patching Library for Digital Pathology AI dataset creation."
-requires-python = ">=3.8,<3.14"
+requires-python = ">=3.10,<3.14"
 authors = [{ name = "Robin van Hoorn", email = "r.d.vanhoorn@amsterdamumc.nl" }]
 dependencies = [
     "numpy",

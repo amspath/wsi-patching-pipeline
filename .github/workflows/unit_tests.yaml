@@ -35,6 +35,20 @@ jobs:
               - conda-forge
             channel_priority: strict
 
+      - name: Free disk space
+        run: |
+          echo "Before cleanup:"
+          df -h
+
+          # These are the big hogs on GH runners; removing them gives you ~10–20G
+          sudo rm -rf /usr/local/lib/android || true
+          sudo rm -rf /opt/ghc || true
+          sudo rm -rf /usr/share/dotnet || true
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY" || true
+
+          echo "After cleanup:"
+          df -h
+
       - name: Show Python
         shell: bash -l {0}
         run: |
