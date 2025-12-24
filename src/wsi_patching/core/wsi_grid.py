@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Any, Iterable, List, Literal
 
-from wsi_patching.backends.cucim_openslide import (
+from wsi_patching.backends.cucim_openslide_isyntax import (
     get_dimensions_for_level,
     get_level_for_resolution,
     validate_slide_backend,

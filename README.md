@@ -13,7 +13,7 @@ A pragmatic pipeline for streaming whole-slide image (WSI) patches with region p
 
 ## 1) Library install
 
-Python ≥3.8 <3.14 is recommended. 3.14 is yet unsupported.
+Python ≥3.10 <3.14 is recommended. 3.14 is yet unsupported.
 ```
 # CPU install (not all functionality is supported for cpu only)
 pip install "wsi-patching @ git+https://github.com/amspath/wsi-patching-pipeline.git"
@@ -27,7 +27,7 @@ pip install "wsi-patching[gpu] @ git+https://github.com/amspath/wsi-patching-pip
 
 ## 2) Dev install
 
-Python ≥3.8 is recommended.
+Python ≥3.10 is recommended.
 ```
 git clone https://github.com/amspath/wsi-patching-pipeline.git
 cd wsi-patching-pipeline
