@@ -43,7 +43,7 @@ def read_region(
         region = img.read_region(location=(x, y), size=(w, h), level=level, num_workers=num_workers_cucim)
     elif isinstance(img, ISyntax):
         # Use ISyntax
-        region = img.read_region(x, y, w, h, level)
+        region = img.read_region(x, y, w, h, level)[:, :, :3]  # discard alpha channel
     else:
         # Use OpenSlide
         region = img.read_region((x, y), level, (w, h)).convert("RGB")

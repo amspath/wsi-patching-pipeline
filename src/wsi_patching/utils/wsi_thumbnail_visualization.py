@@ -2,19 +2,24 @@ from pathlib import Path
 from typing import Iterable, Mapping, Optional, Sequence, Tuple, Union
 
 import numpy as np
-import openslide
 from PIL import Image, ImageDraw
+
+from wsi_patching.backends.cucim_openslide_isyntax import (
+    get_dimensions_for_level,
+    get_level_for_resolution,
+    read_region,
+)
 
 CoordLike = Union[Tuple[int, int], Sequence[int], np.ndarray]
 
 
 def visualize_selected_patches(
-    wsi_path: Union[str, Path],
+    wsi_path: str,
     coords: Iterable[CoordLike],
     patch_size: int,
     *,
     stride: Optional[int] = None,
-    patch_images: np.ndarray = None,
+    patch_images: Optional[Union[np.ndarray, Mapping[CoordLike, np.ndarray]]] = None,
     thumb_long_side: int = 2000,
     selected_outline_rgba: Tuple[int, int, int, int] = (0, 220, 0, 100),
     save_path: Union[str, Path, None] = None,
@@ -34,20 +39,15 @@ def visualize_selected_patches(
         stride: grid stride at base resolution (defaults to patch_size).
         patch_images:
             numpy array of patch images in order of `coords`
-        show_unselected: draw dark-gray fill for unselected tiles in bounding region.
         save_path: if provided, save the output PNG to this path.
 
     Returns:
         PIL Image object of the composite visualization.
     """
-    assert "isyntax" not in str(wsi_path).lower(), "`visualize_selected_patches` does not support iSyntax slides."
-
     if stride is None:
         stride = patch_size
     if stride <= 0 or patch_size <= 0:
         raise ValueError("`stride` and `patch_size` must be positive integers.")
-
-    wsi_path = Path(wsi_path)
 
     # Normalize coords
     coords_arr: list[tuple[int, int]] = []
@@ -75,13 +75,12 @@ def visualize_selected_patches(
                 coord_to_patch[xy] = np.asarray(img)
 
     # Open slide and make thumbnail
-    slide = openslide.OpenSlide(str(wsi_path))
-    W0, H0 = slide.level_dimensions[0]
+    W0, H0 = get_dimensions_for_level(wsi_path, level=0)
     scale = float(thumb_long_side) / max(W0, H0)
     tw = max(1, int(round(W0 * scale)))
     th = max(1, int(round(H0 * scale)))
-    base_thumb = slide.get_thumbnail((tw, th)).convert("RGB")
-    slide.close()
+    base_thumb = get_thumbnail(wsi_path, (tw, th), (W0, H0)).convert("RGB")
+    tw, th = base_thumb.size
 
     # Overlay layers
     # - gray grid + green outlines are drawn on 'overlay' (RGBA)
@@ -125,6 +124,8 @@ def visualize_selected_patches(
             if x + patch_size > W0 or y + patch_size > H0:
                 continue  # skip out-of-bounds just in case
 
+            if np_patch.ndim == 3 and np_patch.shape[0] in (3, 4):
+                np_patch = np.transpose(np_patch, (1, 2, 0))
             patch_img = _to_pil_rgb(np_patch)
 
             # resize patch to thumbnail scale
@@ -148,48 +149,64 @@ def visualize_selected_patches(
 
     # composite: base + patch bitmaps + overlay (gray + outlines)
     composite = Image.alpha_composite(composite, overlay)
-    composite.convert("RGB")
 
     if save_path is None:
-        return composite
+        return composite.convert("RGB")  # or return RGBA if you want transparency
 
     save_path = Path(save_path)
     composite.convert("RGB").save(save_path, format="PNG")
-    return composite
+    return composite.convert("RGB")
+
+
+def get_thumbnail(path, max_thumbnail_size: tuple[int, int], slide_dimensions: tuple[int, int]) -> Image.Image:
+    downsample = max(dim / thumb for dim, thumb in zip(slide_dimensions, max_thumbnail_size))
+    level = get_level_for_resolution(path, resolution=downsample, unit="downsample", fallback_mode="nearest")
+
+    tile: np.ndarray = read_region(path, 0, 0, *get_dimensions_for_level(path, level), level, use_gpu=False)
+
+    im = Image.fromarray(tile)
+
+    # If RGBA, composite onto white so thumbnail is RGB
+    if im.mode == "RGBA":
+        bg = Image.new("RGBA", im.size, (255, 255, 255, 255))
+        im = Image.alpha_composite(bg, im).convert("RGB")
+    else:
+        im = im.convert("RGB")
+
+    # Pillow resampling constant handling
+    Resampling = getattr(Image, "Resampling", Image)
+    im.thumbnail(max_thumbnail_size, Resampling.LANCZOS)
+    return im
 
 
 def _to_pil_rgb(img: np.ndarray) -> Image.Image:
-    """
-    Convert a numpy patch to a PIL RGB image.
-    Accepts:
-      - HWC (uint8 or float)
-      - CHW (uint8 or float)
-      - Grayscale (H, W) or (H, W, 1) or (1, H, W)
-    Float images are scaled to [0, 255] via min-max per patch (robust to negative/>1 values).
-    """
     a = np.asarray(img)
 
-    # Move channel last if CHW
-    if a.ndim == 3 and a.shape[0] in (1, 3) and a.shape[2] not in (1, 3):
-        a = np.transpose(a, (1, 2, 0))  # CHW -> HWC
+    # Handle CHW -> HWC
+    if a.ndim == 3 and a.shape[0] in (1, 3, 4) and a.shape[1] > 4 and a.shape[2] > 4:
+        a = np.transpose(a, (1, 2, 0))
 
-    # Squeeze singleton channel
+    # Squeeze singleton channel-last (H,W,1)
     if a.ndim == 3 and a.shape[2] == 1:
-        a = a[:, :, 0]
+        a = a[..., 0]
 
-    # Convert grayscale to RGB
+    # Grayscale -> RGB
     if a.ndim == 2:
         a = np.stack([a, a, a], axis=-1)
-    elif a.ndim == 3 and a.shape[2] == 3:
-        pass
-    else:
-        # Unknown shape, try to coerce
-        a = np.squeeze(a)
-        if a.ndim == 2:
-            a = np.stack([a, a, a], axis=-1)
-        elif a.ndim == 3 and a.shape[2] == 3:
-            pass
-        else:
-            raise ValueError(f"Unsupported patch array shape after processing: {a.shape}")
 
-    return Image.fromarray(a)
+    if a.ndim != 3 or a.shape[2] not in (3, 4):
+        raise ValueError(f"Unsupported patch array shape after processing: {a.shape}")
+
+    # Convert dtype/range to uint8 before PIL
+    if a.dtype != np.uint8:
+        a = a.astype(np.float32)
+        # common case: floats in [0,1]
+        if a.max() <= 1.0:
+            a *= 255.0
+        a = np.clip(a, 0, 255).astype(np.uint8)
+
+    # If RGBA, drop alpha (or composite). Dropping is simplest:
+    if a.shape[2] == 4:
+        a = a[..., :3]
+
+    return Image.fromarray(a, mode="RGB")
