@@ -36,6 +36,7 @@ class RectROIfromXMLProvider(ROIProvider):
         xml_file = self.rois[slide.wsi_id]
         tree = ET.parse(xml_file)
         root = tree.getroot()
+        W, H = slide.dims
 
         for ann in root.findall(".//Annotation[@PartOfGroup='roi']"):
             if ann.get("Type") != "Rectangle":
@@ -50,6 +51,10 @@ class RectROIfromXMLProvider(ROIProvider):
 
             x_min, y_min = min(xs), min(ys)
             x_max, y_max = max(xs), max(ys)
+            if x_min < 0 or y_min < 0 or x_max > W or y_max > H:
+                raise ValueError(
+                    f"ROI {(x_min, y_min, x_max - x_min, y_max - y_min)} for slide {slide.wsi_id} lies outside {(W, H)}"
+                )
             out.append(BoxROI(int(x_min), int(y_min), int(x_max - x_min), int(y_max - y_min)))
 
         return out
