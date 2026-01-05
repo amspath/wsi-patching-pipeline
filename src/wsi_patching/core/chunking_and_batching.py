@@ -162,8 +162,8 @@ class ReadWindowChunker(Stage):
         self.ctx.require_key("stride")
 
         if self.max_window_size is None:
-            self.max_window_size = 20 * int(self.ctx["stride"])
-            self.log.info(f"Defaulting max_window_size to 20*stride={self.max_window_size}")
+            self.max_window_size = (5000 // self.ctx["stride"]) * self.ctx["stride"]
+            self.log.info(f"Defaulting max_window_size to (5000//stride)*stride={self.max_window_size}")
 
         if self.max_window_size % self.ctx["stride"] != 0:
             raise ValueError(
