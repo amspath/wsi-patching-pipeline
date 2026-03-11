@@ -150,3 +150,139 @@ def test_xml_provider_out_of_bounds_after_scaling(tmp_path):
     with patch(_backend, return_value=[1.0, 2.0]):
         with pytest.raises(ValueError):
             prov.for_slide(slide)
+
+
+def _write_polygon_bbox_xml(tmp_path, group: str, x1: float, y1: float, x2: float, y2: float, filename: str = "ann.xml") -> str:
+    """Write a minimal XML with one Polygon annotation that forms a 4-point axis-aligned bounding box."""
+    xml = textwrap.dedent(f"""\
+        <Annotations>
+          <Annotation PartOfGroup="{group}" Type="Polygon">
+            <Coordinates>
+              <Coordinate X="{x1}" Y="{y1}" />
+              <Coordinate X="{x2}" Y="{y1}" />
+              <Coordinate X="{x2}" Y="{y2}" />
+              <Coordinate X="{x1}" Y="{y2}" />
+            </Coordinates>
+          </Annotation>
+        </Annotations>
+    """)
+    p = tmp_path / filename
+    p.write_text(xml)
+    return str(p)
+
+
+def test_xml_provider_polygon_valid_bbox(tmp_path):
+    """4-point Polygon annotation that is a valid axis-aligned bounding box is accepted."""
+    xml = _write_polygon_bbox_xml(tmp_path, "roi", 10, 20, 60, 70)
+    slide = SlideStub("S", "/p", (200, 200), {}, level=0)
+    prov = RectROIfromXMLProvider(rois={"S": xml})
+    rois = prov.for_slide(slide)
+    assert len(rois) == 1
+    assert rois[0].bounds() == (10, 20, 50, 50)
+
+
+def test_xml_provider_polygon_too_many_points(tmp_path):
+    """Polygon with more than 4 points raises ValueError."""
+    xml = textwrap.dedent("""\
+        <Annotations>
+          <Annotation PartOfGroup="roi" Type="Polygon">
+            <Coordinates>
+              <Coordinate X="0" Y="0" />
+              <Coordinate X="10" Y="0" />
+              <Coordinate X="15" Y="5" />
+              <Coordinate X="10" Y="10" />
+              <Coordinate X="0" Y="10" />
+            </Coordinates>
+          </Annotation>
+        </Annotations>
+    """)
+    p = tmp_path / "ann.xml"
+    p.write_text(xml)
+    slide = SlideStub("S", "/p", (200, 200), {}, level=0)
+    prov = RectROIfromXMLProvider(rois={"S": str(p)})
+    with pytest.raises(ValueError, match="5 point"):
+        prov.for_slide(slide)
+
+
+def test_xml_provider_polygon_not_axis_aligned(tmp_path):
+    """4-point Polygon that is not axis-aligned (not a bounding box) raises ValueError."""
+    xml = textwrap.dedent("""\
+        <Annotations>
+          <Annotation PartOfGroup="roi" Type="Polygon">
+            <Coordinates>
+              <Coordinate X="0" Y="5" />
+              <Coordinate X="5" Y="0" />
+              <Coordinate X="10" Y="5" />
+              <Coordinate X="5" Y="10" />
+            </Coordinates>
+          </Annotation>
+        </Annotations>
+    """)
+    p = tmp_path / "ann.xml"
+    p.write_text(xml)
+    slide = SlideStub("S", "/p", (200, 200), {}, level=0)
+    prov = RectROIfromXMLProvider(rois={"S": str(p)})
+    with pytest.raises(ValueError, match="axis-aligned"):
+        prov.for_slide(slide)
+
+
+def test_xml_provider_polygon_mixed_with_rectangle(tmp_path):
+    """Both Rectangle and Polygon annotations in the same file are processed."""
+    xml = textwrap.dedent("""\
+        <Annotations>
+          <Annotation PartOfGroup="roi" Type="Rectangle">
+            <Coordinates>
+              <Coordinate X="0" Y="0" />
+              <Coordinate X="10" Y="0" />
+              <Coordinate X="10" Y="10" />
+              <Coordinate X="0" Y="10" />
+            </Coordinates>
+          </Annotation>
+          <Annotation PartOfGroup="roi" Type="Polygon">
+            <Coordinates>
+              <Coordinate X="20" Y="20" />
+              <Coordinate X="40" Y="20" />
+              <Coordinate X="40" Y="50" />
+              <Coordinate X="20" Y="50" />
+            </Coordinates>
+          </Annotation>
+        </Annotations>
+    """)
+    p = tmp_path / "ann.xml"
+    p.write_text(xml)
+    slide = SlideStub("S", "/p", (200, 200), {}, level=0)
+    prov = RectROIfromXMLProvider(rois={"S": str(p)})
+    rois = prov.for_slide(slide)
+    assert len(rois) == 2
+    assert rois[0].bounds() == (0, 0, 10, 10)
+    assert rois[1].bounds() == (20, 20, 20, 30)
+
+
+def test_xml_provider_polygon_other_type_skipped(tmp_path):
+    """Annotation types other than Rectangle and Polygon are silently skipped."""
+    xml = textwrap.dedent("""\
+        <Annotations>
+          <Annotation PartOfGroup="roi" Type="Spline">
+            <Coordinates>
+              <Coordinate X="0" Y="0" />
+              <Coordinate X="10" Y="5" />
+              <Coordinate X="20" Y="0" />
+            </Coordinates>
+          </Annotation>
+          <Annotation PartOfGroup="roi" Type="Rectangle">
+            <Coordinates>
+              <Coordinate X="5" Y="5" />
+              <Coordinate X="15" Y="5" />
+              <Coordinate X="15" Y="15" />
+              <Coordinate X="5" Y="15" />
+            </Coordinates>
+          </Annotation>
+        </Annotations>
+    """)
+    p = tmp_path / "ann.xml"
+    p.write_text(xml)
+    slide = SlideStub("S", "/p", (200, 200), {}, level=0)
+    prov = RectROIfromXMLProvider(rois={"S": str(p)})
+    rois = prov.for_slide(slide)
+    assert len(rois) == 1
+    assert rois[0].bounds() == (5, 5, 10, 10)
