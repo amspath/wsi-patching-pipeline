@@ -89,6 +89,7 @@ class Pipeline(Stage):
     prof_agg: Optional["PipelineProfileAggregator"] = None
     _context: PipelineContext = field(default_factory=PipelineContext)
     _runtime_type_asserts: bool = True
+    failed_slides: List[str] = field(default_factory=list)
 
     def __init__(
         self,
@@ -101,6 +102,7 @@ class Pipeline(Stage):
         self.writer = writer
         self.prof_agg = prof_agg
         self._context = context or PipelineContext()
+        self.failed_slides = []
         self._preflight_types()
 
     @property
@@ -226,6 +228,7 @@ class Pipeline(Stage):
                     sup_thread.join(timeout=5.0)
                     if fail_box:
                         raise RuntimeError(fail_box[0])
+                    self.failed_slides = list(failed_slides)
                     if failed_slides:
                         self.log.warning(
                             f"Streaming completed with errors on slides (skipped): {', '.join(failed_slides)}"
@@ -271,6 +274,7 @@ class Pipeline(Stage):
                     raise sink_exc_box[0]
                 if fail_box:
                     raise RuntimeError(fail_box[0])
+                self.failed_slides = list(failed_slides)
                 if failed_slides:
                     self.log.warning(
                         "Materialization completed with errors on slides (skipped): %s.", ", ".join(failed_slides)
