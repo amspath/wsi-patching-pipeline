@@ -112,3 +112,15 @@ def test_get_and_print_profile_without_aggregator(capsys):
     p.print_profile()
     out = capsys.readouterr().out
     assert "[profile] No profile data (did you run with profile=True?)" in out
+
+
+def test_failed_slides_initial_empty():
+    """failed_slides should start as an empty list on a new Pipeline."""
+    p = Pipeline([SourceStage([1])])
+    assert p.failed_slides == []
+
+
+def test_failed_slides_attribute_is_list():
+    """failed_slides should be a list."""
+    p = Pipeline([SourceStage([1])])
+    assert isinstance(p.failed_slides, list)
