@@ -367,6 +367,49 @@ def test_region_read_and_batch_roi_edge_policy_read_from_image_expands_region():
 
 
 @patch("wsi_patching.core.chunking_and_batching.get_xp_backend", new=lambda use_gpu: np)
+def test_region_read_and_batch_roi_edge_policy_read_from_image_clamps_to_wsi_edge_with_offset():
+    """
+    When roi_edge_policy='read_from_image' and the region starts at a non-zero
+    x0/y0 offset, the expansion clamping must use (wsi_dims - x0/y0) as the
+    maximum, not the full wsi_dims.
+
+    Example: WSI 40x40, region starts at x0=28, y0=28 with w=10, h=10,
+    tile_size=16.  Naively expanding gives w=16, h=16, but x0+16=44 > 40,
+    so the clamp must cap at wsi_dims[0]-x0 = 12 (and same for h).
+    """
+    recorded = {}
+
+    def _fake_read_region(path, x, y, w, h, level, use_gpu, num_workers_cucim):
+        recorded["size"] = (w, h)
+        return np.zeros((h, w, 3), dtype=np.uint8)
+
+    with patch("wsi_patching.core.chunking_and_batching.read_region", new=_fake_read_region):
+        tasks = [
+            RegionTask(
+                wsi_id="S",
+                wsi_path="/s",
+                wsi_dims=(40, 40),
+                level=0,
+                region=(28, 28, 10, 10),
+                tiles=[(28, 28)],
+                meta={},
+            )
+        ]
+        r = RegionReadAndBatch(
+            batch_size=10, num_workers=1, dtype=np.uint8, roi_edge_policy="read_from_image", wsi_edge_policy="drop"
+        )
+        r.attach_context(PipelineContext({"tile_size": 16, "level": 0, "use_gpu": False}))
+        r.validate()
+
+        list(r(iter(tasks)))
+        # Expansion would produce 16x16, but x0+16=44 > 40, so w must be clamped to 40-28=12.
+        assert recorded["size"] == (12, 12), (
+            f"Expected clamped size (12, 12) but got {recorded['size']}. "
+            "Expansion must be clamped to wsi_dims - x0/y0, not wsi_dims."
+        )
+
+
+@patch("wsi_patching.core.chunking_and_batching.get_xp_backend", new=lambda use_gpu: np)
 def test_region_read_and_batch_scales_coords_to_level0():
     """
     RegionReadAndBatch must convert level-N coordinates to level-0 before calling read_region.

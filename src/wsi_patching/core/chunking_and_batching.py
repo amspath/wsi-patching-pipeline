@@ -286,10 +286,10 @@ class RegionReadAndBatch(Stage):
             if self.roi_edge_policy == "read_from_image":
                 if w % tile_size != 0:
                     w += tile_size - (w % tile_size)
-                    w = min(w, task.wsi_dims[0])
+                    w = min(w, task.wsi_dims[0] - x0)
                 if h % tile_size != 0:
                     h += tile_size - (h % tile_size)
-                    h = min(h, task.wsi_dims[1])
+                    h = min(h, task.wsi_dims[1] - y0)
 
             # Convert level-N coordinates to level-0 for the read_region() call, which all
             # backends (OpenSlide, cuCIM, iSyntax) expect in level-0 space.
