@@ -48,15 +48,32 @@ class RectROIfromXMLProvider(ROIProvider):
             scale = 1.0
 
         for ann in root.findall(f".//Annotation[@PartOfGroup='{self.annotation_group}']"):
-            if ann.get("Type") != "Rectangle":
+            ann_type = ann.get("Type")
+            if ann_type not in ("Rectangle", "Polygon"):
                 continue
 
             coords = ann.find("Coordinates")
             if coords is None:
                 continue
 
-            xs = [float(coord.attrib["X"]) * scale for coord in coords.findall("Coordinate")]
-            ys = [float(coord.attrib["Y"]) * scale for coord in coords.findall("Coordinate")]
+            coord_elements = coords.findall("Coordinate")
+
+            if ann_type == "Polygon":
+                if len(coord_elements) != 4:
+                    raise ValueError(
+                        f"Polygon annotation for slide {slide.wsi_id} has {len(coord_elements)} point(s); "
+                        "only 4-point polygons representing axis-aligned bounding boxes are supported"
+                    )
+
+            xs = [float(coord.attrib["X"]) * scale for coord in coord_elements]
+            ys = [float(coord.attrib["Y"]) * scale for coord in coord_elements]
+
+            if ann_type == "Polygon":
+                if len(set(xs)) != 2 or len(set(ys)) != 2:
+                    raise ValueError(
+                        f"Polygon annotation for slide {slide.wsi_id} is not an axis-aligned bounding box "
+                        f"(expected exactly 2 unique X values and 2 unique Y values)"
+                    )
 
             x_min, y_min = min(xs), min(ys)
             x_max, y_max = max(xs), max(ys)
