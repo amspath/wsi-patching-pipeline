@@ -3,6 +3,7 @@ from typing import Any, Iterable, List, Literal
 
 from wsi_patching.backends.cucim_openslide_isyntax import (
     get_dimensions_for_level,
+    get_level_downsamples,
     get_level_for_resolution,
     validate_slide_backend,
 )
@@ -73,6 +74,7 @@ class WSIGrid(Stage):
             wsi_id = Path(path).stem
             selected_level = get_level_for_resolution(path, self.resolution, self.unit, self.fallback_mode)
             W, H = get_dimensions_for_level(path, selected_level)
+            downsample = get_level_downsamples(path)[selected_level]
 
             self.log.info(f"Starting on Slide {wsi_id}")
             yield Slide(
@@ -80,6 +82,7 @@ class WSIGrid(Stage):
                 wsi_path=path,
                 dims=(W, H),
                 level=selected_level,
+                downsample=downsample,
                 meta={
                     "slide.wsi_id": wsi_id,
                     "slide.requested_resolution": self.resolution,

@@ -18,6 +18,7 @@ class SlideBase:
     wsi_path: str
     dims: Tuple[int, int]
     level: int
+    downsample: float = 1.0
     meta: Dict[str, Any] = field(default_factory=dict)
 
 
@@ -40,6 +41,7 @@ class TilePlan:
     roi_index: int
     roi_bounds: Box
     tiles: List[Tuple[int, int]]
+    downsample: float = 1.0
     meta: Dict[str, Any] = field(default_factory=dict)
 
 
@@ -51,6 +53,7 @@ class RegionTask:
     level: int
     region: Box
     tiles: List[Tuple[int, int]]
+    downsample: float = 1.0
     meta: Dict[str, Any] = field(default_factory=dict)
 
 
