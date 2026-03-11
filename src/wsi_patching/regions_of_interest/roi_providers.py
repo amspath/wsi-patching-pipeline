@@ -1,7 +1,8 @@
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
+from wsi_patching.backends.cucim_openslide_isyntax import get_level_downsamples
 from wsi_patching.core.types.types import SlideBase
 from wsi_patching.regions_of_interest.rois import ROI, BoxROI
 
@@ -29,6 +30,8 @@ class RectROIProvider(ROIProvider):
 @dataclass
 class RectROIfromXMLProvider(ROIProvider):
     rois: Dict[str, str]
+    annotation_group: str = "roi"
+    annotation_level: Optional[int] = None
 
     def for_slide(self, slide: SlideBase) -> List[ROI]:
         out: List[ROI] = []
@@ -38,7 +41,13 @@ class RectROIfromXMLProvider(ROIProvider):
         root = tree.getroot()
         W, H = slide.dims
 
-        for ann in root.findall(".//Annotation[@PartOfGroup='roi']"):
+        if self.annotation_level is not None and self.annotation_level != slide.level:
+            downsamples = get_level_downsamples(slide.wsi_path)
+            scale = downsamples[self.annotation_level] / downsamples[slide.level]
+        else:
+            scale = 1.0
+
+        for ann in root.findall(f".//Annotation[@PartOfGroup='{self.annotation_group}']"):
             if ann.get("Type") != "Rectangle":
                 continue
 
@@ -46,8 +55,8 @@ class RectROIfromXMLProvider(ROIProvider):
             if coords is None:
                 continue
 
-            xs = [float(coord.attrib["X"]) for coord in coords.findall("Coordinate")]
-            ys = [float(coord.attrib["Y"]) for coord in coords.findall("Coordinate")]
+            xs = [float(coord.attrib["X"]) * scale for coord in coords.findall("Coordinate")]
+            ys = [float(coord.attrib["Y"]) * scale for coord in coords.findall("Coordinate")]
 
             x_min, y_min = min(xs), min(ys)
             x_max, y_max = max(xs), max(ys)
