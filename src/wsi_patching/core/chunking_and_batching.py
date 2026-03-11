@@ -92,6 +92,7 @@ class TilePlanner(Stage):
                         roi_index=idx,
                         roi_bounds=(bx, by, bw, bh),
                         tiles=tiles,
+                        downsample=s.downsample,
                         meta={
                             **s.meta,
                             "roi_bounds": (bx, by, bw, bh),
@@ -221,6 +222,7 @@ class ReadWindowChunker(Stage):
                             level=plan.level,
                             region=(x_region_start, y_region_start, read_w, read_h),
                             tiles=in_window,
+                            downsample=plan.downsample,
                             meta=plan.meta,
                         )
 
@@ -289,8 +291,17 @@ class RegionReadAndBatch(Stage):
                     h += tile_size - (h % tile_size)
                     h = min(h, task.wsi_dims[1])
 
+            # Convert level-N coordinates to level-0 for the read_region() call, which all
+            # backends (OpenSlide, cuCIM, iSyntax) expect in level-0 space.
+            # round() gives the nearest integer, which is correct for both integer and
+            # non-integer downsample factors.
+            ds = task.downsample
+            x0_l0 = round(x0 * ds)
+            y0_l0 = round(y0 * ds)
+
             region_img = read_region(
-                task.wsi_path, x0, y0, w, h, task.level, use_gpu=self.ctx["use_gpu"], num_workers_cucim=self.num_workers
+                task.wsi_path, x0_l0, y0_l0, w, h, task.level,
+                use_gpu=self.ctx["use_gpu"], num_workers_cucim=self.num_workers
             )
 
             coords: List[Tuple[int, int]] = []

@@ -46,9 +46,10 @@ def test_for_slide_returns_single_slide_clone():
 
 
 @patch("wsi_patching.core.wsi_grid.Path.exists", return_value=True)
+@patch("wsi_patching.core.wsi_grid.get_level_downsamples")
 @patch("wsi_patching.core.wsi_grid.get_dimensions_for_level")
 @patch("wsi_patching.core.wsi_grid.get_level_for_resolution")
-def test_call_yields_slide_objects_with_dims(mock_get_level, mock_dims, mock_exists):
+def test_call_yields_slide_objects_with_dims(mock_get_level, mock_dims, mock_downsamples, mock_exists):
     # Mock per-path selected levels
     def _get_level(path, resolution, unit, fallback_mode):
         if path.endswith("A.svs"):
@@ -67,6 +68,9 @@ def test_call_yields_slide_objects_with_dims(mock_get_level, mock_dims, mock_exi
 
     mock_dims.side_effect = _dims
 
+    # Mock downsample factors: level 0=1.0, level 1=2.0, level 2=4.0
+    mock_downsamples.return_value = [1.0, 2.0, 4.0]
+
     grid = WSIGrid(
         slides=["/slides/A.svs", "/slides/B.svs"], use_gpu=False, resolution=0.5, unit="mpp", fallback_mode="nearest"
     )
@@ -80,6 +84,7 @@ def test_call_yields_slide_objects_with_dims(mock_get_level, mock_dims, mock_exi
     assert s0.wsi_path.endswith("/slides/A.svs")
     assert s0.dims == (1000, 800)
     assert s0.level == 1
+    assert s0.downsample == 2.0
     assert isinstance(s0.meta, dict)
     assert s0.meta["slide.wsi_id"] == "A"
     assert s0.meta["slide.requested_resolution"] == 0.5
@@ -92,6 +97,7 @@ def test_call_yields_slide_objects_with_dims(mock_get_level, mock_dims, mock_exi
     assert s1.wsi_path.endswith("/slides/B.svs")
     assert s1.dims == (640, 480)
     assert s1.level == 2
+    assert s1.downsample == 4.0
     assert isinstance(s1.meta, dict)
     assert s1.meta["slide.selected_level"] == 2
 

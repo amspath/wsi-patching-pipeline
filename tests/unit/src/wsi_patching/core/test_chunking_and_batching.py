@@ -366,6 +366,69 @@ def test_region_read_and_batch_roi_edge_policy_read_from_image_expands_region():
         assert recorded["size"] == (32, 32)
 
 
+@patch("wsi_patching.core.chunking_and_batching.get_xp_backend", new=lambda use_gpu: np)
+def test_region_read_and_batch_scales_coords_to_level0():
+    """
+    RegionReadAndBatch must convert level-N coordinates to level-0 before calling read_region.
+
+    For a task with downsample=4.0 and region at level-2 coordinates (100, 200, 16, 16),
+    read_region should be called with x=400, y=800 (level-0 coordinates).
+
+    For a task with downsample=1.0 (level 0), coordinates should be passed unchanged.
+    """
+    recorded = {}
+
+    def _fake_read_region(path, x, y, w, h, level, use_gpu, num_workers_cucim):
+        recorded["xy"] = (x, y)
+        return np.zeros((h, w, 3), dtype=np.uint8)
+
+    with patch("wsi_patching.core.chunking_and_batching.read_region", new=_fake_read_region):
+        # Non-zero level: downsample=4.0 means level-2 coords should be multiplied by 4
+        tasks = [
+            RegionTask(
+                wsi_id="S",
+                wsi_path="/s",
+                wsi_dims=(2000, 2000),
+                level=2,
+                region=(100, 200, 16, 16),
+                tiles=[(100, 200)],
+                downsample=4.0,
+                meta={},
+            )
+        ]
+        r = RegionReadAndBatch(batch_size=10, num_workers=1, dtype=np.uint8)
+        r.attach_context(PipelineContext({"tile_size": 16, "level": 2, "use_gpu": False}))
+        r.validate()
+
+        list(r(iter(tasks)))
+        assert recorded["xy"] == (400, 800), (
+            f"Expected level-0 coords (400, 800) but got {recorded['xy']}. "
+            "read_region must receive level-0 coordinates."
+        )
+
+        # Level 0: downsample=1.0 means coordinates are passed unchanged
+        tasks_l0 = [
+            RegionTask(
+                wsi_id="S",
+                wsi_path="/s",
+                wsi_dims=(2000, 2000),
+                level=0,
+                region=(50, 75, 16, 16),
+                tiles=[(50, 75)],
+                downsample=1.0,
+                meta={},
+            )
+        ]
+        r0 = RegionReadAndBatch(batch_size=10, num_workers=1, dtype=np.uint8)
+        r0.attach_context(PipelineContext({"tile_size": 16, "level": 0, "use_gpu": False}))
+        r0.validate()
+
+        list(r0(iter(tasks_l0)))
+        assert recorded["xy"] == (50, 75), (
+            f"Expected unchanged coords (50, 75) for level-0 but got {recorded['xy']}."
+        )
+
+
 # ------------------- PatchExtractor (composite stage) -------------------
 @patch("wsi_patching.core.chunking_and_batching.get_xp_backend", new=lambda use_gpu: np)
 @patch("wsi_patching.core.chunking_and_batching.read_region", new=fake_read_region)
