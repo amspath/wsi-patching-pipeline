@@ -1,5 +1,5 @@
 import logging
-from typing import Literal, Optional, Tuple, Union
+from typing import List, Literal, Optional, Tuple, Union
 
 import numpy as np
 from isyntax import ISyntax
@@ -63,6 +63,15 @@ def get_dimensions_for_level(path: str, level: int) -> Tuple[int, int]:
         assert 0 <= level < slide.level_count, f"Level {level} exceeds maximum level {slide.level_count - 1}."
         W, H = slide.level_dimensions[level]
         return int(W), int(H)
+    finally:
+        slide.close()
+
+
+def get_level_downsamples(path: str) -> List[float]:
+    """Return the list of downsample factors relative to level 0 for each pyramid level."""
+    slide = _open_slide(path, use_gpu=False)
+    try:
+        return [float(ds) for ds in slide.level_downsamples]
     finally:
         slide.close()
 

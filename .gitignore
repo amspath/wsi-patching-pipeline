@@ -210,3 +210,4 @@ __marimo__/
 data/
 output/
 inference_gpu_runner.sh
+CLAUDE.md
