@@ -1,28 +1,15 @@
 from typing import TYPE_CHECKING, Iterable, List, Literal, Optional, Tuple, Union
 
-import cv2
-
 from wsi_patching.backends.cucim_openslide_isyntax import read_region
 from wsi_patching.backends.cupy_numpy import get_xp_backend
 from wsi_patching.core.pipeline import Stage
 from wsi_patching.core.types.types import CollatedPatchBatch, RegionTask, Slide, SlideWithROIs, TilePlan
 from wsi_patching.regions_of_interest.roi_providers import WholeSlideProvider
 from wsi_patching.regions_of_interest.rois import ROI
-from wsi_patching.utils.meta_typing import PipelineContext
 
 if TYPE_CHECKING:
     import cupy as cp
 import numpy as np
-
-# Mapping from human-readable interpolation names to OpenCV interpolation flags.
-# Used by RegionReadAndBatch when resampling regions to the requested resolution.
-_CV2_INTERPOLATION: dict[str, int] = {
-    "nearest": cv2.INTER_NEAREST,
-    "linear": cv2.INTER_LINEAR,
-    "cubic": cv2.INTER_CUBIC,
-    "area": cv2.INTER_AREA,
-    "lanczos": cv2.INTER_LANCZOS4,
-}
 
 
 class TilePlanner(Stage):
@@ -106,7 +93,6 @@ class TilePlanner(Stage):
                         roi_bounds=(bx, by, bw, bh),
                         tiles=tiles,
                         downsample=s.downsample,
-                        resample_factor=s.resample_factor,
                         meta={
                             **s.meta,
                             "roi_bounds": (bx, by, bw, bh),
@@ -237,7 +223,6 @@ class ReadWindowChunker(Stage):
                             region=(x_region_start, y_region_start, read_w, read_h),
                             tiles=in_window,
                             downsample=plan.downsample,
-                            resample_factor=plan.resample_factor,
                             meta=plan.meta,
                         )
 
@@ -262,8 +247,6 @@ class RegionReadAndBatch(Stage):
         wsi_edge_policy: Literal["drop", "pad_with_zeros", "pad_with_edge"] = "pad_with_zeros",
         roi_edge_policy: Literal["read_from_image", "use_wsi_edge_policy"] = "use_wsi_edge_policy",
         dtype: str = np.uint8,
-        fallback_mode: Literal["nearest", "floor", "ceil", "error", "resample"] = "error",
-        resample_interpolation: Literal["nearest", "linear", "cubic", "area", "lanczos"] = "lanczos",
     ):
         """
         Args:
@@ -279,32 +262,12 @@ class RegionReadAndBatch(Stage):
                 - "use_wsi_edge_policy": do not expand ROI bounds, read as-is from image,
                   and apply wsi_edge_policy to any incomplete tiles at the region or WSI edge.
             dtype: output patch dtype, e.g. np.uint8 or np.float32
-            fallback_mode: strategy for selecting the pyramid level when the exact requested resolution
-                is not available. Options: "nearest", "floor", "ceil", "error" (default), "resample".
-                - "nearest": pick the level whose resolution is closest to the requested value.
-                - "floor": pick the coarsest level at least as sharp as the requested resolution.
-                - "ceil": pick the finest level no sharper than the requested resolution.
-                - "error": raise an error if no level matches the requested resolution exactly.
-                - "resample": like "ceil", but read from the finer level and downsample to the exact
-                  requested resolution using OpenCV (interpolation set by resample_interpolation).
-            resample_interpolation: interpolation method used when resampling regions to the requested
-                resolution (only active when fallback_mode="resample").
-                Options: "nearest", "linear", "cubic", "area", "lanczos" (default).
         """
         self.batch_size = int(batch_size)
         self.num_workers = int(num_workers)
         self.dtype = dtype
         self.roi_edge_policy = roi_edge_policy
         self.wsi_edge_policy = wsi_edge_policy
-        if resample_interpolation not in _CV2_INTERPOLATION:
-            raise ValueError(
-                f"Unknown resample_interpolation '{resample_interpolation}'. Choose from: {list(_CV2_INTERPOLATION)}"
-            )
-        self.resample_interpolation = resample_interpolation
-        self.fallback_mode = fallback_mode
-
-    def export_context(self, ctx: "PipelineContext") -> None:
-        ctx["fallback_mode"] = self.fallback_mode
 
     def validate(self) -> None:
         self.ctx.require_key("tile_size")
@@ -343,31 +306,10 @@ class RegionReadAndBatch(Stage):
             x0_l0 = round(x0 * ds)
             y0_l0 = round(y0 * ds)
 
-            # When resampling: read a larger region at the finer pyramid level, then
-            # resize it back to the virtual (requested-resolution) dimensions.
-            rf = task.resample_factor
-            if rf != 1.0:
-                read_w = round(w * rf)
-                read_h = round(h * rf)
-            else:
-                read_w, read_h = w, h
-
             region_img = read_region(
-                task.wsi_path,
-                x0_l0,
-                y0_l0,
-                read_w,
-                read_h,
-                task.level,
-                use_gpu=self.ctx["use_gpu"],
-                num_workers_cucim=self.num_workers,
+                task.wsi_path, x0_l0, y0_l0, w, h, task.level,
+                use_gpu=self.ctx["use_gpu"], num_workers_cucim=self.num_workers
             )
-
-            if rf != 1.0:
-                # Resize from read dimensions back to virtual (requested-resolution) dimensions.
-                # cv2.resize expects (width, height) as dsize and works on HxWxC arrays.
-                cv2_interpolation = _CV2_INTERPOLATION[self.resample_interpolation]
-                region_img = cv2.resize(region_img, (w, h), interpolation=cv2_interpolation)
 
             coords: List[Tuple[int, int]] = []
             patches: List[Union[np.ndarray, "cp.ndarray"]] = []
@@ -437,8 +379,6 @@ class PatchExtractor(Stage):
         roi_edge_policy: Literal["read_from_image", "use_wsi_edge_policy"] = "use_wsi_edge_policy",
         dtype: str = np.uint8,
         max_window_size: Optional[int] = None,
-        resample_interpolation: Literal["nearest", "linear", "cubic", "area", "lanczos"] = "lanczos",
-        fallback_mode: Literal["nearest", "floor", "ceil", "error", "resample"] = "error",
     ):
         """
         Args:
@@ -458,17 +398,6 @@ class PatchExtractor(Stage):
                   and apply wsi_edge_policy to any incomplete tiles at the region or WSI edge.
             dtype: output patch dtype, e.g. np.uint8 or np.float32
             max_window_size: maximum size of square read windows. If None, defaults to 20*tile_size.
-            resample_interpolation: interpolation method used when resampling regions to the requested
-                resolution (only active when fallback_mode="resample").
-                Options: "nearest", "linear", "cubic", "area", "lanczos" (default).
-            fallback_mode: strategy for selecting the pyramid level when the exact requested resolution
-                is not available. Options: "nearest", "floor", "ceil", "error" (default), "resample".
-                - "nearest": pick the level whose resolution is closest to the requested value.
-                - "floor": pick the coarsest level at least as sharp as the requested resolution.
-                - "ceil": pick the finest level no sharper than the requested resolution.
-                - "error": raise an error if no level matches the requested resolution exactly.
-                - "resample": like "ceil", but read from the finer level and downsample to the exact
-                  requested resolution using OpenCV (interpolation set by resample_interpolation).
         """
         self.params = dict(
             tile_size=tile_size,
@@ -480,8 +409,6 @@ class PatchExtractor(Stage):
             dtype=dtype,
             wsi_edge_policy=wsi_edge_policy,
             roi_edge_policy=roi_edge_policy,
-            resample_interpolation=resample_interpolation,
-            fallback_mode=fallback_mode,
         )
 
         # Internal stages (created now; context attached later)
@@ -493,8 +420,6 @@ class PatchExtractor(Stage):
             dtype=dtype,
             wsi_edge_policy=wsi_edge_policy,
             roi_edge_policy=roi_edge_policy,
-            resample_interpolation=resample_interpolation,
-            fallback_mode=fallback_mode,
         )
         self._substages: List[Stage] = [self._tp, self._rwc, self._rbb]
 
