@@ -284,12 +284,19 @@ class RegionReadAndBatch(Stage):
             x0, y0, w, h = task.region
 
             if self.roi_edge_policy == "read_from_image":
-                if w % tile_size != 0:
-                    w += tile_size - (w % tile_size)
-                    w = min(w, task.wsi_dims[0] - x0)
-                if h % tile_size != 0:
-                    h += tile_size - (h % tile_size)
-                    h = min(h, task.wsi_dims[1] - y0)
+                # Compute the minimum region size needed so that every tile can be fully
+                # sliced without running off the end of the read buffer.  Using
+                # `w % tile_size` is fragile: when w happens to be a multiple of
+                # tile_size the check is silently skipped even though the rightmost /
+                # bottom-most tiles may still extend well beyond w (e.g. tile_size=256,
+                # stride=192, ROI width=512 → last tile at x=384 needs 640 px but the
+                # read window is only 512 wide).
+                required_w = max(tx - x0 + tile_size for tx, ty in task.tiles)
+                required_h = max(ty - y0 + tile_size for tx, ty in task.tiles)
+                if w < required_w:
+                    w = min(required_w, task.wsi_dims[0] - x0)
+                if h < required_h:
+                    h = min(required_h, task.wsi_dims[1] - y0)
 
             # Convert level-N coordinates to level-0 for the read_region() call, which all
             # backends (OpenSlide, cuCIM, iSyntax) expect in level-0 space.

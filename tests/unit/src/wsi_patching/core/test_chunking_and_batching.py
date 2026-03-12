@@ -340,8 +340,11 @@ def test_region_read_and_batch_pads_incomplete_patches_within_roi_pad_with_zeros
 @patch("wsi_patching.core.chunking_and_batching.get_xp_backend", new=lambda use_gpu: np)
 def test_region_read_and_batch_roi_edge_policy_read_from_image_expands_region():
     """
-    When roi_edge_policy='read_from_image', RegionReadAndBatch should expand the
-    region width/height to the next tile_size multiple, but not beyond wsi_dims.
+    When roi_edge_policy='read_from_image', RegionReadAndBatch must expand the
+    read window to cover every tile fully.
+
+    Here the tile at (8, 8) with tile_size=16 extends to x=24 and y=24, which
+    is beyond the 20-pixel read window → the region must grow to (24, 24).
     """
     recorded = {}
 
@@ -350,10 +353,10 @@ def test_region_read_and_batch_roi_edge_policy_read_from_image_expands_region():
         return np.zeros((h, w, 3), dtype=np.uint8)
 
     with patch("wsi_patching.core.chunking_and_batching.read_region", new=_fake_read_region):
-        # region 20x20 within a 40x40 WSI, tile_size=16 -> should expand to 32x32
+        # region 20x20 within a 40x40 WSI; tile at (8,8) needs [8,24) → expand to 24
         tasks = [
             RegionTask(
-                wsi_id="S", wsi_path="/s", wsi_dims=(40, 40), level=0, region=(0, 0, 20, 20), tiles=[(0, 0)], meta={}
+                wsi_id="S", wsi_path="/s", wsi_dims=(40, 40), level=0, region=(0, 0, 20, 20), tiles=[(8, 8)], meta={}
             )
         ]
         r = RegionReadAndBatch(
@@ -363,7 +366,54 @@ def test_region_read_and_batch_roi_edge_policy_read_from_image_expands_region():
         r.validate()
 
         list(r(iter(tasks)))
-        assert recorded["size"] == (32, 32)
+        assert recorded["size"] == (24, 24)
+
+
+@patch("wsi_patching.core.chunking_and_batching.get_xp_backend", new=lambda use_gpu: np)
+def test_region_read_and_batch_roi_edge_policy_read_from_image_expands_when_w_is_multiple_of_tile_size():
+    """
+    Regression test: roi_edge_policy='read_from_image' must expand the region
+    even when w is already a multiple of tile_size, if tiles extend beyond w.
+
+    Concrete example (tile_size=256, stride=192, ROI width=512):
+      - _axis_positions(0, 512, 256, 192) → [0, 192, 384]
+      - Last tile at tx=384 covers [384, 640) — extends 128 px beyond ROI end
+      - ReadWindowChunker clamps read_w to 512 (the ROI end)
+      - 512 % 256 == 0 → the old check did NOT expand → black bar on right edge
+      - New fix: required_w = 384 + 256 = 640 > 512 → expands to min(640, wsi_w)
+    """
+    recorded = {}
+
+    def _fake_read_region(path, x, y, w, h, level, use_gpu, num_workers_cucim):
+        recorded["size"] = (w, h)
+        return np.zeros((h, w, 3), dtype=np.uint8)
+
+    with patch("wsi_patching.core.chunking_and_batching.read_region", new=_fake_read_region):
+        # WSI is wide enough that expansion is not clamped
+        tasks = [
+            RegionTask(
+                wsi_id="S",
+                wsi_path="/s",
+                wsi_dims=(1024, 512),
+                level=0,
+                # ReadWindowChunker would have yielded w=512 (clamped to ROI end)
+                region=(0, 0, 512, 256),
+                tiles=[(0, 0), (192, 0), (384, 0)],
+                meta={},
+            )
+        ]
+        r = RegionReadAndBatch(
+            batch_size=10, num_workers=1, dtype=np.uint8, roi_edge_policy="read_from_image", wsi_edge_policy="drop"
+        )
+        r.attach_context(PipelineContext({"tile_size": 256, "level": 0, "use_gpu": False}))
+        r.validate()
+
+        list(r(iter(tasks)))
+        # required_w = max(0+256, 192+256, 384+256) = 640; clamped to min(640, 1024) = 640
+        assert recorded["size"] == (640, 256), (
+            f"Expected expanded size (640, 256) but got {recorded['size']}. "
+            "Expansion must trigger even when w is already a multiple of tile_size."
+        )
 
 
 @patch("wsi_patching.core.chunking_and_batching.get_xp_backend", new=lambda use_gpu: np)
