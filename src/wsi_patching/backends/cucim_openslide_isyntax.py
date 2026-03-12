@@ -226,7 +226,9 @@ def get_virtual_slide_dims(
 
         if unit == "level":
             if not float(resolution).is_integer():
-                raise ValueError("When unit is 'level', resolution must be an integer.")
+                raise ValueError(
+                    f"When unit is 'level', resolution must be an integer, got {resolution}."
+                )
             level = int(resolution)
             if level < 0 or level >= len(level_downsamples):
                 raise ValueError(f"Requested level {level} exceeds maximum level {len(level_downsamples) - 1}.")

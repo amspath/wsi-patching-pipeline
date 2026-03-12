@@ -364,8 +364,8 @@ class RegionReadAndBatch(Stage):
             #   = 1.0 → exact match → no resize needed.
             #   < 1.0 → actual level is coarser than requested → read fewer pixels, then upsample.
             rf = target_ds / actual_ds
-            _RF_TOL = 1e-6
-            if abs(rf - 1.0) > _RF_TOL:
+            _RF_TOLERANCE = 1e-6
+            if abs(rf - 1.0) > _RF_TOLERANCE:
                 read_w = round(w * rf)
                 read_h = round(h * rf)
             else:
