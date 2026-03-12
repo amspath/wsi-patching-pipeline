@@ -230,7 +230,7 @@ def get_resample_factor(
             else:
                 mpp0 = slide.properties.get("openslide.mpp-x")
                 if mpp0 is None:
-                    raise ValueError("Slide does not expose 'openslide.mpp-x' mpp metadata.")
+                    raise ValueError(f"Slide '{path}' does not expose 'openslide.mpp-x' mpp metadata.")
             mpp0 = float(mpp0)
             actual_value = mpp0 * actual_downsample
             requested_value = float(resolution)

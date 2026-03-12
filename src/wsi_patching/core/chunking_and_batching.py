@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING, Iterable, List, Literal, Optional, Tuple, Union
 
-from PIL import Image
+import cv2
 
 from wsi_patching.backends.cucim_openslide_isyntax import read_region
 from wsi_patching.backends.cupy_numpy import get_xp_backend
@@ -12,6 +12,16 @@ from wsi_patching.regions_of_interest.rois import ROI
 if TYPE_CHECKING:
     import cupy as cp
 import numpy as np
+
+# Mapping from human-readable interpolation names to OpenCV interpolation flags.
+# Used by RegionReadAndBatch when resampling regions to the requested resolution.
+_CV2_INTERPOLATION: dict[str, int] = {
+    "nearest": cv2.INTER_NEAREST,
+    "linear": cv2.INTER_LINEAR,
+    "cubic": cv2.INTER_CUBIC,
+    "area": cv2.INTER_AREA,
+    "lanczos": cv2.INTER_LANCZOS4,
+}
 
 
 class TilePlanner(Stage):
@@ -251,6 +261,7 @@ class RegionReadAndBatch(Stage):
         wsi_edge_policy: Literal["drop", "pad_with_zeros", "pad_with_edge"] = "pad_with_zeros",
         roi_edge_policy: Literal["read_from_image", "use_wsi_edge_policy"] = "use_wsi_edge_policy",
         dtype: str = np.uint8,
+        resample_interpolation: Literal["nearest", "linear", "cubic", "area", "lanczos"] = "lanczos",
     ):
         """
         Args:
@@ -266,12 +277,21 @@ class RegionReadAndBatch(Stage):
                 - "use_wsi_edge_policy": do not expand ROI bounds, read as-is from image,
                   and apply wsi_edge_policy to any incomplete tiles at the region or WSI edge.
             dtype: output patch dtype, e.g. np.uint8 or np.float32
+            resample_interpolation: interpolation method used when resampling regions to the requested
+                resolution (only active when resample_factor > 1.0, i.e. fallback_mode="resample").
+                Options: "nearest", "linear", "cubic", "area", "lanczos" (default).
         """
         self.batch_size = int(batch_size)
         self.num_workers = int(num_workers)
         self.dtype = dtype
         self.roi_edge_policy = roi_edge_policy
         self.wsi_edge_policy = wsi_edge_policy
+        if resample_interpolation not in _CV2_INTERPOLATION:
+            raise ValueError(
+                f"Unknown resample_interpolation '{resample_interpolation}'. "
+                f"Choose from: {list(_CV2_INTERPOLATION)}"
+            )
+        self.resample_interpolation = resample_interpolation
 
     def validate(self) -> None:
         self.ctx.require_key("tile_size")
@@ -326,9 +346,9 @@ class RegionReadAndBatch(Stage):
 
             if rf != 1.0:
                 # Resize from read dimensions back to virtual (requested-resolution) dimensions.
-                pil_img = Image.fromarray(region_img)
-                pil_img = pil_img.resize((w, h), Image.LANCZOS)
-                region_img = np.asarray(pil_img)
+                # cv2.resize expects (width, height) as dsize and works on HxWxC arrays.
+                interpolation_flag = _CV2_INTERPOLATION[self.resample_interpolation]
+                region_img = cv2.resize(region_img, (w, h), interpolation=interpolation_flag)
 
             coords: List[Tuple[int, int]] = []
             patches: List[Union[np.ndarray, "cp.ndarray"]] = []
@@ -398,6 +418,7 @@ class PatchExtractor(Stage):
         roi_edge_policy: Literal["read_from_image", "use_wsi_edge_policy"] = "use_wsi_edge_policy",
         dtype: str = np.uint8,
         max_window_size: Optional[int] = None,
+        resample_interpolation: Literal["nearest", "linear", "cubic", "area", "lanczos"] = "lanczos",
     ):
         """
         Args:
@@ -417,6 +438,9 @@ class PatchExtractor(Stage):
                   and apply wsi_edge_policy to any incomplete tiles at the region or WSI edge.
             dtype: output patch dtype, e.g. np.uint8 or np.float32
             max_window_size: maximum size of square read windows. If None, defaults to 20*tile_size.
+            resample_interpolation: interpolation method used when resampling regions to the requested
+                resolution (only active when resample_factor > 1.0, i.e. fallback_mode="resample").
+                Options: "nearest", "linear", "cubic", "area", "lanczos" (default).
         """
         self.params = dict(
             tile_size=tile_size,
@@ -428,6 +452,7 @@ class PatchExtractor(Stage):
             dtype=dtype,
             wsi_edge_policy=wsi_edge_policy,
             roi_edge_policy=roi_edge_policy,
+            resample_interpolation=resample_interpolation,
         )
 
         # Internal stages (created now; context attached later)
@@ -439,6 +464,7 @@ class PatchExtractor(Stage):
             dtype=dtype,
             wsi_edge_policy=wsi_edge_policy,
             roi_edge_policy=roi_edge_policy,
+            resample_interpolation=resample_interpolation,
         )
         self._substages: List[Stage] = [self._tp, self._rwc, self._rbb]
 

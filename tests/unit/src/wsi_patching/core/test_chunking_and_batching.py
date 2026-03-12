@@ -640,6 +640,96 @@ def test_readwindowchunker_propagates_resample_factor():
     assert tasks[0].resample_factor == 2.0
 
 
+@patch("wsi_patching.core.chunking_and_batching.get_xp_backend", new=lambda use_gpu: np)
+def test_region_read_and_batch_resample_default_interpolation_is_lanczos():
+    """RegionReadAndBatch default resample_interpolation should be 'lanczos'."""
+    import cv2 as _cv2
+
+    from wsi_patching.core.chunking_and_batching import _CV2_INTERPOLATION
+
+    r = RegionReadAndBatch(batch_size=10, num_workers=1, dtype=np.uint8)
+    assert r.resample_interpolation == "lanczos"
+
+    # Verify the mapping resolves to the correct OpenCV flag.
+    assert _CV2_INTERPOLATION["lanczos"] == _cv2.INTER_LANCZOS4
+
+
+@patch("wsi_patching.core.chunking_and_batching.get_xp_backend", new=lambda use_gpu: np)
+@pytest.mark.parametrize("method", ["nearest", "linear", "cubic", "area", "lanczos"])
+def test_region_read_and_batch_resample_all_interpolation_methods_accepted(method):
+    """All documented interpolation methods should be accepted without error."""
+    r = RegionReadAndBatch(batch_size=10, num_workers=1, dtype=np.uint8, resample_interpolation=method)
+    assert r.resample_interpolation == method
+
+
+@patch("wsi_patching.core.chunking_and_batching.get_xp_backend", new=lambda use_gpu: np)
+def test_region_read_and_batch_resample_invalid_interpolation_raises():
+    """An unrecognised interpolation method should raise ValueError at construction time."""
+    with pytest.raises(ValueError, match="resample_interpolation"):
+        RegionReadAndBatch(batch_size=10, num_workers=1, dtype=np.uint8, resample_interpolation="bicubic_wrong")
+
+
+@patch("wsi_patching.core.chunking_and_batching.get_xp_backend", new=lambda use_gpu: np)
+@pytest.mark.parametrize("method", ["nearest", "lanczos"])
+def test_region_read_and_batch_resample_uses_cv2_resize(method):
+    """RegionReadAndBatch must call cv2.resize with the correct interpolation flag when resample_factor > 1."""
+    import cv2 as _cv2
+
+    from wsi_patching.core.chunking_and_batching import _CV2_INTERPOLATION
+
+    resize_calls = []
+    _real_resize = _cv2.resize
+
+    def _spy_resize(src, dsize, **kwargs):
+        resize_calls.append({"dsize": dsize, "interpolation": kwargs.get("interpolation")})
+        return _real_resize(src, dsize, **kwargs)
+
+    def _fake_read_region(path, x, y, w, h, level, use_gpu, num_workers_cucim):
+        return np.full((h, w, 3), fill_value=128, dtype=np.uint8)
+
+    with (
+        patch("wsi_patching.core.chunking_and_batching.read_region", new=_fake_read_region),
+        patch("wsi_patching.core.chunking_and_batching.cv2.resize", new=_spy_resize),
+    ):
+        tasks = [
+            RegionTask(
+                wsi_id="S",
+                wsi_path="/s",
+                wsi_dims=(32, 32),
+                level=0,
+                region=(0, 0, 32, 32),
+                tiles=[(0, 0)],
+                downsample=2.0,
+                resample_factor=2.0,
+                meta={},
+            )
+        ]
+        r = RegionReadAndBatch(
+            batch_size=10,
+            num_workers=1,
+            dtype=np.uint8,
+            resample_interpolation=method,
+            wsi_edge_policy="pad_with_zeros",
+        )
+        r.attach_context(PipelineContext({"tile_size": 16, "level": 0, "use_gpu": False}))
+        r.validate()
+        list(r(iter(tasks)))
+
+    assert len(resize_calls) == 1
+    assert resize_calls[0]["dsize"] == (32, 32)
+    assert resize_calls[0]["interpolation"] == _CV2_INTERPOLATION[method]
+
+
+@patch("wsi_patching.core.chunking_and_batching.get_xp_backend", new=lambda use_gpu: np)
+def test_patchextractor_forwards_resample_interpolation():
+    """PatchExtractor must forward resample_interpolation to its internal RegionReadAndBatch."""
+    pe = PatchExtractor(tile_size=16, stride=16, resample_interpolation="nearest")
+    assert pe._rbb.resample_interpolation == "nearest"
+
+    pe_default = PatchExtractor(tile_size=16, stride=16)
+    assert pe_default._rbb.resample_interpolation == "lanczos"
+
+
 # ------------------- PatchExtractor (composite stage) -------------------
 @patch("wsi_patching.core.chunking_and_batching.get_xp_backend", new=lambda use_gpu: np)
 @patch("wsi_patching.core.chunking_and_batching.read_region", new=fake_read_region)
