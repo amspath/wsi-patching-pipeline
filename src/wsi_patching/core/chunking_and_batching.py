@@ -2,7 +2,7 @@ from typing import TYPE_CHECKING, Iterable, List, Literal, Optional, Tuple, Unio
 
 import cv2
 
-from wsi_patching.backends.cucim_openslide_isyntax import read_region
+from wsi_patching.backends.cucim_openslide_isyntax import read_region, get_level_for_resolution, get_level_downsamples
 from wsi_patching.backends.cupy_numpy import get_xp_backend
 from wsi_patching.core.pipeline import Stage
 from wsi_patching.core.types.types import CollatedPatchBatch, RegionTask, Slide, SlideWithROIs, TilePlan
@@ -309,6 +309,8 @@ class RegionReadAndBatch(Stage):
     def validate(self) -> None:
         self.ctx.require_key("tile_size")
         self.ctx.require_key("use_gpu")
+        self.ctx.require_key("resolution")
+        self.ctx.require_key("unit")
 
         if self.wsi_edge_policy not in {"drop", "pad_with_zeros", "pad_with_edge"}:
             raise ValueError(f"Unknown edge_policy '{self.wsi_edge_policy}'")
@@ -316,6 +318,12 @@ class RegionReadAndBatch(Stage):
     def __call__(self, it: Iterable[RegionTask]) -> Iterable[CollatedPatchBatch]:
         xp = get_xp_backend(self.ctx["use_gpu"])
         tile_size = int(self.ctx["tile_size"])
+        resolution = self.ctx["resolution"]
+        unit = self.ctx["unit"]
+
+        # Cache level selection per wsi_path: the selected level is the same for every
+        # region chunk belonging to the same slide.
+        _level_cache: dict = {}
 
         for task in it:
             x0, y0, w, h = task.region
@@ -335,21 +343,33 @@ class RegionReadAndBatch(Stage):
                 if h < required_h:
                     h = min(required_h, task.wsi_dims[1] - y0)
 
-            # Convert level-N coordinates to level-0 for the read_region() call, which all
-            # backends (OpenSlide, cuCIM, iSyntax) expect in level-0 space.
-            # round() gives the nearest integer, which is correct for both integer and
-            # non-integer downsample factors.
-            ds = task.downsample
-            x0_l0 = round(x0 * ds)
-            y0_l0 = round(y0 * ds)
+            # Select the actual reading level for this slide (cached per wsi_path).
+            if task.wsi_path not in _level_cache:
+                actual_level = get_level_for_resolution(task.wsi_path, resolution, unit, self.fallback_mode)
+                actual_ds = get_level_downsamples(task.wsi_path)[actual_level]
+                _level_cache[task.wsi_path] = (actual_level, actual_ds)
+            actual_level, actual_ds = _level_cache[task.wsi_path]
 
-            # When resampling: read a larger region at the finer pyramid level, then
-            # resize it back to the virtual (requested-resolution) dimensions.
-            rf = task.resample_factor
-            if rf != 1.0:
+            # task.downsample is the virtual (target-resolution) downsample exported by WSIGrid:
+            # virtual_ds = level-0 pixels per virtual pixel at the requested resolution.
+            # Convert virtual (target-resolution) coordinates to level-0 for read_region(),
+            # which all backends expect in level-0 space.
+            target_ds = task.downsample
+            x0_l0 = round(x0 * target_ds)
+            y0_l0 = round(y0 * target_ds)
+
+            # Compute the read dimensions at actual_level.
+            # rf = target_ds / actual_ds:
+            #   > 1.0 → actual level is finer than requested → read more pixels, then downsample.
+            #   = 1.0 → exact match → no resize needed.
+            #   < 1.0 → actual level is coarser than requested → read fewer pixels, then upsample.
+            rf = target_ds / actual_ds
+            _RF_TOL = 1e-6
+            if abs(rf - 1.0) > _RF_TOL:
                 read_w = round(w * rf)
                 read_h = round(h * rf)
             else:
+                rf = 1.0
                 read_w, read_h = w, h
 
             region_img = read_region(
@@ -358,7 +378,7 @@ class RegionReadAndBatch(Stage):
                 y0_l0,
                 read_w,
                 read_h,
-                task.level,
+                actual_level,
                 use_gpu=self.ctx["use_gpu"],
                 num_workers_cucim=self.num_workers,
             )

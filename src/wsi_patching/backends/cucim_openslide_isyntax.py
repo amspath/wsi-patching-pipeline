@@ -195,6 +195,75 @@ def get_level_for_resolution(
         slide.close()
 
 
+def get_virtual_slide_dims(
+    path: str,
+    resolution: float,
+    unit: Literal["level", "mpp", "downsample"],
+) -> Tuple[int, int, float]:
+    """
+    Compute virtual (target-resolution) slide dimensions without selecting a pyramid level.
+
+    The virtual dimensions represent the slide as seen at the requested resolution.
+    The actual reading level is chosen later by the consumer (e.g. RegionReadAndBatch)
+    based on its own fallback_mode.
+
+    Args:
+        path: Path to the WSI.
+        resolution: Requested resolution value.
+            - If unit == "level": pyramid level index (must be a non-negative integer).
+            - If unit == "mpp": microns per pixel.
+            - If unit == "downsample": downsample factor relative to level 0.
+        unit: Resolution unit ("level", "mpp", or "downsample").
+
+    Returns:
+        (virtual_W, virtual_H, virtual_downsample) where virtual_downsample is
+        the number of level-0 pixels per virtual pixel (the target downsample factor).
+    """
+    slide = _open_slide(path, use_gpu=False)
+    try:
+        level_downsamples = list(slide.level_downsamples)
+        level0_W, level0_H = slide.level_dimensions[0]
+
+        if unit == "level":
+            if not float(resolution).is_integer():
+                raise ValueError("When unit is 'level', resolution must be an integer.")
+            level = int(resolution)
+            if level < 0 or level >= len(level_downsamples):
+                raise ValueError(f"Requested level {level} exceeds maximum level {len(level_downsamples) - 1}.")
+            virtual_ds = float(level_downsamples[level])
+            level_W, level_H = slide.level_dimensions[level]
+            return int(level_W), int(level_H), virtual_ds
+
+        elif unit == "mpp":
+            if isinstance(slide, ISyntax):
+                mpp0 = slide.mpp_x
+            else:
+                mpp0 = slide.properties.get("openslide.mpp-x")
+                if mpp0 is None:
+                    raise ValueError(f"Slide '{path}' does not expose 'openslide.mpp-x' mpp metadata.")
+            mpp0 = float(mpp0)
+            virtual_ds = float(resolution) / mpp0
+            if virtual_ds <= 0:
+                raise ValueError(f"Computed virtual_downsample={virtual_ds} is non-positive.")
+            virtual_W = round(level0_W / virtual_ds)
+            virtual_H = round(level0_H / virtual_ds)
+            return virtual_W, virtual_H, virtual_ds
+
+        elif unit == "downsample":
+            virtual_ds = float(resolution)
+            if virtual_ds <= 0:
+                raise ValueError(f"Requested downsample {virtual_ds} is non-positive.")
+            virtual_W = round(level0_W / virtual_ds)
+            virtual_H = round(level0_H / virtual_ds)
+            return virtual_W, virtual_H, virtual_ds
+
+        else:
+            raise ValueError(f"Unknown unit: {unit}")
+
+    finally:
+        slide.close()
+
+
 def get_resample_factor(
     path: str,
     level: int,

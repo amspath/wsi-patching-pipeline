@@ -183,6 +183,8 @@ def test_readwindowchunker_groups_tiles_into_windows():
 # ------------------- RegionReadAndBatch -------------------
 @patch("wsi_patching.core.chunking_and_batching.get_xp_backend", new=lambda use_gpu: np)
 @patch("wsi_patching.core.chunking_and_batching.read_region", new=fake_read_region)
+@patch("wsi_patching.core.chunking_and_batching.get_level_for_resolution", new=lambda p, r, u, f: 0)
+@patch("wsi_patching.core.chunking_and_batching.get_level_downsamples", new=lambda p: [1.0])
 def test_region_read_and_batch_happy_path_and_batch_split():
     # Build RegionTasks for a region 48x32 with four 16x16 tiles and one extra -> batches of 3 then 2
     tasks = [
@@ -198,7 +200,7 @@ def test_region_read_and_batch_happy_path_and_batch_split():
     ]
 
     r = RegionReadAndBatch(batch_size=3, num_workers=2, dtype=np.uint8)
-    r.attach_context(PipelineContext({"tile_size": 16, "level": 0, "use_gpu": False}))
+    r.attach_context(PipelineContext({"tile_size": 16, "level": 0, "use_gpu": False, "resolution": 0.5, "unit": "mpp"}))
     r.validate()
 
     batches = list(r(iter(tasks)))
@@ -220,7 +222,11 @@ def test_region_read_and_batch_skips_incomplete_patches():
     def _fake_read_region(path, x, y, w, h, level, use_gpu, num_workers_cucim):
         return np.full((h, w, 3), 1, dtype=np.uint8)
 
-    with patch("wsi_patching.core.chunking_and_batching.read_region", new=_fake_read_region):
+    with (
+        patch("wsi_patching.core.chunking_and_batching.read_region", new=_fake_read_region),
+        patch("wsi_patching.core.chunking_and_batching.get_level_for_resolution", new=lambda p, r, u, f: 0),
+        patch("wsi_patching.core.chunking_and_batching.get_level_downsamples", new=lambda p: [1.0]),
+    ):
         tasks = [
             RegionTask(
                 wsi_id="S",
@@ -233,7 +239,7 @@ def test_region_read_and_batch_skips_incomplete_patches():
             )
         ]
         r = RegionReadAndBatch(batch_size=10, num_workers=1, dtype=np.uint8, wsi_edge_policy="drop")
-        r.attach_context(PipelineContext({"tile_size": 16, "level": 0, "use_gpu": False}))
+        r.attach_context(PipelineContext({"tile_size": 16, "level": 0, "use_gpu": False, "resolution": 0.5, "unit": "mpp"}))
         r.validate()
 
         out = list(r(iter(tasks)))
@@ -250,7 +256,11 @@ def test_region_read_and_batch_pads_incomplete_patches_pad_with_zeros():
     def _fake_read_region(path, x, y, w, h, level, use_gpu, num_workers_cucim):
         return np.full((h, w, 3), 1, dtype=np.uint8)
 
-    with patch("wsi_patching.core.chunking_and_batching.read_region", new=_fake_read_region):
+    with (
+        patch("wsi_patching.core.chunking_and_batching.read_region", new=_fake_read_region),
+        patch("wsi_patching.core.chunking_and_batching.get_level_for_resolution", new=lambda p, r, u, f: 0),
+        patch("wsi_patching.core.chunking_and_batching.get_level_downsamples", new=lambda p: [1.0]),
+    ):
         tasks = [
             RegionTask(
                 wsi_id="S",
@@ -263,7 +273,7 @@ def test_region_read_and_batch_pads_incomplete_patches_pad_with_zeros():
             )
         ]
         r = RegionReadAndBatch(batch_size=10, num_workers=1, dtype=np.uint8, wsi_edge_policy="pad_with_zeros")
-        r.attach_context(PipelineContext({"tile_size": 16, "level": 0, "use_gpu": False}))
+        r.attach_context(PipelineContext({"tile_size": 16, "level": 0, "use_gpu": False, "resolution": 0.5, "unit": "mpp"}))
         r.validate()
 
         out = list(r(iter(tasks)))
@@ -279,7 +289,11 @@ def test_region_read_and_batch_pads_incomplete_patches_pad_with_edge():
     def _fake_read_region(path, x, y, w, h, level, use_gpu, num_workers_cucim):
         return np.full((h, w, 3), 1, dtype=np.uint8)
 
-    with patch("wsi_patching.core.chunking_and_batching.read_region", new=_fake_read_region):
+    with (
+        patch("wsi_patching.core.chunking_and_batching.read_region", new=_fake_read_region),
+        patch("wsi_patching.core.chunking_and_batching.get_level_for_resolution", new=lambda p, r, u, f: 0),
+        patch("wsi_patching.core.chunking_and_batching.get_level_downsamples", new=lambda p: [1.0]),
+    ):
         tasks = [
             RegionTask(
                 wsi_id="S",
@@ -292,7 +306,7 @@ def test_region_read_and_batch_pads_incomplete_patches_pad_with_edge():
             )
         ]
         r = RegionReadAndBatch(batch_size=10, num_workers=1, dtype=np.uint8, wsi_edge_policy="pad_with_edge")
-        r.attach_context(PipelineContext({"tile_size": 16, "level": 0, "use_gpu": False}))
+        r.attach_context(PipelineContext({"tile_size": 16, "level": 0, "use_gpu": False, "resolution": 0.5, "unit": "mpp"}))
         r.validate()
 
         out = list(r(iter(tasks)))
@@ -308,7 +322,11 @@ def test_region_read_and_batch_pads_incomplete_patches_within_roi_pad_with_zeros
     def _fake_read_region(path, x, y, w, h, level, use_gpu, num_workers_cucim):
         return np.full((h, w, 3), 1, dtype=np.uint8)
 
-    with patch("wsi_patching.core.chunking_and_batching.read_region", new=_fake_read_region):
+    with (
+        patch("wsi_patching.core.chunking_and_batching.read_region", new=_fake_read_region),
+        patch("wsi_patching.core.chunking_and_batching.get_level_for_resolution", new=lambda p, r, u, f: 0),
+        patch("wsi_patching.core.chunking_and_batching.get_level_downsamples", new=lambda p: [1.0]),
+    ):
         tasks = [
             RegionTask(
                 wsi_id="S",
@@ -327,7 +345,7 @@ def test_region_read_and_batch_pads_incomplete_patches_within_roi_pad_with_zeros
             roi_edge_policy="use_wsi_edge_policy",
             wsi_edge_policy="pad_with_zeros",
         )
-        r.attach_context(PipelineContext({"tile_size": 16, "level": 0, "use_gpu": False}))
+        r.attach_context(PipelineContext({"tile_size": 16, "level": 0, "use_gpu": False, "resolution": 0.5, "unit": "mpp"}))
         r.validate()
 
         out = list(r(iter(tasks)))
@@ -352,7 +370,11 @@ def test_region_read_and_batch_roi_edge_policy_read_from_image_expands_region():
         recorded["size"] = (w, h)
         return np.zeros((h, w, 3), dtype=np.uint8)
 
-    with patch("wsi_patching.core.chunking_and_batching.read_region", new=_fake_read_region):
+    with (
+        patch("wsi_patching.core.chunking_and_batching.read_region", new=_fake_read_region),
+        patch("wsi_patching.core.chunking_and_batching.get_level_for_resolution", new=lambda p, r, u, f: 0),
+        patch("wsi_patching.core.chunking_and_batching.get_level_downsamples", new=lambda p: [1.0]),
+    ):
         # region 20x20 within a 40x40 WSI; tile at (8,8) needs [8,24) → expand to 24
         tasks = [
             RegionTask(
@@ -362,7 +384,7 @@ def test_region_read_and_batch_roi_edge_policy_read_from_image_expands_region():
         r = RegionReadAndBatch(
             batch_size=10, num_workers=1, dtype=np.uint8, roi_edge_policy="read_from_image", wsi_edge_policy="drop"
         )
-        r.attach_context(PipelineContext({"tile_size": 16, "level": 0, "use_gpu": False}))
+        r.attach_context(PipelineContext({"tile_size": 16, "level": 0, "use_gpu": False, "resolution": 0.5, "unit": "mpp"}))
         r.validate()
 
         list(r(iter(tasks)))
@@ -388,7 +410,11 @@ def test_region_read_and_batch_roi_edge_policy_read_from_image_expands_when_w_is
         recorded["size"] = (w, h)
         return np.zeros((h, w, 3), dtype=np.uint8)
 
-    with patch("wsi_patching.core.chunking_and_batching.read_region", new=_fake_read_region):
+    with (
+        patch("wsi_patching.core.chunking_and_batching.read_region", new=_fake_read_region),
+        patch("wsi_patching.core.chunking_and_batching.get_level_for_resolution", new=lambda p, r, u, f: 0),
+        patch("wsi_patching.core.chunking_and_batching.get_level_downsamples", new=lambda p: [1.0]),
+    ):
         # WSI is wide enough that expansion is not clamped
         tasks = [
             RegionTask(
@@ -405,7 +431,7 @@ def test_region_read_and_batch_roi_edge_policy_read_from_image_expands_when_w_is
         r = RegionReadAndBatch(
             batch_size=10, num_workers=1, dtype=np.uint8, roi_edge_policy="read_from_image", wsi_edge_policy="drop"
         )
-        r.attach_context(PipelineContext({"tile_size": 256, "level": 0, "use_gpu": False}))
+        r.attach_context(PipelineContext({"tile_size": 256, "level": 0, "use_gpu": False, "resolution": 0.5, "unit": "mpp"}))
         r.validate()
 
         list(r(iter(tasks)))
@@ -433,7 +459,11 @@ def test_region_read_and_batch_roi_edge_policy_read_from_image_clamps_to_wsi_edg
         recorded["size"] = (w, h)
         return np.zeros((h, w, 3), dtype=np.uint8)
 
-    with patch("wsi_patching.core.chunking_and_batching.read_region", new=_fake_read_region):
+    with (
+        patch("wsi_patching.core.chunking_and_batching.read_region", new=_fake_read_region),
+        patch("wsi_patching.core.chunking_and_batching.get_level_for_resolution", new=lambda p, r, u, f: 0),
+        patch("wsi_patching.core.chunking_and_batching.get_level_downsamples", new=lambda p: [1.0]),
+    ):
         tasks = [
             RegionTask(
                 wsi_id="S",
@@ -448,7 +478,7 @@ def test_region_read_and_batch_roi_edge_policy_read_from_image_clamps_to_wsi_edg
         r = RegionReadAndBatch(
             batch_size=10, num_workers=1, dtype=np.uint8, roi_edge_policy="read_from_image", wsi_edge_policy="drop"
         )
-        r.attach_context(PipelineContext({"tile_size": 16, "level": 0, "use_gpu": False}))
+        r.attach_context(PipelineContext({"tile_size": 16, "level": 0, "use_gpu": False, "resolution": 0.5, "unit": "mpp"}))
         r.validate()
 
         list(r(iter(tasks)))
@@ -462,12 +492,13 @@ def test_region_read_and_batch_roi_edge_policy_read_from_image_clamps_to_wsi_edg
 @patch("wsi_patching.core.chunking_and_batching.get_xp_backend", new=lambda use_gpu: np)
 def test_region_read_and_batch_scales_coords_to_level0():
     """
-    RegionReadAndBatch must convert level-N coordinates to level-0 before calling read_region.
+    RegionReadAndBatch must convert virtual (target-resolution) coordinates to level-0
+    before calling read_region.
 
-    For a task with downsample=4.0 and region at level-2 coordinates (100, 200, 16, 16),
+    For a task with downsample=4.0 and region at virtual coordinates (100, 200, 16, 16),
     read_region should be called with x=400, y=800 (level-0 coordinates).
 
-    For a task with downsample=1.0 (level 0), coordinates should be passed unchanged.
+    For a task with downsample=1.0, coordinates should be passed unchanged.
     """
     recorded = {}
 
@@ -475,8 +506,12 @@ def test_region_read_and_batch_scales_coords_to_level0():
         recorded["xy"] = (x, y)
         return np.zeros((h, w, 3), dtype=np.uint8)
 
-    with patch("wsi_patching.core.chunking_and_batching.read_region", new=_fake_read_region):
-        # Non-zero level: downsample=4.0 means level-2 coords should be multiplied by 4
+    # Case 1: downsample=4.0 → x0_l0 = x0 * 4.0 = 400, y0_l0 = y0 * 4.0 = 800
+    with (
+        patch("wsi_patching.core.chunking_and_batching.read_region", new=_fake_read_region),
+        patch("wsi_patching.core.chunking_and_batching.get_level_for_resolution", new=lambda p, r, u, f: 0),
+        patch("wsi_patching.core.chunking_and_batching.get_level_downsamples", new=lambda p: [4.0]),
+    ):
         tasks = [
             RegionTask(
                 wsi_id="S",
@@ -490,7 +525,7 @@ def test_region_read_and_batch_scales_coords_to_level0():
             )
         ]
         r = RegionReadAndBatch(batch_size=10, num_workers=1, dtype=np.uint8)
-        r.attach_context(PipelineContext({"tile_size": 16, "level": 2, "use_gpu": False}))
+        r.attach_context(PipelineContext({"tile_size": 16, "level": 2, "use_gpu": False, "resolution": 0.5, "unit": "mpp"}))
         r.validate()
 
         list(r(iter(tasks)))
@@ -499,7 +534,12 @@ def test_region_read_and_batch_scales_coords_to_level0():
             "read_region must receive level-0 coordinates."
         )
 
-        # Level 0: downsample=1.0 means coordinates are passed unchanged
+    # Case 2: downsample=1.0 → coordinates passed unchanged
+    with (
+        patch("wsi_patching.core.chunking_and_batching.read_region", new=_fake_read_region),
+        patch("wsi_patching.core.chunking_and_batching.get_level_for_resolution", new=lambda p, r, u, f: 0),
+        patch("wsi_patching.core.chunking_and_batching.get_level_downsamples", new=lambda p: [1.0]),
+    ):
         tasks_l0 = [
             RegionTask(
                 wsi_id="S",
@@ -513,7 +553,7 @@ def test_region_read_and_batch_scales_coords_to_level0():
             )
         ]
         r0 = RegionReadAndBatch(batch_size=10, num_workers=1, dtype=np.uint8)
-        r0.attach_context(PipelineContext({"tile_size": 16, "level": 0, "use_gpu": False}))
+        r0.attach_context(PipelineContext({"tile_size": 16, "level": 0, "use_gpu": False, "resolution": 0.5, "unit": "mpp"}))
         r0.validate()
 
         list(r0(iter(tasks_l0)))
@@ -526,10 +566,12 @@ def test_region_read_and_batch_scales_coords_to_level0():
 @patch("wsi_patching.core.chunking_and_batching.get_xp_backend", new=lambda use_gpu: np)
 def test_region_read_and_batch_resample_scales_read_size_and_resizes():
     """
-    When resample_factor > 1.0, RegionReadAndBatch must:
-    1. Call read_region with dimensions scaled by resample_factor.
+    When target_ds > actual_ds (finer level selected), RegionReadAndBatch must:
+    1. Call read_region with dimensions scaled by rf = target_ds / actual_ds.
     2. Resize the returned image back to the virtual (requested-resolution) size.
     3. Slice patches at the (unscaled) virtual tile_size.
+
+    Here: target_ds=2.0, actual_ds=1.0 (finer level 0) → rf=2.0, read 64x64, resize to 32x32.
     """
     recorded = {}
 
@@ -538,9 +580,15 @@ def test_region_read_and_batch_resample_scales_read_size_and_resizes():
         # Return an array with the requested (scaled) read dimensions.
         return np.full((h, w, 3), fill_value=200, dtype=np.uint8)
 
-    with patch("wsi_patching.core.chunking_and_batching.read_region", new=_fake_read_region):
+    with (
+        patch("wsi_patching.core.chunking_and_batching.read_region", new=_fake_read_region),
+        # actual_ds=1.0 at level 0; target_ds=2.0 → rf=2.0 → read 2x the virtual dims
+        patch("wsi_patching.core.chunking_and_batching.get_level_for_resolution", new=lambda p, r, u, f: 0),
+        patch("wsi_patching.core.chunking_and_batching.get_level_downsamples", new=lambda p: [1.0, 2.0]),
+    ):
         # Virtual region: 32x32 at the requested resolution.
-        # resample_factor=2.0 → read 64x64 from the sharper level, then resize back to 32x32.
+        # target_ds=2.0, actual_ds=1.0 → rf=2.0 → read 64x64 from the finer level,
+        # then resize back to 32x32.
         tasks = [
             RegionTask(
                 wsi_id="S",
@@ -550,17 +598,17 @@ def test_region_read_and_batch_resample_scales_read_size_and_resizes():
                 region=(0, 0, 32, 32),
                 tiles=[(0, 0)],
                 downsample=2.0,
-                resample_factor=2.0,
+                resample_factor=1.0,
                 meta={},
             )
         ]
         r = RegionReadAndBatch(batch_size=10, num_workers=1, dtype=np.uint8, wsi_edge_policy="pad_with_zeros")
-        r.attach_context(PipelineContext({"tile_size": 16, "level": 0, "use_gpu": False}))
+        r.attach_context(PipelineContext({"tile_size": 16, "level": 0, "use_gpu": False, "resolution": 0.5, "unit": "mpp"}))
         r.validate()
 
         batches = list(r(iter(tasks)))
 
-    # read_region must be called with 2x the virtual region dimensions
+    # read_region must be called with 2x the virtual region dimensions (rf=2.0)
     assert recorded["read_size"] == (64, 64), f"Expected read size (64, 64) but got {recorded['read_size']}"
 
     # The batch should contain one patch of the virtual tile_size
@@ -569,15 +617,20 @@ def test_region_read_and_batch_resample_scales_read_size_and_resizes():
 
 
 @patch("wsi_patching.core.chunking_and_batching.get_xp_backend", new=lambda use_gpu: np)
-def test_region_read_and_batch_resample_factor_1_unchanged():
-    """When resample_factor=1.0, RegionReadAndBatch behaves identically to the non-resampling path."""
+def test_region_read_and_batch_no_resize_when_exact_level_match():
+    """When target_ds == actual_ds (exact level match), read size equals the virtual region size."""
     recorded = {}
 
     def _fake_read_region(path, x, y, w, h, level, use_gpu, num_workers_cucim):
         recorded["read_size"] = (w, h)
         return np.full((h, w, 3), fill_value=100, dtype=np.uint8)
 
-    with patch("wsi_patching.core.chunking_and_batching.read_region", new=_fake_read_region):
+    with (
+        patch("wsi_patching.core.chunking_and_batching.read_region", new=_fake_read_region),
+        # actual_ds=1.0 == target_ds=1.0 → rf=1.0 → no resize
+        patch("wsi_patching.core.chunking_and_batching.get_level_for_resolution", new=lambda p, r, u, f: 0),
+        patch("wsi_patching.core.chunking_and_batching.get_level_downsamples", new=lambda p: [1.0]),
+    ):
         tasks = [
             RegionTask(
                 wsi_id="S",
@@ -592,12 +645,12 @@ def test_region_read_and_batch_resample_factor_1_unchanged():
             )
         ]
         r = RegionReadAndBatch(batch_size=10, num_workers=1, dtype=np.uint8, wsi_edge_policy="pad_with_zeros")
-        r.attach_context(PipelineContext({"tile_size": 16, "level": 0, "use_gpu": False}))
+        r.attach_context(PipelineContext({"tile_size": 16, "level": 0, "use_gpu": False, "resolution": 0.5, "unit": "mpp"}))
         r.validate()
 
         batches = list(r(iter(tasks)))
 
-    # With resample_factor=1.0, read size should be unchanged
+    # With exact level match (rf=1.0), read size should equal virtual region size
     assert recorded["read_size"] == (32, 32), f"Expected read size (32, 32) but got {recorded['read_size']}"
     assert len(batches) == 1
     assert batches[0].patches.shape == (1, 16, 16, 3)
@@ -672,7 +725,7 @@ def test_region_read_and_batch_resample_invalid_interpolation_raises():
 @patch("wsi_patching.core.chunking_and_batching.get_xp_backend", new=lambda use_gpu: np)
 @pytest.mark.parametrize("method", ["nearest", "lanczos"])
 def test_region_read_and_batch_resample_uses_cv2_resize(method):
-    """RegionReadAndBatch must call cv2.resize with the correct interpolation flag when resample_factor > 1."""
+    """RegionReadAndBatch must call cv2.resize with the correct interpolation flag when rf != 1."""
     import cv2
 
     from wsi_patching.core.chunking_and_batching import _CV2_INTERPOLATION
@@ -690,6 +743,9 @@ def test_region_read_and_batch_resample_uses_cv2_resize(method):
     with (
         patch("wsi_patching.core.chunking_and_batching.read_region", new=_fake_read_region),
         patch("wsi_patching.core.chunking_and_batching.cv2.resize", new=_spy_resize),
+        # actual_ds=1.0, target_ds=2.0 → rf=2.0 → triggers resize
+        patch("wsi_patching.core.chunking_and_batching.get_level_for_resolution", new=lambda p, r, u, f: 0),
+        patch("wsi_patching.core.chunking_and_batching.get_level_downsamples", new=lambda p: [1.0, 2.0]),
     ):
         tasks = [
             RegionTask(
@@ -700,7 +756,7 @@ def test_region_read_and_batch_resample_uses_cv2_resize(method):
                 region=(0, 0, 32, 32),
                 tiles=[(0, 0)],
                 downsample=2.0,
-                resample_factor=2.0,
+                resample_factor=1.0,
                 meta={},
             )
         ]
@@ -711,7 +767,7 @@ def test_region_read_and_batch_resample_uses_cv2_resize(method):
             resample_interpolation=method,
             wsi_edge_policy="pad_with_zeros",
         )
-        r.attach_context(PipelineContext({"tile_size": 16, "level": 0, "use_gpu": False}))
+        r.attach_context(PipelineContext({"tile_size": 16, "level": 0, "use_gpu": False, "resolution": 0.5, "unit": "mpp"}))
         r.validate()
         list(r(iter(tasks)))
 
@@ -775,6 +831,8 @@ def test_patchextractor_exports_fallback_mode_to_context():
 # ------------------- PatchExtractor (composite stage) -------------------
 @patch("wsi_patching.core.chunking_and_batching.get_xp_backend", new=lambda use_gpu: np)
 @patch("wsi_patching.core.chunking_and_batching.read_region", new=fake_read_region)
+@patch("wsi_patching.core.chunking_and_batching.get_level_for_resolution", new=lambda p, r, u, f: 0)
+@patch("wsi_patching.core.chunking_and_batching.get_level_downsamples", new=lambda p: [1.0])
 def test_patchextractor_end_to_end_whole_slide():
     """
     Basic end-to-end test of PatchExtractor using a whole slide with no ROIs.
@@ -792,7 +850,7 @@ def test_patchextractor_end_to_end_whole_slide():
         roi_edge_policy="use_wsi_edge_policy",
         dtype=np.uint8,
     )
-    ctx = PipelineContext({"tile_size": 16, "stride": 16, "level": 0, "use_gpu": False})
+    ctx = PipelineContext({"tile_size": 16, "stride": 16, "level": 0, "use_gpu": False, "resolution": 0.5, "unit": "mpp"})
     pe.attach_context(ctx)
     pe.validate()
 

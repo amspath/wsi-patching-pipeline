@@ -2,10 +2,7 @@ from pathlib import Path
 from typing import Any, Iterable, List, Literal
 
 from wsi_patching.backends.cucim_openslide_isyntax import (
-    get_dimensions_for_level,
-    get_level_downsamples,
-    get_level_for_resolution,
-    get_resample_factor,
+    get_virtual_slide_dims,
     validate_slide_backend,
 )
 from wsi_patching.backends.cupy_numpy import validate_xp_backend
@@ -37,10 +34,10 @@ class WSIGrid(Stage):
             unit: Unit of the resolution ("level", "mpp", or "downsample").
 
         Note:
-            The strategy for selecting a pyramid level when the exact requested resolution is
-            unavailable (``fallback_mode``) is configured on the patching stage
-            (``PatchExtractor`` or ``RegionReadAndBatch``) rather than here. WSIGrid reads
-            ``fallback_mode`` from the pipeline context, where it is exported by the patching stage.
+            WSIGrid computes virtual (target-resolution) slide dimensions and exports
+            ``resolution`` and ``unit`` to the pipeline context. The actual pyramid level
+            used for reading is selected by ``RegionReadAndBatch`` (or ``PatchExtractor``)
+            using its own ``fallback_mode`` parameter.
         """
         self.slides = list(slides)
         self.use_gpu = use_gpu
@@ -54,7 +51,6 @@ class WSIGrid(Stage):
         ctx["use_gpu"] = self.use_gpu
 
     def validate(self) -> None:
-        self.ctx.require_key("fallback_mode")
         validate_slide_backend(self.use_gpu)
         validate_xp_backend(self.use_gpu)
         get_torch_device(self.use_gpu)
@@ -68,44 +64,26 @@ class WSIGrid(Stage):
         )
 
     def __call__(self, it: Iterable[Any]) -> Iterable[Slide]:
-        fallback_mode = self.ctx["fallback_mode"]
         for path in self.slides:
             if not self.check_slide_exists(path):
                 self.log.error(f"Slide path does not exist: {path}, skipping...")
                 raise FileNotFoundError(f"Slide path does not exist: {path}")
 
             wsi_id = Path(path).stem
-            selected_level = get_level_for_resolution(path, self.resolution, self.unit, fallback_mode)
-            downsample = get_level_downsamples(path)[selected_level]
-
-            if fallback_mode == "resample" and self.unit in ("mpp", "downsample"):
-                resample_factor = get_resample_factor(path, selected_level, self.resolution, self.unit)
-                # Compute virtual (requested-resolution) dimensions from the actual level's dimensions.
-                actual_W, actual_H = get_dimensions_for_level(path, selected_level)
-                W = round(actual_W / resample_factor)
-                H = round(actual_H / resample_factor)
-                # Virtual downsample: level-0 pixels per virtual pixel.
-                virtual_downsample = downsample * resample_factor
-            else:
-                resample_factor = 1.0
-                W, H = get_dimensions_for_level(path, selected_level)
-                virtual_downsample = downsample
+            virtual_W, virtual_H, virtual_ds = get_virtual_slide_dims(path, self.resolution, self.unit)
 
             self.log.info(f"Starting on Slide {wsi_id}")
             yield Slide(
                 wsi_id=wsi_id,
                 wsi_path=path,
-                dims=(W, H),
-                level=selected_level,
-                downsample=virtual_downsample,
-                resample_factor=resample_factor,
+                dims=(virtual_W, virtual_H),
+                level=0,
+                downsample=virtual_ds,
+                resample_factor=1.0,
                 meta={
                     "slide.wsi_id": wsi_id,
                     "slide.requested_resolution": self.resolution,
                     "slide.requested_unit": self.unit,
-                    "slide.requested_fallback_mode": fallback_mode,
-                    "slide.selected_level": selected_level,
-                    "slide.resample_factor": resample_factor,
                     "slide.path": path,
                 },
             )
