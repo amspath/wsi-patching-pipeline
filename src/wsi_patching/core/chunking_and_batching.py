@@ -1,7 +1,5 @@
 from typing import TYPE_CHECKING, Iterable, List, Literal, Optional, Tuple, Union
 
-import cv2
-
 from wsi_patching.backends.cucim_openslide_isyntax import read_region
 from wsi_patching.backends.cupy_numpy import get_xp_backend
 from wsi_patching.core.pipeline import Stage
@@ -14,15 +12,9 @@ if TYPE_CHECKING:
     import cupy as cp
 import numpy as np
 
-# Mapping from human-readable interpolation names to OpenCV interpolation flags.
-# Used by RegionReadAndBatch when resampling regions to the requested resolution.
-_CV2_INTERPOLATION: dict[str, int] = {
-    "nearest": cv2.INTER_NEAREST,
-    "linear": cv2.INTER_LINEAR,
-    "cubic": cv2.INTER_CUBIC,
-    "area": cv2.INTER_AREA,
-    "lanczos": cv2.INTER_LANCZOS4,
-}
+# Valid interpolation method names for resampling.
+# These map to PIL resampling filters inside the slide backend (cucim_openslide_isyntax).
+_VALID_INTERPOLATIONS: frozenset[str] = frozenset({"nearest", "linear", "cubic", "area", "lanczos"})
 
 
 class TilePlanner(Stage):
@@ -286,7 +278,8 @@ class RegionReadAndBatch(Stage):
                 - "ceil": pick the finest level no sharper than the requested resolution.
                 - "error": raise an error if no level matches the requested resolution exactly.
                 - "resample": like "ceil", but read from the finer level and downsample to the exact
-                  requested resolution using OpenCV (interpolation set by resample_interpolation).
+                  requested resolution using fastslide's PIL-based resampling
+                  (interpolation set by resample_interpolation).
             resample_interpolation: interpolation method used when resampling regions to the requested
                 resolution (only active when fallback_mode="resample").
                 Options: "nearest", "linear", "cubic", "area", "lanczos" (default).
@@ -296,9 +289,9 @@ class RegionReadAndBatch(Stage):
         self.dtype = dtype
         self.roi_edge_policy = roi_edge_policy
         self.wsi_edge_policy = wsi_edge_policy
-        if resample_interpolation not in _CV2_INTERPOLATION:
+        if resample_interpolation not in _VALID_INTERPOLATIONS:
             raise ValueError(
-                f"Unknown resample_interpolation '{resample_interpolation}'. Choose from: {list(_CV2_INTERPOLATION)}"
+                f"Unknown resample_interpolation '{resample_interpolation}'. Choose from: {sorted(_VALID_INTERPOLATIONS)}"
             )
         self.resample_interpolation = resample_interpolation
         self.fallback_mode = fallback_mode
@@ -343,8 +336,9 @@ class RegionReadAndBatch(Stage):
             x0_l0 = round(x0 * ds)
             y0_l0 = round(y0 * ds)
 
-            # When resampling: read a larger region at the finer pyramid level, then
-            # resize it back to the virtual (requested-resolution) dimensions.
+            # When resampling: read a larger region at the finer pyramid level and
+            # pass the target (virtual) dimensions as output_size so the backend
+            # can resample it back using fastslide's PIL-based resampling.
             rf = task.resample_factor
             if rf != 1.0:
                 read_w = round(w * rf)
@@ -361,13 +355,9 @@ class RegionReadAndBatch(Stage):
                 task.level,
                 use_gpu=self.ctx["use_gpu"],
                 num_workers_cucim=self.num_workers,
+                output_size=(w, h) if rf != 1.0 else None,
+                resample_interpolation=self.resample_interpolation,
             )
-
-            if rf != 1.0:
-                # Resize from read dimensions back to virtual (requested-resolution) dimensions.
-                # cv2.resize expects (width, height) as dsize and works on HxWxC arrays.
-                cv2_interpolation = _CV2_INTERPOLATION[self.resample_interpolation]
-                region_img = cv2.resize(region_img, (w, h), interpolation=cv2_interpolation)
 
             coords: List[Tuple[int, int]] = []
             patches: List[Union[np.ndarray, "cp.ndarray"]] = []

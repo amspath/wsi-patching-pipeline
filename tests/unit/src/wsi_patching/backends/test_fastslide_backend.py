@@ -283,3 +283,49 @@ def test_read_region_use_gpu_and_num_workers_are_accepted(monkeypatch):
 
     arr = mod.read_region(path="slide.svs", x=0, y=0, w=4, h=4, level=0, use_gpu=True, num_workers_cucim=16)
     assert isinstance(arr, np.ndarray)
+
+
+# ---------- read_region with output_size (PIL resampling) ----------
+
+
+def test_read_region_output_size_resamples_to_target(monkeypatch):
+    """read_region must resample the result to output_size when it differs from (w, h)."""
+    fake = FakeFastSlide("slide.svs")
+    monkeypatch.setattr(mod, "_open_slide", lambda path: fake, raising=True)
+
+    # Read a 8×10 region, then resample down to 4×5.
+    arr = mod.read_region(path="slide.svs", x=0, y=0, w=8, h=10, level=0, use_gpu=False, output_size=(4, 5))
+    assert isinstance(arr, np.ndarray)
+    assert arr.shape == (5, 4, 3)  # (out_h, out_w, 3)
+    assert arr.dtype == np.uint8
+
+
+def test_read_region_output_size_none_returns_native_size(monkeypatch):
+    """read_region with output_size=None must return the region at its native size."""
+    fake = FakeFastSlide("slide.svs")
+    monkeypatch.setattr(mod, "_open_slide", lambda path: fake, raising=True)
+
+    arr = mod.read_region(path="slide.svs", x=0, y=0, w=7, h=9, level=0, use_gpu=False, output_size=None)
+    assert arr.shape == (9, 7, 3)
+
+
+def test_read_region_output_size_equal_to_read_size_skips_resample(monkeypatch):
+    """read_region must not resample when output_size == (w, h)."""
+    fake = FakeFastSlide("slide.svs")
+    monkeypatch.setattr(mod, "_open_slide", lambda path: fake, raising=True)
+
+    arr = mod.read_region(path="slide.svs", x=0, y=0, w=6, h=8, level=0, use_gpu=False, output_size=(6, 8))
+    assert arr.shape == (8, 6, 3)
+
+
+@pytest.mark.parametrize("method", ["nearest", "linear", "cubic", "area", "lanczos"])
+def test_read_region_all_interpolation_methods_accepted(monkeypatch, method):
+    """read_region must accept all documented interpolation methods without error."""
+    fake = FakeFastSlide("slide.svs")
+    monkeypatch.setattr(mod, "_open_slide", lambda path: fake, raising=True)
+
+    arr = mod.read_region(
+        path="slide.svs", x=0, y=0, w=8, h=8, level=0, use_gpu=False,
+        output_size=(4, 4), resample_interpolation=method,
+    )
+    assert arr.shape == (4, 4, 3)

@@ -3,8 +3,19 @@ from typing import List, Literal, Optional, Tuple
 
 import fastslide
 import numpy as np
+from PIL import Image as PILImage
 
 logger = logging.getLogger(__name__)
+
+# Mapping from human-readable interpolation names to PIL resampling filters.
+# Used by read_region when resampling regions to the requested output size.
+_PIL_RESAMPLE: dict[str, int] = {
+    "nearest": PILImage.Resampling.NEAREST,
+    "linear": PILImage.Resampling.BILINEAR,
+    "cubic": PILImage.Resampling.BICUBIC,
+    "area": PILImage.Resampling.BOX,
+    "lanczos": PILImage.Resampling.LANCZOS,
+}
 
 
 def validate_slide_backend(use_gpu: bool) -> None:
@@ -30,6 +41,8 @@ def read_region(
     level: int,
     use_gpu: bool = False,
     num_workers_cucim: int = 8,
+    output_size: Optional[Tuple[int, int]] = None,
+    resample_interpolation: str = "lanczos",
 ) -> Optional[np.ndarray]:
     """
     Return the requested region at the given pyramid level as a NumPy array.
@@ -44,15 +57,31 @@ def read_region(
         use_gpu: Ignored. Kept for API compatibility; slide reading is always
             performed on the CPU via fastslide.
         num_workers_cucim: Ignored. Kept for API compatibility.
+        output_size: Optional (out_w, out_h) to resample the region to after
+            reading.  When provided and different from (w, h), fastslide's
+            PIL-based resampling is applied before returning the array.  This
+            is used by the pipeline when fallback_mode="resample" to read a
+            larger region at a finer pyramid level and downsample it to the
+            requested virtual resolution.
+        resample_interpolation: Interpolation filter to use when output_size
+            differs from (w, h).  One of "nearest", "linear", "cubic", "area",
+            "lanczos" (default).
 
     Returns:
-        NumPy array of shape (h, w, 3), dtype uint8.
+        NumPy array of shape (out_h, out_w, 3) when output_size is given,
+        otherwise (h, w, 3), dtype uint8.
     """
     with _open_slide(path) as slide:
         # fastslide uses level-native coordinates; convert from level-0 coords.
         x_native, y_native = slide.convert_level0_to_level_native(x, y, level)
         region = slide.read_region(location=(x_native, y_native), level=level, size=(w, h))
-        return np.asarray(region.numpy())
+        arr = np.asarray(region.numpy())
+
+    if output_size is not None and output_size != (w, h):
+        pil_filter = _PIL_RESAMPLE[resample_interpolation]
+        arr = np.asarray(PILImage.fromarray(arr).resize(output_size, resample=pil_filter))
+
+    return arr
 
 
 def get_dimensions_for_level(path: str, level: int) -> Tuple[int, int]:

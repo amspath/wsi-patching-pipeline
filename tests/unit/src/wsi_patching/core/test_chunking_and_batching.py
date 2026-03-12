@@ -9,7 +9,7 @@ from wsi_patching.regions_of_interest.rois import BoxROI
 from wsi_patching.utils.meta_typing import PipelineContext
 
 
-def fake_read_region(path, x, y, w, h, level, use_gpu, num_workers_cucim):
+def fake_read_region(path, x, y, w, h, level, use_gpu, num_workers_cucim, output_size=None, resample_interpolation="lanczos"):
     # Return an HxWx3 array filled with unique value (for sanity checks if desired)
     return np.full((h, w, 3), fill_value=11, dtype=np.uint8)
 
@@ -217,7 +217,7 @@ def test_region_read_and_batch_happy_path_and_batch_split():
 @patch("wsi_patching.core.chunking_and_batching.get_xp_backend", new=lambda use_gpu: np)
 def test_region_read_and_batch_skips_incomplete_patches():
     # region 20x20, tile_size 16 -> tile at (8,8) gives rx=8, ry=8; patch 12x12 -> should be skipped
-    def _fake_read_region(path, x, y, w, h, level, use_gpu, num_workers_cucim):
+    def _fake_read_region(path, x, y, w, h, level, use_gpu, num_workers_cucim, output_size=None, resample_interpolation="lanczos"):
         return np.full((h, w, 3), 1, dtype=np.uint8)
 
     with patch("wsi_patching.core.chunking_and_batching.read_region", new=_fake_read_region):
@@ -247,7 +247,7 @@ def test_region_read_and_batch_skips_incomplete_patches():
 @patch("wsi_patching.core.chunking_and_batching.get_xp_backend", new=lambda use_gpu: np)
 def test_region_read_and_batch_pads_incomplete_patches_pad_with_zeros():
     # region 20x20, tile_size 16 -> tile at (8,8) gives rx=8, ry=8; patch 12x12 -> should be padded to 16x16 with zeros
-    def _fake_read_region(path, x, y, w, h, level, use_gpu, num_workers_cucim):
+    def _fake_read_region(path, x, y, w, h, level, use_gpu, num_workers_cucim, output_size=None, resample_interpolation="lanczos"):
         return np.full((h, w, 3), 1, dtype=np.uint8)
 
     with patch("wsi_patching.core.chunking_and_batching.read_region", new=_fake_read_region):
@@ -276,7 +276,7 @@ def test_region_read_and_batch_pads_incomplete_patches_pad_with_zeros():
 @patch("wsi_patching.core.chunking_and_batching.get_xp_backend", new=lambda use_gpu: np)
 def test_region_read_and_batch_pads_incomplete_patches_pad_with_edge():
     # region 20x20, tile_size 16 -> tile at (8,8) gives rx=8, ry=8; patch 12x12 -> should be padded to 16x16 with edge
-    def _fake_read_region(path, x, y, w, h, level, use_gpu, num_workers_cucim):
+    def _fake_read_region(path, x, y, w, h, level, use_gpu, num_workers_cucim, output_size=None, resample_interpolation="lanczos"):
         return np.full((h, w, 3), 1, dtype=np.uint8)
 
     with patch("wsi_patching.core.chunking_and_batching.read_region", new=_fake_read_region):
@@ -305,7 +305,7 @@ def test_region_read_and_batch_pads_incomplete_patches_pad_with_edge():
 @patch("wsi_patching.core.chunking_and_batching.get_xp_backend", new=lambda use_gpu: np)
 def test_region_read_and_batch_pads_incomplete_patches_within_roi_pad_with_zeros():
     # region 20x20, tile_size 16 -> tile at (8,8) gives rx=8, ry=8; patch 12x12 -> should be padded to 16x16 with zeros
-    def _fake_read_region(path, x, y, w, h, level, use_gpu, num_workers_cucim):
+    def _fake_read_region(path, x, y, w, h, level, use_gpu, num_workers_cucim, output_size=None, resample_interpolation="lanczos"):
         return np.full((h, w, 3), 1, dtype=np.uint8)
 
     with patch("wsi_patching.core.chunking_and_batching.read_region", new=_fake_read_region):
@@ -348,7 +348,7 @@ def test_region_read_and_batch_roi_edge_policy_read_from_image_expands_region():
     """
     recorded = {}
 
-    def _fake_read_region(path, x, y, w, h, level, use_gpu, num_workers_cucim):
+    def _fake_read_region(path, x, y, w, h, level, use_gpu, num_workers_cucim, output_size=None, resample_interpolation="lanczos"):
         recorded["size"] = (w, h)
         return np.zeros((h, w, 3), dtype=np.uint8)
 
@@ -384,7 +384,7 @@ def test_region_read_and_batch_roi_edge_policy_read_from_image_expands_when_w_is
     """
     recorded = {}
 
-    def _fake_read_region(path, x, y, w, h, level, use_gpu, num_workers_cucim):
+    def _fake_read_region(path, x, y, w, h, level, use_gpu, num_workers_cucim, output_size=None, resample_interpolation="lanczos"):
         recorded["size"] = (w, h)
         return np.zeros((h, w, 3), dtype=np.uint8)
 
@@ -429,7 +429,7 @@ def test_region_read_and_batch_roi_edge_policy_read_from_image_clamps_to_wsi_edg
     """
     recorded = {}
 
-    def _fake_read_region(path, x, y, w, h, level, use_gpu, num_workers_cucim):
+    def _fake_read_region(path, x, y, w, h, level, use_gpu, num_workers_cucim, output_size=None, resample_interpolation="lanczos"):
         recorded["size"] = (w, h)
         return np.zeros((h, w, 3), dtype=np.uint8)
 
@@ -471,7 +471,7 @@ def test_region_read_and_batch_scales_coords_to_level0():
     """
     recorded = {}
 
-    def _fake_read_region(path, x, y, w, h, level, use_gpu, num_workers_cucim):
+    def _fake_read_region(path, x, y, w, h, level, use_gpu, num_workers_cucim, output_size=None, resample_interpolation="lanczos"):
         recorded["xy"] = (x, y)
         return np.zeros((h, w, 3), dtype=np.uint8)
 
@@ -528,15 +528,17 @@ def test_region_read_and_batch_resample_scales_read_size_and_resizes():
     """
     When resample_factor > 1.0, RegionReadAndBatch must:
     1. Call read_region with dimensions scaled by resample_factor.
-    2. Resize the returned image back to the virtual (requested-resolution) size.
+    2. Pass output_size equal to the virtual (requested-resolution) size.
     3. Slice patches at the (unscaled) virtual tile_size.
     """
     recorded = {}
 
-    def _fake_read_region(path, x, y, w, h, level, use_gpu, num_workers_cucim):
+    def _fake_read_region(path, x, y, w, h, level, use_gpu, num_workers_cucim, output_size=None, resample_interpolation="lanczos"):
         recorded["read_size"] = (w, h)
-        # Return an array with the requested (scaled) read dimensions.
-        return np.full((h, w, 3), fill_value=200, dtype=np.uint8)
+        recorded["output_size"] = output_size
+        # Simulate the backend: return the output_size array if resampling was requested.
+        out_w, out_h = output_size if output_size is not None else (w, h)
+        return np.full((out_h, out_w, 3), fill_value=200, dtype=np.uint8)
 
     with patch("wsi_patching.core.chunking_and_batching.read_region", new=_fake_read_region):
         # Virtual region: 32x32 at the requested resolution.
@@ -562,6 +564,8 @@ def test_region_read_and_batch_resample_scales_read_size_and_resizes():
 
     # read_region must be called with 2x the virtual region dimensions
     assert recorded["read_size"] == (64, 64), f"Expected read size (64, 64) but got {recorded['read_size']}"
+    # output_size must be the virtual (requested-resolution) dimensions
+    assert recorded["output_size"] == (32, 32), f"Expected output_size (32, 32) but got {recorded['output_size']}"
 
     # The batch should contain one patch of the virtual tile_size
     assert len(batches) == 1
@@ -573,8 +577,9 @@ def test_region_read_and_batch_resample_factor_1_unchanged():
     """When resample_factor=1.0, RegionReadAndBatch behaves identically to the non-resampling path."""
     recorded = {}
 
-    def _fake_read_region(path, x, y, w, h, level, use_gpu, num_workers_cucim):
+    def _fake_read_region(path, x, y, w, h, level, use_gpu, num_workers_cucim, output_size=None, resample_interpolation="lanczos"):
         recorded["read_size"] = (w, h)
+        recorded["output_size"] = output_size
         return np.full((h, w, 3), fill_value=100, dtype=np.uint8)
 
     with patch("wsi_patching.core.chunking_and_batching.read_region", new=_fake_read_region):
@@ -597,8 +602,9 @@ def test_region_read_and_batch_resample_factor_1_unchanged():
 
         batches = list(r(iter(tasks)))
 
-    # With resample_factor=1.0, read size should be unchanged
+    # With resample_factor=1.0, read size should be unchanged and output_size should be None
     assert recorded["read_size"] == (32, 32), f"Expected read size (32, 32) but got {recorded['read_size']}"
+    assert recorded["output_size"] is None, f"Expected output_size=None but got {recorded['output_size']}"
     assert len(batches) == 1
     assert batches[0].patches.shape == (1, 16, 16, 3)
 
@@ -643,15 +649,8 @@ def test_readwindowchunker_propagates_resample_factor():
 @patch("wsi_patching.core.chunking_and_batching.get_xp_backend", new=lambda use_gpu: np)
 def test_region_read_and_batch_resample_default_interpolation_is_lanczos():
     """RegionReadAndBatch default resample_interpolation should be 'lanczos'."""
-    import cv2
-
-    from wsi_patching.core.chunking_and_batching import _CV2_INTERPOLATION
-
     r = RegionReadAndBatch(batch_size=10, num_workers=1, dtype=np.uint8)
     assert r.resample_interpolation == "lanczos"
-
-    # Verify the mapping resolves to the correct OpenCV flag.
-    assert _CV2_INTERPOLATION["lanczos"] == cv2.INTER_LANCZOS4
 
 
 @patch("wsi_patching.core.chunking_and_batching.get_xp_backend", new=lambda use_gpu: np)
@@ -671,26 +670,16 @@ def test_region_read_and_batch_resample_invalid_interpolation_raises():
 
 @patch("wsi_patching.core.chunking_and_batching.get_xp_backend", new=lambda use_gpu: np)
 @pytest.mark.parametrize("method", ["nearest", "lanczos"])
-def test_region_read_and_batch_resample_uses_cv2_resize(method):
-    """RegionReadAndBatch must call cv2.resize with the correct interpolation flag when resample_factor > 1."""
-    import cv2
+def test_region_read_and_batch_resample_passes_output_size_and_interpolation_to_read_region(method):
+    """RegionReadAndBatch must pass output_size and resample_interpolation to read_region when resample_factor > 1."""
+    read_calls = []
 
-    from wsi_patching.core.chunking_and_batching import _CV2_INTERPOLATION
+    def _fake_read_region(path, x, y, w, h, level, use_gpu, num_workers_cucim, output_size=None, resample_interpolation="lanczos"):
+        read_calls.append({"w": w, "h": h, "output_size": output_size, "resample_interpolation": resample_interpolation})
+        out_w, out_h = output_size if output_size is not None else (w, h)
+        return np.full((out_h, out_w, 3), fill_value=128, dtype=np.uint8)
 
-    resize_calls = []
-    real_resize = cv2.resize
-
-    def _spy_resize(src, dsize, **kwargs):
-        resize_calls.append({"dsize": dsize, "interpolation": kwargs.get("interpolation")})
-        return real_resize(src, dsize, **kwargs)
-
-    def _fake_read_region(path, x, y, w, h, level, use_gpu, num_workers_cucim):
-        return np.full((h, w, 3), fill_value=128, dtype=np.uint8)
-
-    with (
-        patch("wsi_patching.core.chunking_and_batching.read_region", new=_fake_read_region),
-        patch("wsi_patching.core.chunking_and_batching.cv2.resize", new=_spy_resize),
-    ):
+    with patch("wsi_patching.core.chunking_and_batching.read_region", new=_fake_read_region):
         tasks = [
             RegionTask(
                 wsi_id="S",
@@ -715,9 +704,11 @@ def test_region_read_and_batch_resample_uses_cv2_resize(method):
         r.validate()
         list(r(iter(tasks)))
 
-    assert len(resize_calls) == 1
-    assert resize_calls[0]["dsize"] == (32, 32)
-    assert resize_calls[0]["interpolation"] == _CV2_INTERPOLATION[method]
+    assert len(read_calls) == 1
+    assert read_calls[0]["w"] == 64  # 32 * 2.0
+    assert read_calls[0]["h"] == 64  # 32 * 2.0
+    assert read_calls[0]["output_size"] == (32, 32)
+    assert read_calls[0]["resample_interpolation"] == method
 
 
 @patch("wsi_patching.core.chunking_and_batching.get_xp_backend", new=lambda use_gpu: np)
