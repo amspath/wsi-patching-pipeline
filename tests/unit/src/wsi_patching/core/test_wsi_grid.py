@@ -1,21 +1,18 @@
 from unittest.mock import call, patch
 
-import pytest
-
 from wsi_patching.core.pipeline import PipelineContext
 from wsi_patching.core.wsi_grid import WSIGrid
 
 
 def test_export_context_sets_expected_keys():
-    grid = WSIGrid(slides=["/data/A.svs"], use_gpu=True, resolution=0.5, unit="mpp")
+    grid = WSIGrid(slides=["/data/A.svs"], use_gpu=True, resolution=0.5, unit="mpp", fallback_mode="nearest")
     ctx = PipelineContext({})
     grid.export_context(ctx)
 
     assert ctx["resolution"] == 0.5
     assert ctx["unit"] == "mpp"
+    assert ctx["fallback_mode"] == "nearest"
     assert ctx["use_gpu"] is True
-    # fallback_mode is no longer exported by WSIGrid; it is set by the patching stage.
-    assert "fallback_mode" not in ctx
 
 
 @patch("wsi_patching.core.wsi_grid.get_torch_device", new=lambda use_gpu: None)
@@ -23,30 +20,20 @@ def test_export_context_sets_expected_keys():
 @patch("wsi_patching.core.wsi_grid.validate_slide_backend")
 def test_validate_invokes_backends(mock_validate_slide, mock_validate_xp):
     grid = WSIGrid(slides=[], use_gpu=False, resolution=0.5, unit="mpp")
-    grid.attach_context(PipelineContext({"fallback_mode": "error"}))
     grid.validate()
     mock_validate_slide.assert_called_once_with(False)
     mock_validate_xp.assert_called_once_with(False)
 
     # Also check use_gpu=True path
     grid2 = WSIGrid(slides=[], use_gpu=True, resolution=0.5, unit="mpp")
-    grid2.attach_context(PipelineContext({"fallback_mode": "error"}))
     grid2.validate()
     assert mock_validate_slide.call_args_list[-1] == call(True)
     assert mock_validate_xp.call_args_list[-1] == call(True)
 
 
-def test_validate_requires_fallback_mode_in_context():
-    """WSIGrid.validate() must raise if fallback_mode is absent from context."""
-    grid = WSIGrid(slides=[], use_gpu=False, resolution=0.5, unit="mpp")
-    grid.attach_context(PipelineContext({}))
-    with pytest.raises(KeyError, match="fallback_mode"):
-        grid.validate()
-
-
 def test_for_slide_returns_single_slide_clone():
     grid = WSIGrid(
-        slides=["/data/A.svs", "/data/B.svs"], use_gpu=True, resolution=0.5, unit="mpp"
+        slides=["/data/A.svs", "/data/B.svs"], use_gpu=True, resolution=0.5, unit="mpp", fallback_mode="nearest"
     )
 
     g2 = grid.for_slide("/data/C.svs")
@@ -55,6 +42,7 @@ def test_for_slide_returns_single_slide_clone():
     assert g2.use_gpu is True
     assert g2.resolution == 0.5
     assert g2.unit == "mpp"
+    assert g2.fallback_mode == "nearest"
 
 
 @patch("wsi_patching.core.wsi_grid.Path.exists", return_value=True)
@@ -84,9 +72,8 @@ def test_call_yields_slide_objects_with_dims(mock_get_level, mock_dims, mock_dow
     mock_downsamples.return_value = [1.0, 2.0, 4.0]
 
     grid = WSIGrid(
-        slides=["/slides/A.svs", "/slides/B.svs"], use_gpu=False, resolution=0.5, unit="mpp"
+        slides=["/slides/A.svs", "/slides/B.svs"], use_gpu=False, resolution=0.5, unit="mpp", fallback_mode="nearest"
     )
-    grid.attach_context(PipelineContext({"fallback_mode": "nearest"}))
 
     out = list(grid(iter(())))
     assert len(out) == 2
@@ -121,54 +108,3 @@ def test_call_yields_slide_objects_with_dims(mock_get_level, mock_dims, mock_dow
 
     # get_dimensions_for_level called with (path, level)
     mock_dims.assert_has_calls([call("/slides/A.svs", 1), call("/slides/B.svs", 2)])
-
-
-@patch("wsi_patching.core.wsi_grid.Path.exists", return_value=True)
-@patch("wsi_patching.core.wsi_grid.get_resample_factor")
-@patch("wsi_patching.core.wsi_grid.get_level_downsamples")
-@patch("wsi_patching.core.wsi_grid.get_dimensions_for_level")
-@patch("wsi_patching.core.wsi_grid.get_level_for_resolution")
-def test_call_resample_fallback_computes_virtual_dims(
-    mock_get_level, mock_dims, mock_downsamples, mock_resample_factor, mock_exists
-):
-    """When fallback_mode='resample', WSIGrid should compute virtual dims and set resample_factor."""
-    mock_get_level.return_value = 0  # read from level 0 (0.25 mpp)
-    mock_dims.return_value = (4000, 3000)  # level-0 actual dims
-    mock_downsamples.return_value = [1.0, 4.0]  # level 0 downsample=1.0
-    mock_resample_factor.return_value = 2.0  # requested 0.5 / actual 0.25 = 2x
-
-    grid = WSIGrid(slides=["/slides/A.svs"], use_gpu=False, resolution=0.5, unit="mpp")
-    grid.attach_context(PipelineContext({"fallback_mode": "resample"}))
-    out = list(grid(iter(())))
-    assert len(out) == 1
-    slide = out[0]
-
-    # Virtual dims should be actual_dims / resample_factor
-    assert slide.dims == (2000, 1500)
-    # Virtual downsample: level-0 downsample (1.0) * resample_factor (2.0)
-    assert slide.downsample == pytest.approx(2.0)
-    assert slide.resample_factor == pytest.approx(2.0)
-    assert slide.level == 0
-    assert slide.meta["slide.resample_factor"] == pytest.approx(2.0)
-
-    mock_resample_factor.assert_called_once_with("/slides/A.svs", 0, 0.5, "mpp")
-
-
-@patch("wsi_patching.core.wsi_grid.Path.exists", return_value=True)
-@patch("wsi_patching.core.wsi_grid.get_level_downsamples")
-@patch("wsi_patching.core.wsi_grid.get_dimensions_for_level")
-@patch("wsi_patching.core.wsi_grid.get_level_for_resolution")
-def test_call_no_resample_factor_1_by_default(mock_get_level, mock_dims, mock_downsamples, mock_exists):
-    """Non-resample fallback modes should produce resample_factor=1.0 (no resampling)."""
-    mock_get_level.return_value = 1
-    mock_dims.return_value = (1000, 800)
-    mock_downsamples.return_value = [1.0, 2.0]
-
-    grid = WSIGrid(slides=["/slides/A.svs"], use_gpu=False, resolution=0.5, unit="mpp")
-    grid.attach_context(PipelineContext({"fallback_mode": "nearest"}))
-    out = list(grid(iter(())))
-    assert len(out) == 1
-    slide = out[0]
-
-    assert slide.resample_factor == pytest.approx(1.0)
-    assert slide.dims == (1000, 800)  # unchanged
