@@ -643,7 +643,7 @@ def test_readwindowchunker_propagates_resample_factor():
 @patch("wsi_patching.core.chunking_and_batching.get_xp_backend", new=lambda use_gpu: np)
 def test_region_read_and_batch_resample_default_interpolation_is_lanczos():
     """RegionReadAndBatch default resample_interpolation should be 'lanczos'."""
-    import cv2 as _cv2
+    import cv2
 
     from wsi_patching.core.chunking_and_batching import _CV2_INTERPOLATION
 
@@ -651,7 +651,7 @@ def test_region_read_and_batch_resample_default_interpolation_is_lanczos():
     assert r.resample_interpolation == "lanczos"
 
     # Verify the mapping resolves to the correct OpenCV flag.
-    assert _CV2_INTERPOLATION["lanczos"] == _cv2.INTER_LANCZOS4
+    assert _CV2_INTERPOLATION["lanczos"] == cv2.INTER_LANCZOS4
 
 
 @patch("wsi_patching.core.chunking_and_batching.get_xp_backend", new=lambda use_gpu: np)
@@ -673,16 +673,16 @@ def test_region_read_and_batch_resample_invalid_interpolation_raises():
 @pytest.mark.parametrize("method", ["nearest", "lanczos"])
 def test_region_read_and_batch_resample_uses_cv2_resize(method):
     """RegionReadAndBatch must call cv2.resize with the correct interpolation flag when resample_factor > 1."""
-    import cv2 as _cv2
+    import cv2
 
     from wsi_patching.core.chunking_and_batching import _CV2_INTERPOLATION
 
     resize_calls = []
-    _real_resize = _cv2.resize
+    real_resize = cv2.resize
 
     def _spy_resize(src, dsize, **kwargs):
         resize_calls.append({"dsize": dsize, "interpolation": kwargs.get("interpolation")})
-        return _real_resize(src, dsize, **kwargs)
+        return real_resize(src, dsize, **kwargs)
 
     def _fake_read_region(path, x, y, w, h, level, use_gpu, num_workers_cucim):
         return np.full((h, w, 3), fill_value=128, dtype=np.uint8)
@@ -728,6 +728,48 @@ def test_patchextractor_forwards_resample_interpolation():
 
     pe_default = PatchExtractor(tile_size=16, stride=16)
     assert pe_default._rbb.resample_interpolation == "lanczos"
+
+
+# ------------------- fallback_mode on RegionReadAndBatch / PatchExtractor -------------------
+def test_region_read_and_batch_default_fallback_mode_is_error():
+    """RegionReadAndBatch default fallback_mode should be 'error'."""
+    r = RegionReadAndBatch()
+    assert r.fallback_mode == "error"
+
+
+@pytest.mark.parametrize("mode", ["nearest", "floor", "ceil", "error", "resample"])
+def test_region_read_and_batch_fallback_mode_stored(mode):
+    """All valid fallback_mode values should be stored without error."""
+    r = RegionReadAndBatch(fallback_mode=mode)
+    assert r.fallback_mode == mode
+
+
+def test_region_read_and_batch_exports_fallback_mode_to_context():
+    """RegionReadAndBatch.export_context must write fallback_mode to the context."""
+    r = RegionReadAndBatch(fallback_mode="nearest")
+    ctx = PipelineContext({})
+    r.export_context(ctx)
+    assert ctx["fallback_mode"] == "nearest"
+
+
+def test_patchextractor_default_fallback_mode_is_error():
+    """PatchExtractor default fallback_mode should be 'error'."""
+    pe = PatchExtractor(tile_size=16, stride=16)
+    assert pe._rbb.fallback_mode == "error"
+
+
+def test_patchextractor_forwards_fallback_mode_to_rbb():
+    """PatchExtractor must forward fallback_mode to its internal RegionReadAndBatch."""
+    pe = PatchExtractor(tile_size=16, stride=16, fallback_mode="resample")
+    assert pe._rbb.fallback_mode == "resample"
+
+
+def test_patchextractor_exports_fallback_mode_to_context():
+    """PatchExtractor.export_context must expose fallback_mode (via RegionReadAndBatch) to context."""
+    pe = PatchExtractor(tile_size=16, stride=16, fallback_mode="nearest")
+    ctx = PipelineContext({})
+    pe.export_context(ctx)
+    assert ctx["fallback_mode"] == "nearest"
 
 
 # ------------------- PatchExtractor (composite stage) -------------------
