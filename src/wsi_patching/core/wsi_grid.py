@@ -5,6 +5,7 @@ from wsi_patching.backends.cucim_openslide_isyntax import (
     get_dimensions_for_level,
     get_level_downsamples,
     get_level_for_resolution,
+    get_resample_factor,
     validate_slide_backend,
 )
 from wsi_patching.backends.cupy_numpy import validate_xp_backend
@@ -25,7 +26,7 @@ class WSIGrid(Stage):
         use_gpu: bool,
         resolution: float,
         unit: Literal["level", "mpp", "downsample"],
-        fallback_mode: Literal["nearest", "floor", "ceil", "error"] = "error",
+        fallback_mode: Literal["nearest", "floor", "ceil", "error", "resample"] = "error",
     ):
         """
         Initializes the WSIGrid stage, the starting point of a WSI patching pipeline.
@@ -36,7 +37,10 @@ class WSIGrid(Stage):
             resolution: Desired resolution for patch extraction.
             unit: Unit of the resolution ("level", "mpp", or "downsample").
             fallback_mode: Strategy for selecting resolution if exact match is unavailable (default is "error").
-                Options are ("nearest", "floor", "ceil", "error").
+                Options are ("nearest", "floor", "ceil", "error", "resample").
+                - "resample": read from the finest available level that is at least as sharp as requested,
+                  then resample the region to the exact requested resolution. Tile coordinates and patch
+                  dimensions are expressed in the virtual requested-resolution space.
         """
         self.slides = list(slides)
         self.use_gpu = use_gpu
@@ -73,8 +77,20 @@ class WSIGrid(Stage):
 
             wsi_id = Path(path).stem
             selected_level = get_level_for_resolution(path, self.resolution, self.unit, self.fallback_mode)
-            W, H = get_dimensions_for_level(path, selected_level)
             downsample = get_level_downsamples(path)[selected_level]
+
+            if self.fallback_mode == "resample" and self.unit in ("mpp", "downsample"):
+                resample_factor = get_resample_factor(path, selected_level, self.resolution, self.unit)
+                # Compute virtual (requested-resolution) dimensions from the actual level's dimensions.
+                actual_W, actual_H = get_dimensions_for_level(path, selected_level)
+                W = round(actual_W / resample_factor)
+                H = round(actual_H / resample_factor)
+                # Virtual downsample: level-0 pixels per virtual pixel.
+                virtual_downsample = downsample * resample_factor
+            else:
+                resample_factor = 1.0
+                W, H = get_dimensions_for_level(path, selected_level)
+                virtual_downsample = downsample
 
             self.log.info(f"Starting on Slide {wsi_id}")
             yield Slide(
@@ -82,13 +98,15 @@ class WSIGrid(Stage):
                 wsi_path=path,
                 dims=(W, H),
                 level=selected_level,
-                downsample=downsample,
+                downsample=virtual_downsample,
+                resample_factor=resample_factor,
                 meta={
                     "slide.wsi_id": wsi_id,
                     "slide.requested_resolution": self.resolution,
                     "slide.requested_unit": self.unit,
                     "slide.requested_fallback_mode": self.fallback_mode,
                     "slide.selected_level": selected_level,
+                    "slide.resample_factor": resample_factor,
                     "slide.path": path,
                 },
             )

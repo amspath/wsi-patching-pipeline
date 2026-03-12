@@ -178,6 +178,85 @@ def test_get_level_for_resolution_mpp_nearest(monkeypatch):
     assert mod.get_level_for_resolution(path="dummy.svs", resolution=0.8, unit="mpp", fallback_mode="nearest") == 1
 
 
+def test_get_level_for_resolution_resample_mode(monkeypatch):
+    def _ctor(path, use_gpu=False):
+        return FakeOpenSlide(path)
+
+    monkeypatch.setattr(mod, "_open_slide", _ctor, raising=True)
+
+    # FakeOpenSlide: mpp0 = 0.5, level_downsamples [1.0, 2.0, 4.0]
+    # values = [0.5, 1.0, 2.0]
+    # resample: finest level with mpp <= requested
+    # request 0.5 → eligible [0.5] → level 0 (exact match, factor 1.0)
+    assert mod.get_level_for_resolution(path="dummy.svs", resolution=0.5, unit="mpp", fallback_mode="resample") == 0
+
+    # request 0.8 → eligible [0.5] → level 0 (finest with mpp <= 0.8)
+    assert mod.get_level_for_resolution(path="dummy.svs", resolution=0.8, unit="mpp", fallback_mode="resample") == 0
+
+    # request 1.1 → eligible [0.5, 1.0] → level with max eligible mpp = 1.0 → level 1
+    assert mod.get_level_for_resolution(path="dummy.svs", resolution=1.1, unit="mpp", fallback_mode="resample") == 1
+
+    # request 0.3 → no eligible levels (all mpp > 0.3) → fallback to level 0
+    assert mod.get_level_for_resolution(path="dummy.svs", resolution=0.3, unit="mpp", fallback_mode="resample") == 0
+
+
+def test_get_level_for_resolution_resample_downsample(monkeypatch):
+    def _ctor(path, use_gpu=False):
+        return FakeOpenSlide(path)
+
+    monkeypatch.setattr(mod, "_open_slide", _ctor, raising=True)
+
+    # level_downsamples = [1.0, 2.0, 4.0]
+    # request downsample 3.0 → eligible [1.0, 2.0] → level with max value = 2.0 → level 1
+    assert (
+        mod.get_level_for_resolution(path="dummy.svs", resolution=3.0, unit="downsample", fallback_mode="resample")
+        == 1
+    )
+
+
+def test_get_resample_factor_mpp(monkeypatch):
+    def _ctor(path, use_gpu=False):
+        return FakeOpenSlide(path)
+
+    monkeypatch.setattr(mod, "_open_slide", _ctor, raising=True)
+
+    # FakeOpenSlide: mpp0 = 0.5, level_downsamples [1.0, 2.0, 4.0]
+    # level 0: actual_mpp = 0.5*1.0 = 0.5, requested = 1.0 → factor = 1.0/0.5 = 2.0
+    assert mod.get_resample_factor("dummy.svs", level=0, resolution=1.0, unit="mpp") == pytest.approx(2.0)
+
+    # level 0: requested = 0.5 → factor = 0.5/0.5 = 1.0 (exact match, no resampling)
+    assert mod.get_resample_factor("dummy.svs", level=0, resolution=0.5, unit="mpp") == pytest.approx(1.0)
+
+    # level 0: requested = 0.25 → factor = 0.25/0.5 = 0.5; clamped to 1.0 (no upsampling)
+    assert mod.get_resample_factor("dummy.svs", level=0, resolution=0.25, unit="mpp") == pytest.approx(1.0)
+
+    # level 1: actual_mpp = 0.5*2.0 = 1.0, requested = 2.0 → factor = 2.0/1.0 = 2.0
+    assert mod.get_resample_factor("dummy.svs", level=1, resolution=2.0, unit="mpp") == pytest.approx(2.0)
+
+
+def test_get_resample_factor_downsample(monkeypatch):
+    def _ctor(path, use_gpu=False):
+        return FakeOpenSlide(path)
+
+    monkeypatch.setattr(mod, "_open_slide", _ctor, raising=True)
+
+    # level 0: actual_ds = 1.0, requested = 2.0 → factor = 2.0/1.0 = 2.0
+    assert mod.get_resample_factor("dummy.svs", level=0, resolution=2.0, unit="downsample") == pytest.approx(2.0)
+
+    # level 1: actual_ds = 2.0, requested = 2.0 → factor = 1.0
+    assert mod.get_resample_factor("dummy.svs", level=1, resolution=2.0, unit="downsample") == pytest.approx(1.0)
+
+
+def test_get_resample_factor_unsupported_unit(monkeypatch):
+    def _ctor(path, use_gpu=False):
+        return FakeOpenSlide(path)
+
+    monkeypatch.setattr(mod, "_open_slide", _ctor, raising=True)
+
+    with pytest.raises(ValueError, match="unit"):
+        mod.get_resample_factor("dummy.svs", level=0, resolution=0, unit="level")
+
+
 def test_read_region_cpu_returns_numpy_and_uses_openslide(monkeypatch):
     # Force CPU path via _cucim_available=False and OpenSlide→FakeOpenSlide
     monkeypatch.setattr(mod, "_cucim_available", False, raising=True)

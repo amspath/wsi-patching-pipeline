@@ -1,5 +1,7 @@
 from typing import TYPE_CHECKING, Iterable, List, Literal, Optional, Tuple, Union
 
+from PIL import Image
+
 from wsi_patching.backends.cucim_openslide_isyntax import read_region
 from wsi_patching.backends.cupy_numpy import get_xp_backend
 from wsi_patching.core.pipeline import Stage
@@ -93,6 +95,7 @@ class TilePlanner(Stage):
                         roi_bounds=(bx, by, bw, bh),
                         tiles=tiles,
                         downsample=s.downsample,
+                        resample_factor=s.resample_factor,
                         meta={
                             **s.meta,
                             "roi_bounds": (bx, by, bw, bh),
@@ -223,6 +226,7 @@ class ReadWindowChunker(Stage):
                             region=(x_region_start, y_region_start, read_w, read_h),
                             tiles=in_window,
                             downsample=plan.downsample,
+                            resample_factor=plan.resample_factor,
                             meta=plan.meta,
                         )
 
@@ -306,10 +310,25 @@ class RegionReadAndBatch(Stage):
             x0_l0 = round(x0 * ds)
             y0_l0 = round(y0 * ds)
 
+            # When resampling: read a larger region at the finer pyramid level, then
+            # resize it back to the virtual (requested-resolution) dimensions.
+            rf = task.resample_factor
+            if rf != 1.0:
+                read_w = round(w * rf)
+                read_h = round(h * rf)
+            else:
+                read_w, read_h = w, h
+
             region_img = read_region(
-                task.wsi_path, x0_l0, y0_l0, w, h, task.level,
+                task.wsi_path, x0_l0, y0_l0, read_w, read_h, task.level,
                 use_gpu=self.ctx["use_gpu"], num_workers_cucim=self.num_workers
             )
+
+            if rf != 1.0:
+                # Resize from read dimensions back to virtual (requested-resolution) dimensions.
+                pil_img = Image.fromarray(region_img)
+                pil_img = pil_img.resize((w, h), Image.LANCZOS)
+                region_img = np.asarray(pil_img)
 
             coords: List[Tuple[int, int]] = []
             patches: List[Union[np.ndarray, "cp.ndarray"]] = []

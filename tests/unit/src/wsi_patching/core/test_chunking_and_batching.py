@@ -522,6 +522,124 @@ def test_region_read_and_batch_scales_coords_to_level0():
         )
 
 
+# ------------------- Resampling -------------------
+@patch("wsi_patching.core.chunking_and_batching.get_xp_backend", new=lambda use_gpu: np)
+def test_region_read_and_batch_resample_scales_read_size_and_resizes():
+    """
+    When resample_factor > 1.0, RegionReadAndBatch must:
+    1. Call read_region with dimensions scaled by resample_factor.
+    2. Resize the returned image back to the virtual (requested-resolution) size.
+    3. Slice patches at the (unscaled) virtual tile_size.
+    """
+    recorded = {}
+
+    def _fake_read_region(path, x, y, w, h, level, use_gpu, num_workers_cucim):
+        recorded["read_size"] = (w, h)
+        # Return an array with the requested (scaled) read dimensions.
+        return np.full((h, w, 3), fill_value=200, dtype=np.uint8)
+
+    with patch("wsi_patching.core.chunking_and_batching.read_region", new=_fake_read_region):
+        # Virtual region: 32x32 at the requested resolution.
+        # resample_factor=2.0 → read 64x64 from the sharper level, then resize back to 32x32.
+        tasks = [
+            RegionTask(
+                wsi_id="S",
+                wsi_path="/s",
+                wsi_dims=(64, 64),  # virtual dims
+                level=0,
+                region=(0, 0, 32, 32),
+                tiles=[(0, 0)],
+                downsample=2.0,
+                resample_factor=2.0,
+                meta={},
+            )
+        ]
+        r = RegionReadAndBatch(batch_size=10, num_workers=1, dtype=np.uint8, wsi_edge_policy="pad_with_zeros")
+        r.attach_context(PipelineContext({"tile_size": 16, "level": 0, "use_gpu": False}))
+        r.validate()
+
+        batches = list(r(iter(tasks)))
+
+    # read_region must be called with 2x the virtual region dimensions
+    assert recorded["read_size"] == (64, 64), f"Expected read size (64, 64) but got {recorded['read_size']}"
+
+    # The batch should contain one patch of the virtual tile_size
+    assert len(batches) == 1
+    assert batches[0].patches.shape == (1, 16, 16, 3)
+
+
+@patch("wsi_patching.core.chunking_and_batching.get_xp_backend", new=lambda use_gpu: np)
+def test_region_read_and_batch_resample_factor_1_unchanged():
+    """When resample_factor=1.0, RegionReadAndBatch behaves identically to the non-resampling path."""
+    recorded = {}
+
+    def _fake_read_region(path, x, y, w, h, level, use_gpu, num_workers_cucim):
+        recorded["read_size"] = (w, h)
+        return np.full((h, w, 3), fill_value=100, dtype=np.uint8)
+
+    with patch("wsi_patching.core.chunking_and_batching.read_region", new=_fake_read_region):
+        tasks = [
+            RegionTask(
+                wsi_id="S",
+                wsi_path="/s",
+                wsi_dims=(32, 32),
+                level=0,
+                region=(0, 0, 32, 32),
+                tiles=[(0, 0)],
+                downsample=1.0,
+                resample_factor=1.0,
+                meta={},
+            )
+        ]
+        r = RegionReadAndBatch(batch_size=10, num_workers=1, dtype=np.uint8, wsi_edge_policy="pad_with_zeros")
+        r.attach_context(PipelineContext({"tile_size": 16, "level": 0, "use_gpu": False}))
+        r.validate()
+
+        batches = list(r(iter(tasks)))
+
+    # With resample_factor=1.0, read size should be unchanged
+    assert recorded["read_size"] == (32, 32), f"Expected read size (32, 32) but got {recorded['read_size']}"
+    assert len(batches) == 1
+    assert batches[0].patches.shape == (1, 16, 16, 3)
+
+
+@patch("wsi_patching.core.chunking_and_batching.get_xp_backend", new=lambda use_gpu: np)
+def test_tileplanner_propagates_resample_factor():
+    """TilePlanner must forward the slide's resample_factor to the TilePlan."""
+    slide = Slide("S", "/s", (32, 32), level=0, downsample=2.0, resample_factor=2.0)
+    tp = TilePlanner(tile_size=16, stride=16)
+    tp.attach_context(PipelineContext({"tile_size": 16, "stride": 16, "level": 0}))
+    tp.validate()
+
+    plans = list(tp(iter([slide])))
+    assert len(plans) == 1
+    assert plans[0].resample_factor == 2.0
+
+
+@patch("wsi_patching.core.chunking_and_batching.get_xp_backend", new=lambda use_gpu: np)
+def test_readwindowchunker_propagates_resample_factor():
+    """ReadWindowChunker must forward the TilePlan's resample_factor to each RegionTask."""
+    plan = TilePlan(
+        wsi_id="S",
+        wsi_path="/s",
+        dims=(32, 32),
+        level=0,
+        roi_index=0,
+        roi_bounds=(0, 0, 32, 32),
+        tiles=[(0, 0)],
+        downsample=2.0,
+        resample_factor=2.0,
+        meta={},
+    )
+    rwc = ReadWindowChunker(max_window_size=32)
+    rwc.attach_context(PipelineContext({"tile_size": 16, "stride": 16, "level": 0}))
+    rwc.validate()
+
+    tasks = list(rwc(iter([plan])))
+    assert len(tasks) == 1
+    assert tasks[0].resample_factor == 2.0
+
+
 # ------------------- PatchExtractor (composite stage) -------------------
 @patch("wsi_patching.core.chunking_and_batching.get_xp_backend", new=lambda use_gpu: np)
 @patch("wsi_patching.core.chunking_and_batching.read_region", new=fake_read_region)

@@ -1,5 +1,7 @@
 from unittest.mock import call, patch
 
+import pytest
+
 from wsi_patching.core.pipeline import PipelineContext
 from wsi_patching.core.wsi_grid import WSIGrid
 
@@ -108,3 +110,52 @@ def test_call_yields_slide_objects_with_dims(mock_get_level, mock_dims, mock_dow
 
     # get_dimensions_for_level called with (path, level)
     mock_dims.assert_has_calls([call("/slides/A.svs", 1), call("/slides/B.svs", 2)])
+
+
+@patch("wsi_patching.core.wsi_grid.Path.exists", return_value=True)
+@patch("wsi_patching.core.wsi_grid.get_resample_factor")
+@patch("wsi_patching.core.wsi_grid.get_level_downsamples")
+@patch("wsi_patching.core.wsi_grid.get_dimensions_for_level")
+@patch("wsi_patching.core.wsi_grid.get_level_for_resolution")
+def test_call_resample_fallback_computes_virtual_dims(
+    mock_get_level, mock_dims, mock_downsamples, mock_resample_factor, mock_exists
+):
+    """When fallback_mode='resample', WSIGrid should compute virtual dims and set resample_factor."""
+    mock_get_level.return_value = 0  # read from level 0 (0.25 mpp)
+    mock_dims.return_value = (4000, 3000)  # level-0 actual dims
+    mock_downsamples.return_value = [1.0, 4.0]  # level 0 downsample=1.0
+    mock_resample_factor.return_value = 2.0  # requested 0.5 / actual 0.25 = 2x
+
+    grid = WSIGrid(slides=["/slides/A.svs"], use_gpu=False, resolution=0.5, unit="mpp", fallback_mode="resample")
+    out = list(grid(iter(())))
+    assert len(out) == 1
+    slide = out[0]
+
+    # Virtual dims should be actual_dims / resample_factor
+    assert slide.dims == (2000, 1500)
+    # Virtual downsample: level-0 downsample (1.0) * resample_factor (2.0)
+    assert slide.downsample == pytest.approx(2.0)
+    assert slide.resample_factor == pytest.approx(2.0)
+    assert slide.level == 0
+    assert slide.meta["slide.resample_factor"] == pytest.approx(2.0)
+
+    mock_resample_factor.assert_called_once_with("/slides/A.svs", 0, 0.5, "mpp")
+
+
+@patch("wsi_patching.core.wsi_grid.Path.exists", return_value=True)
+@patch("wsi_patching.core.wsi_grid.get_level_downsamples")
+@patch("wsi_patching.core.wsi_grid.get_dimensions_for_level")
+@patch("wsi_patching.core.wsi_grid.get_level_for_resolution")
+def test_call_no_resample_factor_1_by_default(mock_get_level, mock_dims, mock_downsamples, mock_exists):
+    """Non-resample fallback modes should produce resample_factor=1.0 (no resampling)."""
+    mock_get_level.return_value = 1
+    mock_dims.return_value = (1000, 800)
+    mock_downsamples.return_value = [1.0, 2.0]
+
+    grid = WSIGrid(slides=["/slides/A.svs"], use_gpu=False, resolution=0.5, unit="mpp", fallback_mode="nearest")
+    out = list(grid(iter(())))
+    assert len(out) == 1
+    slide = out[0]
+
+    assert slide.resample_factor == pytest.approx(1.0)
+    assert slide.dims == (1000, 800)  # unchanged

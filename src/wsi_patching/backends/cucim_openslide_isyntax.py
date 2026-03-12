@@ -80,7 +80,7 @@ def get_level_for_resolution(
     path: str,
     resolution: float,
     unit: Literal["level", "mpp", "downsample"],
-    fallback_mode: Literal["nearest", "floor", "ceil", "error"],
+    fallback_mode: Literal["nearest", "floor", "ceil", "error", "resample"],
 ) -> int:
     """
     Determine which pyramid level to use for a given resolution specification.
@@ -99,6 +99,10 @@ def get_level_for_resolution(
             - "ceil":    pick finest level with value <= 'resolution'
                          (if none, use finest level, i.e. level 0).
             - "error":   require (almost) exact match, otherwise raise ValueError.
+            - "resample": pick the finest level whose resolution is at least as
+                          sharp as 'resolution' (same as "ceil"), and resample the
+                          read region to match the requested resolution exactly.
+                          Use get_resample_factor() to obtain the scaling factor.
 
     Returns:
         level_idx: int
@@ -172,10 +176,77 @@ def get_level_for_resolution(
                 raise ValueError(f"No exact {unit} match for requested {requested}; available values: {values}")
             level_idx = matches[0]
 
+        elif fallback_mode == "resample":
+            # Use the finest available level that is at least as sharp as requested
+            # (same level selection as "ceil"), then resample to hit the exact resolution.
+            eligible = [i for i, v in enumerate(values) if v <= requested]
+            if eligible:
+                level_idx = max(eligible, key=lambda i: values[i])
+            else:
+                # All available levels are coarser than requested; use the finest.
+                level_idx = 0
+
         else:
             raise ValueError(f"Unknown fallback_mode: {fallback_mode}")
 
         return level_idx
+
+    finally:
+        slide.close()
+
+
+def get_resample_factor(
+    path: str,
+    level: int,
+    resolution: float,
+    unit: Literal["mpp", "downsample"],
+) -> float:
+    """
+    Compute the resampling factor needed to convert a region read at *level* to
+    the exact requested resolution.
+
+    A factor > 1.0 means the selected level is sharper (finer) than the requested
+    resolution, so the read region will be larger and must be downsampled.
+    A factor of 1.0 means no resampling is required (exact match).
+
+    Args:
+        path: Path to the WSI.
+        level: The pyramid level at which the region will be read (the "read level",
+               as returned by get_level_for_resolution with fallback_mode="resample").
+        resolution: Requested resolution value (in the same unit).
+        unit: Resolution unit ("mpp" or "downsample").
+
+    Returns:
+        resample_factor: float >= 1.0
+    """
+    slide = _open_slide(path, use_gpu=False)
+    try:
+        level_downsamples = list(slide.level_downsamples)
+        actual_downsample = float(level_downsamples[level])
+
+        if unit == "mpp":
+            if isinstance(slide, ISyntax):
+                mpp0 = slide.mpp_x
+            else:
+                mpp0 = slide.properties.get("openslide.mpp-x")
+                if mpp0 is None:
+                    raise ValueError("Slide does not expose 'openslide.mpp-x' mpp metadata.")
+            mpp0 = float(mpp0)
+            actual_value = mpp0 * actual_downsample
+            requested_value = float(resolution)
+        elif unit == "downsample":
+            actual_value = actual_downsample
+            requested_value = float(resolution)
+        else:
+            raise ValueError(f"get_resample_factor does not support unit='{unit}'. Use 'mpp' or 'downsample'.")
+
+        if actual_value <= 0:
+            raise ValueError(f"Actual resolution value at level {level} is non-positive: {actual_value}")
+
+        # factor = requested / actual: >1 means read level is finer (more pixels) than requested.
+        # We clamp to 1.0 to avoid accidental upsampling when values are nearly equal.
+        factor = requested_value / actual_value
+        return max(1.0, factor)
 
     finally:
         slide.close()
