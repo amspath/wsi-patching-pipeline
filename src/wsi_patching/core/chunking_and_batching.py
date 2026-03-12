@@ -262,8 +262,8 @@ class RegionReadAndBatch(Stage):
         wsi_edge_policy: Literal["drop", "pad_with_zeros", "pad_with_edge"] = "pad_with_zeros",
         roi_edge_policy: Literal["read_from_image", "use_wsi_edge_policy"] = "use_wsi_edge_policy",
         dtype: str = np.uint8,
-        resample_interpolation: Literal["nearest", "linear", "cubic", "area", "lanczos"] = "lanczos",
         fallback_mode: Literal["nearest", "floor", "ceil", "error", "resample"] = "error",
+        resample_interpolation: Literal["nearest", "linear", "cubic", "area", "lanczos"] = "lanczos",
     ):
         """
         Args:
@@ -279,9 +279,6 @@ class RegionReadAndBatch(Stage):
                 - "use_wsi_edge_policy": do not expand ROI bounds, read as-is from image,
                   and apply wsi_edge_policy to any incomplete tiles at the region or WSI edge.
             dtype: output patch dtype, e.g. np.uint8 or np.float32
-            resample_interpolation: interpolation method used when resampling regions to the requested
-                resolution (only active when fallback_mode="resample").
-                Options: "nearest", "linear", "cubic", "area", "lanczos" (default).
             fallback_mode: strategy for selecting the pyramid level when the exact requested resolution
                 is not available. Options: "nearest", "floor", "ceil", "error" (default), "resample".
                 - "nearest": pick the level whose resolution is closest to the requested value.
@@ -290,6 +287,9 @@ class RegionReadAndBatch(Stage):
                 - "error": raise an error if no level matches the requested resolution exactly.
                 - "resample": like "ceil", but read from the finer level and downsample to the exact
                   requested resolution using OpenCV (interpolation set by resample_interpolation).
+            resample_interpolation: interpolation method used when resampling regions to the requested
+                resolution (only active when fallback_mode="resample").
+                Options: "nearest", "linear", "cubic", "area", "lanczos" (default).
         """
         self.batch_size = int(batch_size)
         self.num_workers = int(num_workers)
@@ -298,8 +298,7 @@ class RegionReadAndBatch(Stage):
         self.wsi_edge_policy = wsi_edge_policy
         if resample_interpolation not in _CV2_INTERPOLATION:
             raise ValueError(
-                f"Unknown resample_interpolation '{resample_interpolation}'. "
-                f"Choose from: {list(_CV2_INTERPOLATION)}"
+                f"Unknown resample_interpolation '{resample_interpolation}'. Choose from: {list(_CV2_INTERPOLATION)}"
             )
         self.resample_interpolation = resample_interpolation
         self.fallback_mode = fallback_mode
@@ -354,8 +353,14 @@ class RegionReadAndBatch(Stage):
                 read_w, read_h = w, h
 
             region_img = read_region(
-                task.wsi_path, x0_l0, y0_l0, read_w, read_h, task.level,
-                use_gpu=self.ctx["use_gpu"], num_workers_cucim=self.num_workers
+                task.wsi_path,
+                x0_l0,
+                y0_l0,
+                read_w,
+                read_h,
+                task.level,
+                use_gpu=self.ctx["use_gpu"],
+                num_workers_cucim=self.num_workers,
             )
 
             if rf != 1.0:
