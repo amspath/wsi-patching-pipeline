@@ -4,11 +4,7 @@ from typing import Iterable, Mapping, Optional, Sequence, Tuple, Union
 import numpy as np
 from PIL import Image, ImageDraw
 
-from wsi_patching.backends.cucim_openslide_isyntax import (
-    get_dimensions_for_level,
-    get_level_for_resolution,
-    read_region,
-)
+from wsi_patching.backends.fastslide import get_dimensions_for_level, get_level_for_resolution, read_region
 
 CoordLike = Union[Tuple[int, int], Sequence[int], np.ndarray]
 

@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING, Iterable, List, Literal, Optional, Tuple, Union
 
-from wsi_patching.backends.cucim_openslide_isyntax import read_region
+from wsi_patching.backends.fastslide import read_region
 from wsi_patching.backends.cupy_numpy import get_xp_backend
 from wsi_patching.core.pipeline import Stage
 from wsi_patching.core.types.types import CollatedPatchBatch, RegionTask, Slide, SlideWithROIs, TilePlan
@@ -307,8 +307,14 @@ class RegionReadAndBatch(Stage):
             y0_l0 = round(y0 * ds)
 
             region_img = read_region(
-                task.wsi_path, x0_l0, y0_l0, w, h, task.level,
-                use_gpu=self.ctx["use_gpu"], num_workers_cucim=self.num_workers
+                task.wsi_path,
+                x0_l0,
+                y0_l0,
+                w,
+                h,
+                task.level,
+                use_gpu=self.ctx["use_gpu"],
+                num_workers_cucim=self.num_workers,
             )
 
             coords: List[Tuple[int, int]] = []
