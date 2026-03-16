@@ -17,6 +17,7 @@ class SlideStub:
     dims: Tuple[int, int]  # (W, H)
     meta: dict
     level: int = 0
+    resample_factor: float = 1.0
 
 
 def _write_xml(tmp_path, group: str, x1: float, y1: float, x2: float, y2: float) -> str:
@@ -150,6 +151,52 @@ def test_xml_provider_out_of_bounds_after_scaling(tmp_path):
     with patch(_backend, return_value=[1.0, 2.0]):
         with pytest.raises(ValueError):
             prov.for_slide(slide)
+
+
+def test_xml_provider_resample_factor_same_level(tmp_path):
+    """Annotations at level 0 with resample_factor=2.0 are scaled by 0.5."""
+    # Annotation at level 0: (100, 200) → (300, 400), w=200, h=200
+    # slide.level=0, rf=2.0 → virtual dims are half of level-0
+    # scale = 1.0 / 2.0 = 0.5 → ROI becomes (50, 100, 100, 100)
+    xml = _write_xml(tmp_path, "roi", 100, 200, 300, 400)
+    slide = SlideStub("S", "/p", (500, 500), {}, level=0, resample_factor=2.0)
+    prov = RectROIfromXMLProvider(rois={"S": xml}, annotation_level=0)
+    rois = prov.for_slide(slide)
+    assert rois[0].bounds() == (50, 100, 100, 100)
+
+
+def test_xml_provider_resample_factor_with_level_scaling(tmp_path):
+    """Annotations at level 0 scaled to level 1 with resample_factor=2.0."""
+    # Annotation at level 0: (100, 200) → (300, 400)
+    # slide.level=1, rf=2.0
+    # scale = ds[0]/ds[1] / rf = 1.0/2.0 / 2.0 = 0.25
+    # ROI becomes (25, 50, 50, 50)
+    xml = _write_xml(tmp_path, "roi", 100, 200, 300, 400)
+    slide = SlideStub("S", "/p", (500, 500), {}, level=1, resample_factor=2.0)
+    prov = RectROIfromXMLProvider(rois={"S": xml}, annotation_level=0)
+
+    _backend = "wsi_patching.regions_of_interest.roi_providers.get_level_downsamples"
+    with patch(_backend, return_value=[1.0, 2.0, 4.0]):
+        rois = prov.for_slide(slide)
+
+    assert rois[0].bounds() == (25, 50, 50, 50)
+
+
+def test_xml_provider_resample_factor_out_of_bounds(tmp_path):
+    """ValueError when ROI is valid in level space but exceeds virtual dims."""
+    # Simulates the 40x TCGA scenario from the bug report:
+    # Annotation at level 0: (0,0)→(74501,44989)
+    # slide.level=0, rf=2.0, virtual dims=(67399,44989)
+    # Without fix: scale=1.0, 74501 > 67399 → spurious ValueError
+    # With fix: scale=1.0/2.0=0.5, coords become (0,0,37250,22494) → valid
+    xml = _write_xml(tmp_path, "roi", 0, 0, 74501, 44989)
+    slide = SlideStub("S", "/p", (67399, 44989), {}, level=0, resample_factor=2.0)
+    prov = RectROIfromXMLProvider(rois={"S": xml}, annotation_level=0)
+    rois = prov.for_slide(slide)
+    assert len(rois) == 1
+    # 74501 * 0.5 = 37250.5, 44989 * 0.5 = 22494.5
+    assert rois[0].bounds()[0] == 0
+    assert rois[0].bounds()[1] == 0
 
 
 def _write_polygon_bbox_xml(tmp_path, group: str, x1: float, y1: float, x2: float, y2: float, filename: str = "ann.xml") -> str:
