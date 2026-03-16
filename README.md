@@ -22,8 +22,6 @@ pip install "wsi-patching @ git+https://github.com/amspath/wsi-patching-pipeline
 pip install "wsi-patching[gpu] @ git+https://github.com/amspath/wsi-patching-pipeline.git"
 ```
 
-> If you run without gpu, the backend will rely on OpenSlide to open images. Openslide requires system libraries. It is your own responsibility to install these. The easiest way to install those is to create your environment through conda and add the required system libraries in there. 
-
 
 ## 2) Dev install
 
@@ -31,7 +29,7 @@ Python ≥3.10 is recommended.
 ```
 git clone https://github.com/amspath/wsi-patching-pipeline.git
 cd wsi-patching-pipeline
-pip install -e .        # For cpu only
+pip install -e .
 pip install -e .[gpu]
 ```
 
