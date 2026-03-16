@@ -47,6 +47,8 @@ class RectROIfromXMLProvider(ROIProvider):
         else:
             scale = 1.0
 
+        scale /= slide.resample_factor
+
         for ann in root.findall(f".//Annotation[@PartOfGroup='{self.annotation_group}']"):
             ann_type = ann.get("Type")
             if ann_type not in ("Rectangle", "Polygon"):
