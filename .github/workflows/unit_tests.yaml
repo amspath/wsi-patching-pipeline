@@ -17,51 +17,22 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ${{ fromJson( ((github.ref == 'refs/heads/main') || startsWith(github.ref, 'refs/tags/')) && '["3.10","3.11", "3.12", "3.13"]' || '["3.10","3.13"]' ) }}
+        python-version: ${{ fromJson( ((github.ref == 'refs/heads/main') || startsWith(github.ref, 'refs/tags/')) && '["3.10","3.11","3.12","3.13"]' || '["3.10","3.13"]' ) }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up micromamba (conda) with Python ${{ matrix.python-version }}
-        uses: mamba-org/setup-micromamba@v1
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
         with:
-          environment-name: test
-          create-args: >-
-            python=${{ matrix.python-version }}
-          cache-environment: true
-          condarc: |
-            channels:
-              - conda-forge
-            channel_priority: strict
-
-      - name: Free disk space
-        run: |
-          echo "Before cleanup:"
-          df -h
-
-          # These are the big hogs on GH runners; removing them gives you ~10–20G
-          sudo rm -rf /usr/local/lib/android || true
-          sudo rm -rf /opt/ghc || true
-          sudo rm -rf /usr/share/dotnet || true
-          sudo rm -rf "$AGENT_TOOLSDIRECTORY" || true
-
-          echo "After cleanup:"
-          df -h
-
-      - name: Show Python
-        shell: bash -l {0}
-        run: |
-          which python
-          python -V
+          python-version: ${{ matrix.python-version }}
+          cache: pip
 
       - name: Install project (dev extras)
-        shell: bash -l {0}
         run: |
-          conda install openslide
-          python -m pip install --upgrade pip
-          python -m pip install -e .[dev]
+          pip install --upgrade pip
+          pip install -e .[dev]
 
       - name: Run tests
-        shell: bash -l {0}
         run: pytest -q tests/unit
