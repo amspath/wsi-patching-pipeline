@@ -2,7 +2,7 @@ import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
-from wsi_patching.backends.cucim_openslide_isyntax import get_level_downsamples
+from wsi_patching.backends.fastslide import get_level_downsamples
 from wsi_patching.core.types.types import SlideBase
 from wsi_patching.regions_of_interest.rois import ROI, BoxROI
 

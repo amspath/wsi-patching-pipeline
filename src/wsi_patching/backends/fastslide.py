@@ -1,55 +1,36 @@
 import logging
-from typing import List, Literal, Optional, Tuple, Union
+from typing import List, Literal, Optional, Tuple
 
+import fastslide
 import numpy as np
-from isyntax import ISyntax
-from openslide import OpenSlide
-
-try:
-    from cucim import CuImage
-    from cucim.clara._cucim import CuImage as CuImageType
-
-    _cucim_available = True
-except ImportError:
-    _cucim_available = False
-
 
 logger = logging.getLogger(__name__)
 
 
-def validate_slide_backend(use_gpu: bool) -> None:
-    if use_gpu and not _cucim_available:
-        raise ImportError("cuCIM is not available. Please install cuCIM to use GPU backend.")
+def _open_slide(path: str) -> fastslide.FastSlide:
+    return fastslide.FastSlide.from_file_path(str(path))
 
 
-def _open_slide(path: str, use_gpu: bool) -> Union["CuImage", "OpenSlide"]:
-    if _cucim_available and use_gpu and path.lower().endswith((".tiff", ".tif", ".svs")):
-        return CuImage(str(path))
-    if path.lower().endswith(".isyntax"):
-        return ISyntax.open(str(path))
-
-    return OpenSlide(str(path))
-
-
-def read_region(
-    path: str, x: int, y: int, w: int, h: int, level: int, use_gpu: bool, num_workers_cucim: int = 8
-) -> Optional[np.ndarray]:
+def read_region(path: str, x: int, y: int, w: int, h: int, level: int) -> Optional[np.ndarray]:
     """
-    Return requested region at the given level.
-    """
-    img = _open_slide(path, use_gpu)
-    if _cucim_available and isinstance(img, CuImageType):
-        # Use cuCIM
-        region = img.read_region(location=(x, y), size=(w, h), level=level, num_workers=num_workers_cucim)
-    elif isinstance(img, ISyntax):
-        # Use ISyntax
-        region = img.read_region(x, y, w, h, level)[:, :, :3]  # discard alpha channel
-    else:
-        # Use OpenSlide
-        region = img.read_region((x, y), level, (w, h)).convert("RGB")
+    Return the requested region at the given pyramid level as a NumPy array.
 
-    img.close()
-    return np.asarray(region)
+    Args:
+        path: Path to the WSI file.
+        x: Left edge of the region in level-0 coordinates.
+        y: Top edge of the region in level-0 coordinates.
+        w: Width of the region in pixels at the requested level.
+        h: Height of the region in pixels at the requested level.
+        level: Pyramid level to read from.
+
+    Returns:
+        NumPy array of shape (h, w, 3), dtype uint8.
+    """
+    with _open_slide(path) as slide:
+        # fastslide uses level-native coordinates; convert from level-0 coords.
+        x_native, y_native = slide.convert_level0_to_level_native(x, y, level)
+        region = slide.read_region(location=(x_native, y_native), level=level, size=(w, h))
+        return np.asarray(region.numpy())
 
 
 def get_dimensions_for_level(path: str, level: int) -> Tuple[int, int]:
@@ -58,22 +39,16 @@ def get_dimensions_for_level(path: str, level: int) -> Tuple[int, int]:
         W: int
         H: int
     """
-    slide = _open_slide(path, use_gpu=False)
-    try:
+    with _open_slide(path) as slide:
         assert 0 <= level < slide.level_count, f"Level {level} exceeds maximum level {slide.level_count - 1}."
         W, H = slide.level_dimensions[level]
         return int(W), int(H)
-    finally:
-        slide.close()
 
 
 def get_level_downsamples(path: str) -> List[float]:
     """Return the list of downsample factors relative to level 0 for each pyramid level."""
-    slide = _open_slide(path, use_gpu=False)
-    try:
+    with _open_slide(path) as slide:
         return [float(ds) for ds in slide.level_downsamples]
-    finally:
-        slide.close()
 
 
 def get_level_for_resolution(
@@ -98,14 +73,11 @@ def get_level_for_resolution(
                          (if none, use coarsest level).
             - "ceil":    pick finest level with value <= 'resolution'
                          (if none, use finest level, i.e. level 0).
-            - "error":   require (almost) exact match, otherwise raise ValueError.
 
     Returns:
         level_idx: int
     """
-    slide = _open_slide(path, use_gpu=False)
-
-    try:
+    with _open_slide(path) as slide:
         # --- Trivial case: unit == "level" ---------------------------------
         if unit == "level":
             if not float(resolution).is_integer():
@@ -118,23 +90,20 @@ def get_level_for_resolution(
             return level_idx
 
         # --- Compute per-level values for mpp / downsample --------------------
-        level_downsamples = list(slide.level_downsamples)  # e.g. [1.0, 2.0, 4.0, ...]
+        level_downsamples = [float(ds) for ds in slide.level_downsamples]  # e.g. [1.0, 2.0, 4.0, ...]
         requested = float(resolution)
 
         if unit == "mpp":
-            if isinstance(slide, ISyntax):
-                mpp0 = slide.mpp_x
-            else:
-                mpp0 = slide.properties.get("openslide.mpp-x")
-                if mpp0 is None:
-                    raise ValueError("Slide does not expose 'openslide.mpp-x' mpp metadata.")
-            mpp0 = float(mpp0)
+            mpp = slide.mpp
+            if mpp is None or mpp[0] is None:
+                raise ValueError("Slide does not expose mpp metadata.")
+            mpp0 = float(mpp[0])
             # Effective mpp per level
-            values = [mpp0 * float(ds) for ds in level_downsamples]
+            values = [mpp0 * ds for ds in level_downsamples]
 
         elif unit == "downsample":
             # Downsample factor vs level 0
-            values = [float(ds) for ds in level_downsamples]
+            values = level_downsamples
 
         else:
             raise ValueError(f"Unknown unit: {unit}")
@@ -176,6 +145,3 @@ def get_level_for_resolution(
             raise ValueError(f"Unknown fallback_mode: {fallback_mode}")
 
         return level_idx
-
-    finally:
-        slide.close()

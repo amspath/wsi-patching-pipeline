@@ -1,16 +1,16 @@
-name: CPU unit tests
+name: CPU integration tests
 
 on:
   push:
     branches: [main]
-    paths: &unit_paths
+    paths: &paths
       - src/wsi_patching/**
-      - tests/unit/**
-      - .github/workflows/unit_tests.yaml
+      - tests/integration/**
+      - .github/workflows/integration_tests.yaml
 
   pull_request:
     branches: [main]
-    paths: *unit_paths
+    paths: *paths
 
 jobs:
   pytest:
@@ -35,4 +35,4 @@ jobs:
           pip install -e .[dev]
 
       - name: Run tests
-        run: pytest tests/unit
+        run: pytest tests/integration

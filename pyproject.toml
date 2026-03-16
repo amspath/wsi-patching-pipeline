@@ -14,21 +14,15 @@ dependencies = [
     "pillow",
     "torch",
     "torchvision",
-    "openslide-python",
-    "openslide-bin",
+    "fastslide",
     'importlib_resources>=5; python_version<"3.9"',
     "orjson",
     "rtree",
-    "pyisyntax",
 ]
 
 [project.optional-dependencies]
-gpu = [
-    'cucim; python_version < "3.9" and platform_system != "Darwin"',
-    'cucim-cu12; python_version >= "3.9" and platform_system != "Darwin"',
-    'cupy-cuda12x; platform_system != "Darwin"',
-]
-dev = ["ruff", "pytest"]
+gpu = ['cupy-cuda12x; platform_system != "Darwin"']
+dev = ["ruff", "pytest", "tifffile"]
 
 # --- Hatch VCS versioning (default-ish behavior) ---
 [tool.hatch.version]

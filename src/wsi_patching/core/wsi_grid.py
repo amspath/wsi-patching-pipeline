@@ -1,13 +1,8 @@
 from pathlib import Path
 from typing import Any, Iterable, List, Literal
 
-from wsi_patching.backends.cucim_openslide_isyntax import (
-    get_dimensions_for_level,
-    get_level_downsamples,
-    get_level_for_resolution,
-    validate_slide_backend,
-)
 from wsi_patching.backends.cupy_numpy import validate_xp_backend
+from wsi_patching.backends.fastslide import get_dimensions_for_level, get_level_downsamples, get_level_for_resolution
 from wsi_patching.backends.torch_device import get_torch_device
 from wsi_patching.core.pipeline import PipelineContext, Stage
 from wsi_patching.core.types.types import Slide
@@ -52,7 +47,6 @@ class WSIGrid(Stage):
         ctx["use_gpu"] = self.use_gpu
 
     def validate(self) -> None:
-        validate_slide_backend(self.use_gpu)
         validate_xp_backend(self.use_gpu)
         get_torch_device(self.use_gpu)
 

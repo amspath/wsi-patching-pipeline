@@ -17,17 +17,14 @@ def test_export_context_sets_expected_keys():
 
 @patch("wsi_patching.core.wsi_grid.get_torch_device", new=lambda use_gpu: None)
 @patch("wsi_patching.core.wsi_grid.validate_xp_backend")
-@patch("wsi_patching.core.wsi_grid.validate_slide_backend")
-def test_validate_invokes_backends(mock_validate_slide, mock_validate_xp):
+def test_validate_invokes_backends(mock_validate_xp):
     grid = WSIGrid(slides=[], use_gpu=False, resolution=0.5, unit="mpp")
     grid.validate()
-    mock_validate_slide.assert_called_once_with(False)
     mock_validate_xp.assert_called_once_with(False)
 
     # Also check use_gpu=True path
     grid2 = WSIGrid(slides=[], use_gpu=True, resolution=0.5, unit="mpp")
     grid2.validate()
-    assert mock_validate_slide.call_args_list[-1] == call(True)
     assert mock_validate_xp.call_args_list[-1] == call(True)
 
 
