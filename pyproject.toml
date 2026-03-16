@@ -17,6 +17,7 @@ dependencies = [
     "fastslide",
     'importlib_resources>=5; python_version<"3.9"',
     "orjson",
+    "opencv-python",
     "rtree",
 ]
 

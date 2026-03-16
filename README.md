@@ -1,4 +1,5 @@
 [![Unit tests](https://github.com/amspath/wsi-patching-pipeline/actions/workflows/unit_tests.yaml/badge.svg)](https://github.com/amspath/wsi-patching-pipeline/actions/workflows/unit_tests.yaml)
+[![Integration tests](https://github.com/amspath/wsi-patching-pipeline/actions/workflows/integration_tests.yaml/badge.svg)](https://github.com/amspath/wsi-patching-pipeline/actions/workflows/integration_tests.yaml)
 
 # wsi-patching-pipeline
 A pragmatic pipeline for streaming whole-slide image (WSI) patches with region prefetch, per-WSI multiprocessing producers, and an async writer. It's ideal for building pipelines that create datasets, or for patching in a streaming fashion during inference without overloading your memory. It’s designed as a runnable skeleton you can extend: swap in your own ROI logic, classifiers, encoders, or sinks by building components on the `custom_component` module facilities.
@@ -15,7 +16,7 @@ A pragmatic pipeline for streaming whole-slide image (WSI) patches with region p
 
 Python ≥3.10 <3.14 is recommended. 3.14 is yet unsupported.
 ```
-# CPU install (not all functionality is supported for cpu only)
+# CPU install
 pip install "wsi-patching @ git+https://github.com/amspath/wsi-patching-pipeline.git"
 
 # GPU install
