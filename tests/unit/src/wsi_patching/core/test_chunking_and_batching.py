@@ -9,7 +9,7 @@ from wsi_patching.regions_of_interest.rois import BoxROI
 from wsi_patching.utils.meta_typing import PipelineContext
 
 
-def fake_read_region(path, x, y, w, h, level, use_gpu, num_workers_cucim):
+def fake_read_region(path, x, y, w, h, level):
     # Return an HxWx3 array filled with unique value (for sanity checks if desired)
     return np.full((h, w, 3), fill_value=11, dtype=np.uint8)
 
@@ -217,7 +217,7 @@ def test_region_read_and_batch_happy_path_and_batch_split():
 @patch("wsi_patching.core.chunking_and_batching.get_xp_backend", new=lambda use_gpu: np)
 def test_region_read_and_batch_skips_incomplete_patches():
     # region 20x20, tile_size 16 -> tile at (8,8) gives rx=8, ry=8; patch 12x12 -> should be skipped
-    def _fake_read_region(path, x, y, w, h, level, use_gpu, num_workers_cucim):
+    def _fake_read_region(path, x, y, w, h, level):
         return np.full((h, w, 3), 1, dtype=np.uint8)
 
     with patch("wsi_patching.core.chunking_and_batching.read_region", new=_fake_read_region):
@@ -247,7 +247,7 @@ def test_region_read_and_batch_skips_incomplete_patches():
 @patch("wsi_patching.core.chunking_and_batching.get_xp_backend", new=lambda use_gpu: np)
 def test_region_read_and_batch_pads_incomplete_patches_pad_with_zeros():
     # region 20x20, tile_size 16 -> tile at (8,8) gives rx=8, ry=8; patch 12x12 -> should be padded to 16x16 with zeros
-    def _fake_read_region(path, x, y, w, h, level, use_gpu, num_workers_cucim):
+    def _fake_read_region(path, x, y, w, h, level):
         return np.full((h, w, 3), 1, dtype=np.uint8)
 
     with patch("wsi_patching.core.chunking_and_batching.read_region", new=_fake_read_region):
@@ -276,7 +276,7 @@ def test_region_read_and_batch_pads_incomplete_patches_pad_with_zeros():
 @patch("wsi_patching.core.chunking_and_batching.get_xp_backend", new=lambda use_gpu: np)
 def test_region_read_and_batch_pads_incomplete_patches_pad_with_edge():
     # region 20x20, tile_size 16 -> tile at (8,8) gives rx=8, ry=8; patch 12x12 -> should be padded to 16x16 with edge
-    def _fake_read_region(path, x, y, w, h, level, use_gpu, num_workers_cucim):
+    def _fake_read_region(path, x, y, w, h, level):
         return np.full((h, w, 3), 1, dtype=np.uint8)
 
     with patch("wsi_patching.core.chunking_and_batching.read_region", new=_fake_read_region):
@@ -305,7 +305,7 @@ def test_region_read_and_batch_pads_incomplete_patches_pad_with_edge():
 @patch("wsi_patching.core.chunking_and_batching.get_xp_backend", new=lambda use_gpu: np)
 def test_region_read_and_batch_pads_incomplete_patches_within_roi_pad_with_zeros():
     # region 20x20, tile_size 16 -> tile at (8,8) gives rx=8, ry=8; patch 12x12 -> should be padded to 16x16 with zeros
-    def _fake_read_region(path, x, y, w, h, level, use_gpu, num_workers_cucim):
+    def _fake_read_region(path, x, y, w, h, level):
         return np.full((h, w, 3), 1, dtype=np.uint8)
 
     with patch("wsi_patching.core.chunking_and_batching.read_region", new=_fake_read_region):
@@ -348,7 +348,7 @@ def test_region_read_and_batch_roi_edge_policy_read_from_image_expands_region():
     """
     recorded = {}
 
-    def _fake_read_region(path, x, y, w, h, level, use_gpu, num_workers_cucim):
+    def _fake_read_region(path, x, y, w, h, level):
         recorded["size"] = (w, h)
         return np.zeros((h, w, 3), dtype=np.uint8)
 
@@ -384,7 +384,7 @@ def test_region_read_and_batch_roi_edge_policy_read_from_image_expands_when_w_is
     """
     recorded = {}
 
-    def _fake_read_region(path, x, y, w, h, level, use_gpu, num_workers_cucim):
+    def _fake_read_region(path, x, y, w, h, level):
         recorded["size"] = (w, h)
         return np.zeros((h, w, 3), dtype=np.uint8)
 
@@ -429,7 +429,7 @@ def test_region_read_and_batch_roi_edge_policy_read_from_image_clamps_to_wsi_edg
     """
     recorded = {}
 
-    def _fake_read_region(path, x, y, w, h, level, use_gpu, num_workers_cucim):
+    def _fake_read_region(path, x, y, w, h, level):
         recorded["size"] = (w, h)
         return np.zeros((h, w, 3), dtype=np.uint8)
 
@@ -471,7 +471,7 @@ def test_region_read_and_batch_scales_coords_to_level0():
     """
     recorded = {}
 
-    def _fake_read_region(path, x, y, w, h, level, use_gpu, num_workers_cucim):
+    def _fake_read_region(path, x, y, w, h, level):
         recorded["xy"] = (x, y)
         return np.zeros((h, w, 3), dtype=np.uint8)
 
@@ -517,9 +517,7 @@ def test_region_read_and_batch_scales_coords_to_level0():
         r0.validate()
 
         list(r0(iter(tasks_l0)))
-        assert recorded["xy"] == (50, 75), (
-            f"Expected unchanged coords (50, 75) for level-0 but got {recorded['xy']}."
-        )
+        assert recorded["xy"] == (50, 75), f"Expected unchanged coords (50, 75) for level-0 but got {recorded['xy']}."
 
 
 # ------------------- PatchExtractor (composite stage) -------------------

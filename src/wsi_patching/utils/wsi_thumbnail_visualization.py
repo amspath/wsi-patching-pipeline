@@ -158,7 +158,7 @@ def get_thumbnail(path, max_thumbnail_size: tuple[int, int], slide_dimensions: t
     downsample = max(dim / thumb for dim, thumb in zip(slide_dimensions, max_thumbnail_size))
     level = get_level_for_resolution(path, resolution=downsample, unit="downsample", fallback_mode="nearest")
 
-    tile: np.ndarray = read_region(path, 0, 0, *get_dimensions_for_level(path, level), level, use_gpu=False)
+    tile: np.ndarray = read_region(path, 0, 0, *get_dimensions_for_level(path, level), level)
 
     im = Image.fromarray(tile)
 

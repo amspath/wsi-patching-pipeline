@@ -16,7 +16,7 @@ def synthetic_slide(tmp_path_factory):
     img[:256, 256:] = [50, 200, 50]   # green top-right
     img[256:, :256] = [50, 50, 200]   # blue bottom-left
     img[256:, 256:] = [200, 200, 50]  # yellow bottom-right
-    tifffile.imwrite(str(path), img, photometric="rgb", tile=(256, 256))
+    tifffile.imwrite(str(path), img, photometric="rgb", tile=(256, 256), compression="deflate")
     return str(path), "test_slide"
 
 

@@ -306,16 +306,7 @@ class RegionReadAndBatch(Stage):
             x0_l0 = round(x0 * ds)
             y0_l0 = round(y0 * ds)
 
-            region_img = read_region(
-                task.wsi_path,
-                x0_l0,
-                y0_l0,
-                w,
-                h,
-                task.level,
-                use_gpu=self.ctx["use_gpu"],
-                num_workers_cucim=self.num_workers,
-            )
+            region_img = read_region(task.wsi_path, x0_l0, y0_l0, w, h, task.level)
 
             coords: List[Tuple[int, int]] = []
             patches: List[Union[np.ndarray, "cp.ndarray"]] = []
