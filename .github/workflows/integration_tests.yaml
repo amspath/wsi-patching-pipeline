@@ -1,16 +1,16 @@
-name: CPU unit tests
+name: CPU integration tests
 
 on:
   push:
     branches: [main]
-    paths: &unit_paths
+    paths: &paths
       - src/wsi_patching/**
       - tests/integration/**
       - .github/workflows/integration_tests.yaml
 
   pull_request:
     branches: [main]
-    paths: *unit_paths
+    paths: *paths
 
 jobs:
   pytest:
