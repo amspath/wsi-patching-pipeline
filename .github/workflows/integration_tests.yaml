@@ -5,8 +5,8 @@ on:
     branches: [main]
     paths: &unit_paths
       - src/wsi_patching/**
-      - tests/unit/**
-      - .github/workflows/unit_tests.yaml
+      - tests/integration/**
+      - .github/workflows/integration_tests.yaml
 
   pull_request:
     branches: [main]
@@ -64,4 +64,4 @@ jobs:
 
       - name: Run tests
         shell: bash -l {0}
-        run: pytest -q tests/unit
+        run: pytest -q tests/integration

@@ -22,7 +22,7 @@ dependencies = [
 
 [project.optional-dependencies]
 gpu = ['cupy-cuda12x; platform_system != "Darwin"']
-dev = ["ruff", "pytest"]
+dev = ["ruff", "pytest", "tifffile"]
 
 # --- Hatch VCS versioning (default-ish behavior) ---
 [tool.hatch.version]
