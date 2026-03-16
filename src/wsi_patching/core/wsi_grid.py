@@ -2,7 +2,12 @@ from pathlib import Path
 from typing import Any, Iterable, List, Literal
 
 from wsi_patching.backends.cupy_numpy import validate_xp_backend
-from wsi_patching.backends.fastslide import get_dimensions_for_level, get_level_downsamples, get_level_for_resolution
+from wsi_patching.backends.fastslide import (
+    get_dimensions_for_level,
+    get_level_downsamples,
+    get_level_for_resolution,
+    get_resample_factor,
+)
 from wsi_patching.backends.torch_device import get_torch_device
 from wsi_patching.core.pipeline import PipelineContext, Stage
 from wsi_patching.core.types.types import Slide
@@ -20,7 +25,8 @@ class WSIGrid(Stage):
         use_gpu: bool,
         resolution: float,
         unit: Literal["level", "mpp", "downsample"],
-        fallback_mode: Literal["nearest", "floor", "ceil", "error"] = "error",
+        fallback_mode: Literal["nearest", "floor", "ceil", "error", "resample"] = "error",
+        resample_interpolation: Literal["nearest", "linear", "cubic", "area", "lanczos"] = "lanczos",
     ):
         """
         Initializes the WSIGrid stage, the starting point of a WSI patching pipeline.
@@ -31,13 +37,18 @@ class WSIGrid(Stage):
             resolution: Desired resolution for patch extraction.
             unit: Unit of the resolution ("level", "mpp", or "downsample").
             fallback_mode: Strategy for selecting resolution if exact match is unavailable (default is "error").
-                Options are ("nearest", "floor", "ceil", "error").
+                Options are ("nearest", "floor", "ceil", "error", "resample").
+                - "resample": selects the finest level with resolution <= requested, reads extra pixels,
+                  then downsamples to the exact target resolution using cv2.resize. Not valid for unit="level".
+            resample_interpolation: Interpolation method used when fallback_mode="resample".
+                Options are ("nearest", "linear", "cubic", "area", "lanczos"). Default is "lanczos".
         """
         self.slides = list(slides)
         self.use_gpu = use_gpu
         self.resolution = resolution
         self.unit = unit
         self.fallback_mode = fallback_mode
+        self.resample_interpolation = resample_interpolation
 
     def export_context(self, ctx: "PipelineContext") -> None:
         # Seed/override global grid parameters for other stages to read.
@@ -45,6 +56,7 @@ class WSIGrid(Stage):
         ctx["unit"] = self.unit
         ctx["fallback_mode"] = self.fallback_mode
         ctx["use_gpu"] = self.use_gpu
+        ctx["resample_interpolation"] = self.resample_interpolation
 
     def validate(self) -> None:
         validate_xp_backend(self.use_gpu)
@@ -57,6 +69,7 @@ class WSIGrid(Stage):
             resolution=self.resolution,
             unit=self.unit,
             fallback_mode=self.fallback_mode,
+            resample_interpolation=self.resample_interpolation,
         )
 
     def __call__(self, it: Iterable[Any]) -> Iterable[Slide]:
@@ -68,15 +81,30 @@ class WSIGrid(Stage):
             wsi_id = Path(path).stem
             selected_level = get_level_for_resolution(path, self.resolution, self.unit, self.fallback_mode)
             W, H = get_dimensions_for_level(path, selected_level)
-            downsample = get_level_downsamples(path)[selected_level]
+            level_downsamples = get_level_downsamples(path)
+            downsample = level_downsamples[selected_level]
+
+            if self.fallback_mode == "resample":
+                rf = get_resample_factor(path, self.resolution, self.unit, selected_level)
+                W_virtual = round(W / rf)
+                H_virtual = round(H / rf)
+                virtual_ds = downsample * rf
+                slide_dims = (W_virtual, H_virtual)
+                slide_downsample = virtual_ds
+                resample_factor = rf
+            else:
+                slide_dims = (W, H)
+                slide_downsample = downsample
+                resample_factor = 1.0
 
             self.log.info(f"Starting on Slide {wsi_id}")
             yield Slide(
                 wsi_id=wsi_id,
                 wsi_path=path,
-                dims=(W, H),
+                dims=slide_dims,
                 level=selected_level,
-                downsample=downsample,
+                downsample=slide_downsample,
+                resample_factor=resample_factor,
                 meta={
                     "slide.wsi_id": wsi_id,
                     "slide.requested_resolution": self.resolution,

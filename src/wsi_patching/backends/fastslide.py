@@ -51,11 +51,49 @@ def get_level_downsamples(path: str) -> List[float]:
         return [float(ds) for ds in slide.level_downsamples]
 
 
+def get_resample_factor(
+    path: str,
+    resolution: float,
+    unit: Literal["mpp", "downsample"],
+    selected_level: int,
+) -> float:
+    """Return resample_factor = requested_value / level_value.
+
+    Factor > 1.0 means the selected level is finer than requested: read more
+    level pixels, then scale down to the requested size.
+
+    Args:
+        path: Path to the WSI file.
+        resolution: Requested resolution value (mpp or downsample).
+        unit: "mpp" or "downsample".
+        selected_level: The pyramid level that was selected for resampling.
+
+    Returns:
+        resample_factor (float > 0); equals 1.0 when level is an exact match.
+    """
+    with _open_slide(path) as slide:
+        level_downsamples = [float(ds) for ds in slide.level_downsamples]
+        level_ds = level_downsamples[selected_level]
+
+        if unit == "mpp":
+            mpp = slide.mpp
+            if mpp is None or mpp[0] is None:
+                raise ValueError("Slide does not expose mpp metadata.")
+            mpp0 = float(mpp[0])
+            level_value = mpp0 * level_ds
+        elif unit == "downsample":
+            level_value = level_ds
+        else:
+            raise ValueError(f"Unknown unit: {unit}")
+
+        return float(resolution) / level_value
+
+
 def get_level_for_resolution(
     path: str,
     resolution: float,
     unit: Literal["level", "mpp", "downsample"],
-    fallback_mode: Literal["nearest", "floor", "ceil", "error"],
+    fallback_mode: Literal["nearest", "floor", "ceil", "error", "resample"],
 ) -> int:
     """
     Determine which pyramid level to use for a given resolution specification.
@@ -68,16 +106,23 @@ def get_level_for_resolution(
             - If unit == "downsample": Downsample factor relative to level 0.
         unit: Resolution unit ("level", "mpp", or "downsample").
         fallback_mode:
-            - "nearest": pick level whose value is closest to 'resolution'.
-            - "floor":   pick coarsest level with value >= 'resolution'
-                         (if none, use coarsest level).
-            - "ceil":    pick finest level with value <= 'resolution'
-                         (if none, use finest level, i.e. level 0).
+            - "nearest":  pick level whose value is closest to 'resolution'.
+            - "floor":    pick coarsest level with value >= 'resolution'
+                          (if none, use coarsest level).
+            - "ceil":     pick finest level with value <= 'resolution'
+                          (if none, use finest level, i.e. level 0).
+            - "resample": same selection as "ceil"; caller must then resample
+                          the read pixels to the exact requested resolution.
+                          Raises ValueError when unit == "level".
 
     Returns:
         level_idx: int
     """
     with _open_slide(path) as slide:
+        # --- Guard: resample is not meaningful for discrete level indices ---
+        if fallback_mode == "resample" and unit == "level":
+            raise ValueError("fallback_mode='resample' is not meaningful for unit='level'.")
+
         # --- Trivial case: unit == "level" ---------------------------------
         if unit == "level":
             if not float(resolution).is_integer():
@@ -132,6 +177,14 @@ def get_level_for_resolution(
                 level_idx = max(eligible, key=lambda i: values[i])
             else:
                 # if none <= requested, use finest (level 0)
+                level_idx = 0
+
+        elif fallback_mode == "resample":
+            # Same selection as "ceil": finest level with value <= requested
+            eligible = [i for i, v in enumerate(values) if v <= requested]
+            if eligible:
+                level_idx = max(eligible, key=lambda i: values[i])
+            else:
                 level_idx = 0
 
         elif fallback_mode == "error":

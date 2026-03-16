@@ -1,7 +1,9 @@
 from typing import TYPE_CHECKING, Iterable, List, Literal, Optional, Tuple, Union
 
-from wsi_patching.backends.fastslide import read_region
+import cv2
+
 from wsi_patching.backends.cupy_numpy import get_xp_backend
+from wsi_patching.backends.fastslide import read_region
 from wsi_patching.core.pipeline import Stage
 from wsi_patching.core.types.types import CollatedPatchBatch, RegionTask, Slide, SlideWithROIs, TilePlan
 from wsi_patching.regions_of_interest.roi_providers import WholeSlideProvider
@@ -10,6 +12,14 @@ from wsi_patching.regions_of_interest.rois import ROI
 if TYPE_CHECKING:
     import cupy as cp
 import numpy as np
+
+_CV2_INTERPOLATION = {
+    "nearest": cv2.INTER_NEAREST,
+    "linear": cv2.INTER_LINEAR,
+    "cubic": cv2.INTER_CUBIC,
+    "area": cv2.INTER_AREA,
+    "lanczos": cv2.INTER_LANCZOS4,
+}
 
 
 class TilePlanner(Stage):
@@ -93,6 +103,7 @@ class TilePlanner(Stage):
                         roi_bounds=(bx, by, bw, bh),
                         tiles=tiles,
                         downsample=s.downsample,
+                        resample_factor=s.resample_factor,
                         meta={
                             **s.meta,
                             "roi_bounds": (bx, by, bw, bh),
@@ -223,6 +234,7 @@ class ReadWindowChunker(Stage):
                             region=(x_region_start, y_region_start, read_w, read_h),
                             tiles=in_window,
                             downsample=plan.downsample,
+                            resample_factor=plan.resample_factor,
                             meta=plan.meta,
                         )
 
@@ -298,15 +310,26 @@ class RegionReadAndBatch(Stage):
                 if h < required_h:
                     h = min(required_h, task.wsi_dims[1] - y0)
 
-            # Convert level-N coordinates to level-0 for the read_region() call, which all
-            # backends (OpenSlide, cuCIM, iSyntax) expect in level-0 space.
+            # Convert level-N coordinates to level-0 for the read_region() call, which
+            # backend expects in level-0 space.
             # round() gives the nearest integer, which is correct for both integer and
             # non-integer downsample factors.
             ds = task.downsample
             x0_l0 = round(x0 * ds)
             y0_l0 = round(y0 * ds)
 
-            region_img = read_region(task.wsi_path, x0_l0, y0_l0, w, h, task.level)
+            rf = task.resample_factor
+            if rf != 1.0:
+                read_w = round(w * rf)
+                read_h = round(h * rf)
+            else:
+                read_w, read_h = w, h
+
+            region_img = read_region(task.wsi_path, x0_l0, y0_l0, read_w, read_h, task.level)
+
+            if rf != 1.0:
+                interp = _CV2_INTERPOLATION[self.ctx.get("resample_interpolation", "lanczos")]
+                region_img = cv2.resize(region_img, (w, h), interpolation=interp)
 
             coords: List[Tuple[int, int]] = []
             patches: List[Union[np.ndarray, "cp.ndarray"]] = []

@@ -3,7 +3,6 @@ import pytest
 
 import wsi_patching.backends.fastslide as mod
 
-
 # ---------------------------------------------------------------------------
 # Fake fastslide objects
 # ---------------------------------------------------------------------------
@@ -332,3 +331,93 @@ class TestReadRegion:
         mod.read_region("test.svs", x=0, y=0, w=4, h=4, level=2)
 
         assert fake.read_region_calls[0]["level"] == 2
+
+
+# ---------------------------------------------------------------------------
+# get_level_for_resolution — fallback_mode="resample"
+# ---------------------------------------------------------------------------
+
+
+class TestGetLevelForResolutionResampleMpp:
+    # mpp0=0.5, downsamples=[1.0, 2.0, 4.0] → mpp per level = [0.5, 1.0, 2.0]
+
+    @pytest.fixture(autouse=True)
+    def _patch(self, monkeypatch):
+        fake = FakeFastSlide("dummy.svs", mpp=(0.5, 0.5))
+        monkeypatch.setattr(mod, "_open_slide", _make_patcher(fake))
+
+    def test_resample_picks_finest_finer_level(self):
+        # requested=1.5 mpp → eligible levels with mpp <= 1.5: [0.5 (0), 1.0 (1)] → finest = level 1
+        assert mod.get_level_for_resolution("dummy.svs", resolution=1.5, unit="mpp", fallback_mode="resample") == 1
+
+    def test_resample_falls_back_to_level0_if_all_coarser(self):
+        # requested=0.3 mpp → no level with mpp <= 0.3 → fall back to level 0
+        assert mod.get_level_for_resolution("dummy.svs", resolution=0.3, unit="mpp", fallback_mode="resample") == 0
+
+    def test_resample_exact_match(self):
+        # requested=1.0 mpp → exactly matches level 1
+        assert mod.get_level_for_resolution("dummy.svs", resolution=1.0, unit="mpp", fallback_mode="resample") == 1
+
+
+class TestGetLevelForResolutionResampleDownsample:
+    # level_downsamples = [1.0, 2.0, 4.0]
+
+    @pytest.fixture(autouse=True)
+    def _patch(self, monkeypatch):
+        fake = FakeFastSlide("dummy.svs")
+        monkeypatch.setattr(mod, "_open_slide", _make_patcher(fake))
+
+    def test_resample_picks_finest_finer_level(self):
+        # requested=3.0 → eligible [1.0 (0), 2.0 (1)] → finest = level 1
+        assert (
+            mod.get_level_for_resolution("dummy.svs", resolution=3.0, unit="downsample", fallback_mode="resample") == 1
+        )
+
+    def test_resample_falls_back_to_level0_if_all_coarser(self):
+        # requested=0.5 → no level with ds <= 0.5 → fall back to level 0
+        assert (
+            mod.get_level_for_resolution("dummy.svs", resolution=0.5, unit="downsample", fallback_mode="resample") == 0
+        )
+
+    def test_resample_raises_for_unit_level(self):
+        with pytest.raises(ValueError, match="resample"):
+            mod.get_level_for_resolution("dummy.svs", resolution=1, unit="level", fallback_mode="resample")
+
+
+# ---------------------------------------------------------------------------
+# get_resample_factor
+# ---------------------------------------------------------------------------
+
+
+class TestGetResampleFactor:
+    # mpp0=0.5, downsamples=[1.0, 2.0, 4.0] → mpp per level = [0.5, 1.0, 2.0]
+
+    @pytest.fixture(autouse=True)
+    def _patch(self, monkeypatch):
+        fake = FakeFastSlide("dummy.svs", mpp=(0.5, 0.5))
+        monkeypatch.setattr(mod, "_open_slide", _make_patcher(fake))
+
+    def test_mpp_factor_above_one(self):
+        # requested=1.5, level=1 (mpp=1.0) → factor = 1.5 / 1.0 = 1.5
+        rf = mod.get_resample_factor("dummy.svs", resolution=1.5, unit="mpp", selected_level=1)
+        assert abs(rf - 1.5) < 1e-9
+
+    def test_mpp_factor_exact_match(self):
+        # requested=1.0, level=1 (mpp=1.0) → factor = 1.0
+        rf = mod.get_resample_factor("dummy.svs", resolution=1.0, unit="mpp", selected_level=1)
+        assert abs(rf - 1.0) < 1e-9
+
+    def test_downsample_factor(self):
+        # requested=3.0, level=1 (ds=2.0) → factor = 3.0 / 2.0 = 1.5
+        rf = mod.get_resample_factor("dummy.svs", resolution=3.0, unit="downsample", selected_level=1)
+        assert abs(rf - 1.5) < 1e-9
+
+    def test_unknown_unit_raises(self):
+        with pytest.raises(ValueError, match="Unknown unit"):
+            mod.get_resample_factor("dummy.svs", resolution=1.0, unit="level", selected_level=0)
+
+    def test_missing_mpp_raises(self, monkeypatch):
+        fake_no_mpp = FakeFastSlide("dummy.svs", mpp=(None, None))
+        monkeypatch.setattr(mod, "_open_slide", _make_patcher(fake_no_mpp))
+        with pytest.raises(ValueError, match="mpp"):
+            mod.get_resample_factor("dummy.svs", resolution=1.5, unit="mpp", selected_level=1)
