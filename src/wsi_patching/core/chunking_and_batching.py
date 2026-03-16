@@ -310,8 +310,8 @@ class RegionReadAndBatch(Stage):
                 if h < required_h:
                     h = min(required_h, task.wsi_dims[1] - y0)
 
-            # Convert level-N coordinates to level-0 for the read_region() call, which all
-            # backends (OpenSlide, cuCIM, iSyntax) expect in level-0 space.
+            # Convert level-N coordinates to level-0 for the read_region() call, which
+            # backend expects in level-0 space.
             # round() gives the nearest integer, which is correct for both integer and
             # non-integer downsample factors.
             ds = task.downsample
