@@ -39,7 +39,7 @@ def _get_mpp0(slide) -> float:
         if mpp_x is not None:
             return float(mpp_x)
 
-    raise ValueError("Slide does not expose mpp metadata.")
+    raise ValueError("Could not retrieve mpp metadata from slide.mpp or openslide.mpp-x property.")
 
 
 def read_region(path: str, x: int, y: int, w: int, h: int, level: int) -> Optional[np.ndarray]:
@@ -58,13 +58,13 @@ def read_region(path: str, x: int, y: int, w: int, h: int, level: int) -> Option
         NumPy array of shape (h, w, 3), dtype uint8.
     """
     with _open_slide(path) as slide:
-        if _is_dicom(path):
-            region = slide.read_region(location=(x, y), level=level, size=(w, h))
-            return np.asarray(region.convert("RGB"))
-        # fastslide uses level-native coordinates; convert from level-0 coords.
-        x_native, y_native = slide.convert_level0_to_level_native(x, y, level)
-        region = slide.read_region(location=(x_native, y_native), level=level, size=(w, h))
-        return np.asarray(region.numpy())
+        if hasattr(slide, "convert_level0_to_level_native"):
+            # fastslide uses level-native coordinates; convert from level-0 coords.
+            x_native, y_native = slide.convert_level0_to_level_native(x, y, level)
+            region = slide.read_region((x_native, y_native), level, (w, h))
+            return np.asarray(region.numpy())
+        region = slide.read_region((x, y), level, (w, h))
+        return np.asarray(region.convert("RGB"))
 
 
 def get_dimensions_for_level(path: str, level: int) -> Tuple[int, int]:

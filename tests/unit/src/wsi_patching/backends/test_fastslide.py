@@ -60,7 +60,7 @@ class FakeFastSlide:
         ds = self.level_downsamples[level]
         return int(x / ds), int(y / ds)
 
-    def read_region(self, *, location, level, size):
+    def read_region(self, location, level, size):
         self.read_region_calls.append({"location": location, "level": level, "size": size})
         w, h = size
         return FakeRegion(w, h, fill=self._fill)
@@ -93,7 +93,7 @@ class FakeOpenSlide:
     def __exit__(self, *_):
         pass
 
-    def read_region(self, *, location, level, size):
+    def read_region(self, location, level, size):
         self.read_region_calls.append({"location": location, "level": level, "size": size})
         w, h = size
         return FakePILRegion(w, h, fill=self._fill)
@@ -365,7 +365,7 @@ class TestReadRegion:
 
         assert fake.read_region_calls[0]["level"] == 2
 
-    def test_dicom_uses_openslide_coordinates(self, monkeypatch):
+    def test_dicom_read_region_preserves_input_coordinates(self, monkeypatch):
         fake = FakeOpenSlide(fill=24)
         monkeypatch.setattr(mod, "_open_slide_openslide", lambda _: fake)
 
@@ -475,6 +475,12 @@ class TestDicomRouting:
         monkeypatch.setattr(mod, "_open_slide_openslide", lambda _: fake)
 
         assert mod._open_slide("example.dcm") is fake
+
+    def test_open_slide_uses_fastslide_for_non_dicom(self, monkeypatch):
+        fake = FakeFastSlide("example.svs")
+        monkeypatch.setattr(mod, "_open_slide_fastslide", lambda _: fake)
+
+        assert mod._open_slide("example.svs") is fake
 
     def test_get_level_for_resolution_reads_mpp_from_openslide_properties(self, monkeypatch):
         fake = FakeOpenSlide(properties={"openslide.mpp-x": "0.5"})
