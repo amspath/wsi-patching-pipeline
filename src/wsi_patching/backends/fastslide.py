@@ -1,4 +1,5 @@
 import logging
+from pathlib import Path
 from typing import List, Literal, Optional, Tuple
 
 import fastslide
@@ -7,8 +8,38 @@ import numpy as np
 logger = logging.getLogger(__name__)
 
 
-def _open_slide(path: str) -> fastslide.FastSlide:
+def _is_dicom(path: str) -> bool:
+    return Path(path).suffix.lower() in {".dcm", ".dicom"}
+
+
+def _open_slide_fastslide(path: str) -> fastslide.FastSlide:
     return fastslide.FastSlide.from_file_path(str(path))
+
+
+def _open_slide_openslide(path: str):
+    import openslide
+
+    return openslide.OpenSlide(str(path))
+
+
+def _open_slide(path: str):
+    if _is_dicom(path):
+        return _open_slide_openslide(path)
+    return _open_slide_fastslide(path)
+
+
+def _get_mpp0(slide) -> float:
+    mpp = getattr(slide, "mpp", None)
+    if mpp is not None and mpp[0] is not None:
+        return float(mpp[0])
+
+    properties = getattr(slide, "properties", None)
+    if properties is not None:
+        mpp_x = properties.get("openslide.mpp-x")
+        if mpp_x is not None:
+            return float(mpp_x)
+
+    raise ValueError("Could not retrieve mpp metadata from slide.mpp or openslide.mpp-x property.")
 
 
 def read_region(path: str, x: int, y: int, w: int, h: int, level: int) -> Optional[np.ndarray]:
@@ -27,10 +58,13 @@ def read_region(path: str, x: int, y: int, w: int, h: int, level: int) -> Option
         NumPy array of shape (h, w, 3), dtype uint8.
     """
     with _open_slide(path) as slide:
-        # fastslide uses level-native coordinates; convert from level-0 coords.
-        x_native, y_native = slide.convert_level0_to_level_native(x, y, level)
-        region = slide.read_region(location=(x_native, y_native), level=level, size=(w, h))
-        return np.asarray(region.numpy())
+        if hasattr(slide, "convert_level0_to_level_native"):
+            # fastslide uses level-native coordinates; convert from level-0 coords.
+            x_native, y_native = slide.convert_level0_to_level_native(x, y, level)
+            region = slide.read_region((x_native, y_native), level, (w, h))
+            return np.asarray(region.numpy())
+        region = slide.read_region((x, y), level, (w, h))
+        return np.asarray(region.convert("RGB"))
 
 
 def get_dimensions_for_level(path: str, level: int) -> Tuple[int, int]:
@@ -76,10 +110,7 @@ def get_resample_factor(
         level_ds = level_downsamples[selected_level]
 
         if unit == "mpp":
-            mpp = slide.mpp
-            if mpp is None or mpp[0] is None:
-                raise ValueError("Slide does not expose mpp metadata.")
-            mpp0 = float(mpp[0])
+            mpp0 = _get_mpp0(slide)
             level_value = mpp0 * level_ds
         elif unit == "downsample":
             level_value = level_ds
@@ -139,10 +170,7 @@ def get_level_for_resolution(
         requested = float(resolution)
 
         if unit == "mpp":
-            mpp = slide.mpp
-            if mpp is None or mpp[0] is None:
-                raise ValueError("Slide does not expose mpp metadata.")
-            mpp0 = float(mpp[0])
+            mpp0 = _get_mpp0(slide)
             # Effective mpp per level
             values = [mpp0 * ds for ds in level_downsamples]
 

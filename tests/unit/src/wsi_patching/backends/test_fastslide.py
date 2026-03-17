@@ -60,10 +60,43 @@ class FakeFastSlide:
         ds = self.level_downsamples[level]
         return int(x / ds), int(y / ds)
 
-    def read_region(self, *, location, level, size):
+    def read_region(self, location, level, size):
         self.read_region_calls.append({"location": location, "level": level, "size": size})
         w, h = size
         return FakeRegion(w, h, fill=self._fill)
+
+
+class FakePILRegion:
+    def __init__(self, w: int, h: int, fill: int = 9):
+        self._arr = np.full((h, w, 3), fill, dtype=np.uint8)
+
+    def convert(self, mode: str):
+        assert mode == "RGB"
+        return self
+
+    def __array__(self):
+        return self._arr
+
+
+class FakeOpenSlide:
+    def __init__(self, *, level_dimensions=None, level_downsamples=None, properties=None, fill: int = 9):
+        self.level_dimensions = level_dimensions or [(300, 200), (150, 100), (75, 50)]
+        self.level_downsamples = level_downsamples or [1.0, 2.0, 4.0]
+        self.level_count = len(self.level_dimensions)
+        self.properties = properties or {"openslide.mpp-x": "0.5"}
+        self._fill = fill
+        self.read_region_calls: list[dict] = []
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_):
+        pass
+
+    def read_region(self, location, level, size):
+        self.read_region_calls.append({"location": location, "level": level, "size": size})
+        w, h = size
+        return FakePILRegion(w, h, fill=self._fill)
 
 
 def _make_patcher(fake: FakeFastSlide):
@@ -332,6 +365,19 @@ class TestReadRegion:
 
         assert fake.read_region_calls[0]["level"] == 2
 
+    def test_dicom_read_region_preserves_input_coordinates(self, monkeypatch):
+        fake = FakeOpenSlide(fill=24)
+        monkeypatch.setattr(mod, "_open_slide_openslide", lambda _: fake)
+
+        arr = mod.read_region("test.dcm", x=20, y=40, w=8, h=6, level=1)
+
+        assert arr.shape == (6, 8, 3)
+        assert int(arr[0, 0, 0]) == 24
+        call = fake.read_region_calls[0]
+        assert call["location"] == (20, 40)
+        assert call["level"] == 1
+        assert call["size"] == (8, 6)
+
 
 # ---------------------------------------------------------------------------
 # get_level_for_resolution — fallback_mode="resample"
@@ -421,3 +467,25 @@ class TestGetResampleFactor:
         monkeypatch.setattr(mod, "_open_slide", _make_patcher(fake_no_mpp))
         with pytest.raises(ValueError, match="mpp"):
             mod.get_resample_factor("dummy.svs", resolution=1.5, unit="mpp", selected_level=1)
+
+
+class TestDicomRouting:
+    def test_open_slide_uses_openslide_for_dicom(self, monkeypatch):
+        fake = FakeOpenSlide()
+        monkeypatch.setattr(mod, "_open_slide_openslide", lambda _: fake)
+
+        assert mod._open_slide("example.dcm") is fake
+
+    def test_open_slide_uses_fastslide_for_non_dicom(self, monkeypatch):
+        fake = FakeFastSlide("example.svs")
+        monkeypatch.setattr(mod, "_open_slide_fastslide", lambda _: fake)
+
+        assert mod._open_slide("example.svs") is fake
+
+    def test_get_level_for_resolution_reads_mpp_from_openslide_properties(self, monkeypatch):
+        fake = FakeOpenSlide(properties={"openslide.mpp-x": "0.5"})
+        monkeypatch.setattr(mod, "_open_slide_openslide", lambda _: fake)
+
+        level = mod.get_level_for_resolution("example.dcm", resolution=1.0, unit="mpp", fallback_mode="nearest")
+
+        assert level == 1
