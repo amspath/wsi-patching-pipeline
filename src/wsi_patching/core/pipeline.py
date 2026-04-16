@@ -169,7 +169,6 @@ class Pipeline(Stage):
 
     def print_profile(self) -> None:
         if self.prof_agg is None:
-            print("[profile] No profile data (did you run with profile=True?)")
             return
         self.prof_agg.print_profile()
 

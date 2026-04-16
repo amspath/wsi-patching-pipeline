@@ -109,9 +109,6 @@ def test_runtime_type_assertion_catches_wrong_yield_type():
 def test_get_and_print_profile_without_aggregator(capsys):
     p = Pipeline([SourceStage([1])])
     assert p.get_profile() == {"by_stage": {}, "by_slide": {}}
-    p.print_profile()
-    out = capsys.readouterr().out
-    assert "[profile] No profile data (did you run with profile=True?)" in out
 
 
 def test_failed_slides_initial_empty():

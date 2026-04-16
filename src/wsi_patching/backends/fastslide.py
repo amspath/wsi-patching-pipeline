@@ -4,6 +4,7 @@ from typing import List, Literal, Optional, Tuple
 
 import fastslide
 import numpy as np
+import openslide
 
 logger = logging.getLogger(__name__)
 
@@ -17,8 +18,6 @@ def _open_slide_fastslide(path: str) -> fastslide.FastSlide:
 
 
 def _open_slide_openslide(path: str):
-    import openslide
-
     return openslide.OpenSlide(str(path))
 
 
@@ -85,12 +84,7 @@ def get_level_downsamples(path: str) -> List[float]:
         return [float(ds) for ds in slide.level_downsamples]
 
 
-def get_resample_factor(
-    path: str,
-    resolution: float,
-    unit: Literal["mpp", "downsample"],
-    selected_level: int,
-) -> float:
+def get_resample_factor(path: str, resolution: float, unit: Literal["mpp", "downsample"], selected_level: int) -> float:
     """Return resample_factor = requested_value / level_value.
 
     Factor > 1.0 means the selected level is finer than requested: read more
@@ -117,7 +111,7 @@ def get_resample_factor(
         else:
             raise ValueError(f"Unknown unit: {unit}")
 
-        return float(resolution) / level_value
+        return float(resolution) if level_value == 0 else float(resolution) / level_value
 
 
 def get_level_for_resolution(

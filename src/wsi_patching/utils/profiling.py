@@ -77,7 +77,6 @@ class PipelineProfileAggregator:
     def print_profile(self) -> None:
         prof = self.get_profile()
         if not prof["by_stage"]:
-            print("[profile] No profile data (did you run with profile=True?)")
             return
 
         def fmt(stats: Dict[str, Union[float, int]]) -> str:
