@@ -16,10 +16,7 @@ from wsi_patching.backends.torch_device import get_torch_device
 from wsi_patching.core.pipeline import Stage
 from wsi_patching.core.types.types import CollatedPatchBatch
 
-try:
-    from importlib.resources import as_file, files  # Python 3.9+
-except Exception:  # Python 3.8 fallback
-    from importlib_resources import as_file, files  # type: ignore
+from importlib.resources import as_file, files
 
 
 class CellVitTissueClassifierFilter(Stage):

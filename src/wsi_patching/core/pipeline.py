@@ -14,11 +14,7 @@ from wsi_patching.utils.profiling import PipelineProfileAggregator, Profiler, ge
 from wsi_patching.writers.materialize_writers.materialize_writer_base import MaterializeWriterBase
 from wsi_patching.writers.stream_writers.stream_writer_base import StreamWriterBase
 
-try:
-    # Consistent across 3.8/3.9 and supports typing_extensions constructs
-    from typing_extensions import get_args, get_origin
-except ImportError:  # 3.10+ or environments without typing_extensions
-    from typing import get_args, get_origin
+from typing import get_args, get_origin
 
 
 def _type_options(t: Any) -> Tuple[type, ...]:

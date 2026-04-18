@@ -1,8 +1,6 @@
 import logging
 import sys
-from typing import Union
-
-from typing_extensions import Literal
+from typing import Literal, Union
 
 LogLevel = Union[int, Literal["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG", "NOTSET"]]
 
