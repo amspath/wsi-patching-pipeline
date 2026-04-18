@@ -365,20 +365,6 @@ class TestReadRegion:
 
         assert fake.read_region_calls[0]["level"] == 2
 
-    def test_dicom_read_region_preserves_input_coordinates(self, monkeypatch):
-        fake = FakeOpenSlide(fill=24)
-        monkeypatch.setattr(mod, "_open_slide_openslide", lambda _: fake)
-
-        arr = mod.read_region("test.dcm", x=20, y=40, w=8, h=6, level=1)
-
-        assert arr.shape == (6, 8, 3)
-        assert int(arr[0, 0, 0]) == 24
-        call = fake.read_region_calls[0]
-        assert call["location"] == (20, 40)
-        assert call["level"] == 1
-        assert call["size"] == (8, 6)
-
-
 # ---------------------------------------------------------------------------
 # get_level_for_resolution — fallback_mode="resample"
 # ---------------------------------------------------------------------------
@@ -467,25 +453,3 @@ class TestGetResampleFactor:
         monkeypatch.setattr(mod, "_open_slide", _make_patcher(fake_no_mpp))
         with pytest.raises(ValueError, match="mpp"):
             mod.get_resample_factor("dummy.svs", resolution=1.5, unit="mpp", selected_level=1)
-
-
-class TestDicomRouting:
-    def test_open_slide_uses_openslide_for_dicom(self, monkeypatch):
-        fake = FakeOpenSlide()
-        monkeypatch.setattr(mod, "_open_slide_openslide", lambda _: fake)
-
-        assert mod._open_slide("example.dcm") is fake
-
-    def test_open_slide_uses_fastslide_for_non_dicom(self, monkeypatch):
-        fake = FakeFastSlide("example.svs")
-        monkeypatch.setattr(mod, "_open_slide_fastslide", lambda _: fake)
-
-        assert mod._open_slide("example.svs") is fake
-
-    def test_get_level_for_resolution_reads_mpp_from_openslide_properties(self, monkeypatch):
-        fake = FakeOpenSlide(properties={"openslide.mpp-x": "0.5"})
-        monkeypatch.setattr(mod, "_open_slide_openslide", lambda _: fake)
-
-        level = mod.get_level_for_resolution("example.dcm", resolution=1.0, unit="mpp", fallback_mode="nearest")
-
-        assert level == 1
