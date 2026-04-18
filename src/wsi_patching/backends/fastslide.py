@@ -1,30 +1,14 @@
 import logging
-from pathlib import Path
 from typing import List, Literal, Optional, Tuple
 
 import fastslide
 import numpy as np
-import openslide
 
 logger = logging.getLogger(__name__)
 
 
-def _is_dicom(path: str) -> bool:
-    return Path(path).suffix.lower() in {".dcm", ".dicom"}
-
-
-def _open_slide_fastslide(path: str) -> fastslide.FastSlide:
-    return fastslide.FastSlide.from_file_path(str(path))
-
-
-def _open_slide_openslide(path: str):
-    return openslide.OpenSlide(str(path))
-
-
 def _open_slide(path: str):
-    if _is_dicom(path):
-        return _open_slide_openslide(path)
-    return _open_slide_fastslide(path)
+    return fastslide.FastSlide.from_file_path(str(path))
 
 
 def _get_mpp0(slide) -> float:
