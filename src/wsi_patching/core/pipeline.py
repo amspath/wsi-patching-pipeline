@@ -1,13 +1,10 @@
 import logging
-import multiprocessing as mp
-import sys
+import queue as _queue
 import threading
 from dataclasses import dataclass, field
-from multiprocessing.queues import Queue as MPQueue
-from multiprocessing.synchronize import Event as MpEvent
 from pathlib import Path
-from queue import Full
-from threading import Thread
+from queue import Empty, Full, Queue
+from threading import Event, Thread
 from typing import Any, Callable, Iterable, Iterator, List, Optional, Tuple, Union
 
 from wsi_patching.core.types.util_types import EndOfQueue, EndOfStream
@@ -179,12 +176,12 @@ class Pipeline(Stage):
     def _orchestrate(
         self,
         *,
-        cpu_processes: int,
+        num_workers: int,
         writer_prefetch_factor: int,
         profile: bool,
         verbosity: LogLevel,
         gracefully_handle_producer_errors: bool,
-        sink_runner: Callable[[MPQueue], Union[Iterable[Any], Any]],
+        sink_runner: Callable[[Queue], Union[Iterable[Any], Any]],
         streaming: bool,
     ):
         """
@@ -199,13 +196,13 @@ class Pipeline(Stage):
             self.log.info("[WARN] No slides provided. Nothing to do.")
             return
 
-        producer_queue, profiler_queue, stop_event = self._init_mp(
-            queue_maxsize=writer_prefetch_factor * cpu_processes, profile=profile
+        producer_queue, profiler_queue, stop_event = self._init_threading(
+            queue_maxsize=writer_prefetch_factor * num_workers, profile=profile
         )
 
         sup_thread, stop_all, fail_box, failed_slides = self._spawn_supervisor(
             slides=slides,
-            cpu_processes=cpu_processes,
+            num_workers=num_workers,
             queue=producer_queue,
             profiler_queue=profiler_queue,
             profile=profile,
@@ -322,34 +319,27 @@ class Pipeline(Stage):
 
         return slides
 
-    def _init_mp(self, *, queue_maxsize: int, profile: bool) -> Tuple[MPQueue, Optional[MPQueue], MpEvent]:
-        if mp.get_start_method(allow_none=True) != "spawn":
-            try:
-                mp.set_start_method("spawn", force=True)
-            except RuntimeError:
-                pass
-
-        ctx = mp.get_context("spawn")
-        producer_queue: MPQueue = ctx.Queue(maxsize=queue_maxsize)
-        profiler_queue: Optional[MPQueue] = ctx.Queue() if profile else None
-        stop_event: MpEvent = ctx.Event()
+    def _init_threading(self, *, queue_maxsize: int, profile: bool) -> Tuple[Queue, Optional[Queue], Event]:
+        producer_queue: Queue = Queue(maxsize=queue_maxsize)
+        profiler_queue: Optional[Queue] = Queue() if profile else None
+        stop_event: Event = Event()
         return producer_queue, profiler_queue, stop_event
 
     def _spawn_supervisor(
         self,
         *,
         slides: List[str],
-        cpu_processes: int,
-        queue: MPQueue,
-        profiler_queue: Optional[MPQueue],
+        num_workers: int,
+        queue: Queue,
+        profiler_queue: Optional[Queue],
         profile: bool,
         verbosity: LogLevel,
         gracefully_handle_producer_errors: bool,
-        stop_event: MpEvent,
+        stop_event: Event,
     ) -> Tuple[Thread, Callable[[], None], List[str], List[str]]:
         """
         Spawns a supervisor thread that:
-        - launches up to `cpu_processes` producer processes
+        - launches up to `num_workers` producer threads
         - respawns producers until slides are exhausted
         - collects profiling messages (optional)
         - on exit or error, ALWAYS sends EndOfQueue to the writer
@@ -360,13 +350,15 @@ class Pipeline(Stage):
         - failed_slides list (if skipping is enabled)
         """
         pending = list(slides)
-        active: List[mp.Process] = []
+        # active: list of (thread, per-worker fail_box)
+        active: List[Tuple[Thread, List[str]]] = []
         failed_slides: List[str] = []
         fail_box: List[str] = []  # single-element list carrying error reason
         kill_lock = threading.Lock()
 
-        def spawn_for(path: str) -> mp.Process:
-            p = mp.Process(
+        def spawn_for(path: str) -> Tuple[Thread, List[str]]:
+            worker_fail_box: List[str] = []
+            t = Thread(
                 target=_producer_worker,
                 args=(
                     path,
@@ -377,24 +369,21 @@ class Pipeline(Stage):
                     gracefully_handle_producer_errors,
                     verbosity,
                     stop_event,
+                    worker_fail_box,
+                    self._context,
                 ),
                 name=f"producer-{Path(path).stem}",
+                daemon=True,
             )
-            p.start()
-            return p
+            t.start()
+            return t, worker_fail_box
 
-        for _ in range(min(cpu_processes, len(pending))):
+        for _ in range(min(num_workers, len(pending))):
             active.append(spawn_for(pending.pop(0)))
 
         def stop_all():
             with kill_lock:
                 stop_event.set()
-                for p in active:
-                    try:
-                        if p.is_alive():
-                            p.terminate()
-                    except Exception:
-                        pass
                 try:
                     queue.put(EndOfQueue(), block=True, timeout=0.5)
                 except Exception:
@@ -403,25 +392,19 @@ class Pipeline(Stage):
         def supervisor():
             try:
                 while active:
-                    for p in list(active):
-                        p.join(timeout=0.1)
-                        if not p.is_alive():
-                            active.remove(p)
-                            if p.exitcode and p.exitcode != 0:
-                                slide_name = p.name.replace("producer-", "")
+                    for t, worker_fail in list(active):
+                        t.join(timeout=0.1)
+                        if not t.is_alive():
+                            active.remove((t, worker_fail))
+                            if worker_fail:
+                                slide_name = t.name.replace("producer-", "")
                                 failed_slides.append(slide_name)
                                 if not gracefully_handle_producer_errors:
                                     stop_event.set()
-                                    fail_box.append(f"Producer failed on slide '{slide_name}'")
-                                    for r in active:
-                                        try:
-                                            if r.is_alive():
-                                                r.terminate()
-                                        except Exception:
-                                            pass
+                                    fail_box.append(f"Producer failed on slide '{slide_name}': {worker_fail[0]}")
                                     return
 
-                    while pending and len(active) < cpu_processes:
+                    while pending and len(active) < num_workers:
                         active.append(spawn_for(pending.pop(0)))
                         self.log.info("Spawning new producer... %d slides left.", len(pending))
 
@@ -430,7 +413,7 @@ class Pipeline(Stage):
                     while received < expected:
                         try:
                             msg = profiler_queue.get(timeout=1.0)
-                        except Exception:
+                        except Empty:
                             break
                         if isinstance(msg, dict) and msg.get("_profile"):
                             self.prof_agg.ingest_msg(msg)
@@ -448,7 +431,7 @@ class Pipeline(Stage):
 
     def stream(
         self,
-        cpu_processes: int = 4,
+        num_workers: int = 4,
         writer_prefetch_factor: int = 2,
         profile: bool = False,
         verbosity_level: LogLevel = "WARNING",
@@ -457,8 +440,8 @@ class Pipeline(Stage):
         """Streaming mode: returns a generator that can be streamed to obtain your patches.
 
         Args:
-            cpu_processes: Number of producer processes, one per slide concurrently (default=4).
-            writer_prefetch_factor: Number of batches to prefetch for the writer per producer process (default=2).
+            num_workers: Number of producer threads, one per slide concurrently (default=4).
+            writer_prefetch_factor: Number of batches to prefetch for the writer per producer thread (default=2).
             profile: Enable per-stage profiling for producers (default=False).
             verbosity_level: Logging verbosity level (default="WARNING").
             gracefully_handle_producer_errors: Skip slides that cause errors instead of failing the entire pipeline
@@ -472,10 +455,10 @@ class Pipeline(Stage):
                 f"The writer {self.writer.__class__} is a MaterializeWriterBase; use .materialize() instead."
             )
 
-        sink_runner: Callable[[MPQueue], Iterable[Any]] = lambda q, v, e: self.writer.start_writer(q, v, stop_event=e)
+        sink_runner: Callable[[Queue], Iterable[Any]] = lambda q, v, e: self.writer.start_writer(q, v, stop_event=e)
 
         yield from self._orchestrate(
-            cpu_processes=cpu_processes,
+            num_workers=num_workers,
             writer_prefetch_factor=writer_prefetch_factor,
             profile=profile,
             verbosity=verbosity_level,
@@ -486,7 +469,7 @@ class Pipeline(Stage):
 
     def materialize(
         self,
-        cpu_processes: int = 4,
+        num_workers: int = 4,
         writer_prefetch_factor: int = 2,
         profile: bool = False,
         verbosity_level: LogLevel = "WARNING",
@@ -495,8 +478,8 @@ class Pipeline(Stage):
         """Materializes the pipeline.
 
         Args:
-            cpu_processes: Number of producer processes, one per slide concurrently (default=4).
-            writer_prefetch_factor: Number of batches to prefetch for the writer per producer process (default=2).
+            num_workers: Number of producer threads, one per slide concurrently (default=4).
+            writer_prefetch_factor: Number of batches to prefetch for the writer per producer thread (default=2).
             profile: Enable per-stage profiling for producers (default=False).
             verbosity_level: Logging verbosity level (default="WARNING").
             gracefully_handle_producer_errors: Skip slides that cause errors instead of failing the entire pipeline
@@ -508,12 +491,12 @@ class Pipeline(Stage):
         if isinstance(self.writer, StreamWriterBase):
             raise RuntimeError(f"The writer {self.writer.__class__} is a StreamWriterBase; use .stream() instead.")
 
-        sink_runner: Callable[[MPQueue], Iterable[Any] | Any] = lambda q, v, e: self.writer.start_writer(
+        sink_runner: Callable[[Queue], Iterable[Any] | Any] = lambda q, v, e: self.writer.start_writer(
             q, v, stop_event=e
         )
 
         self._orchestrate(
-            cpu_processes=cpu_processes,
+            num_workers=num_workers,
             writer_prefetch_factor=writer_prefetch_factor,
             profile=profile,
             verbosity=verbosity_level,
@@ -526,12 +509,14 @@ class Pipeline(Stage):
 def _producer_worker(
     slide_path: str,
     stage_specs: List[Stage],
-    producer_queue: MPQueue,
+    producer_queue: Queue,
     profile: bool,
-    profiler_queue: Optional[MPQueue],
+    profiler_queue: Optional[Queue],
     gracefully_handle_producer_errors: bool,
     verbosity_level: LogLevel = "WARNING",
-    stop_event: Optional[MpEvent] = None,
+    stop_event: Optional[Event] = None,
+    fail_box: Optional[List[str]] = None,
+    context: Optional[PipelineContext] = None,
 ):
     init_logging(verbosity_level)
     profiler: Optional[Profiler] = None
@@ -541,7 +526,10 @@ def _producer_worker(
         set_current_profiler(profiler)
 
         local_stages = [st.for_slide(slide_path) for st in stage_specs]
-        pipe = Pipeline(local_stages)
+        if context is not None:
+            for s in local_stages:
+                s.attach_context(context)
+        pipe = Pipeline(local_stages, context=context)
 
         # sources ignore input
         for out in pipe(iter(())):
@@ -560,13 +548,14 @@ def _producer_worker(
     except Exception as e:
         if not gracefully_handle_producer_errors:
             logging.exception(f"Producer error: {e}", exc_info=True)
-        sys.exit(1)
+        if fail_box is not None:
+            fail_box.append(str(e))
     finally:
         if profile and profiler_queue is not None and profiler is not None:
             try:
                 profiler_queue.put({"_profile": True, **profiler.serialize()})
             except Exception:
-                logging.info("Failed to send profile message.", file=sys.stderr)
+                logging.info("Failed to send profile message.")
         set_current_profiler(None)
 
         # best-effort stream boundary

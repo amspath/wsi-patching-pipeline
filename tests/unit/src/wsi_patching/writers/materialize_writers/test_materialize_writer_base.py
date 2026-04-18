@@ -1,4 +1,5 @@
-import multiprocessing as mp
+from queue import Queue
+from threading import Event
 from typing import Any
 
 from wsi_patching.core.types.util_types import EndOfQueue, EndOfStream
@@ -57,7 +58,7 @@ def test_init_logging_called(monkeypatch):
         "wsi_patching.writers.materialize_writers.materialize_writer_base.init_logging", fake_init, raising=True
     )
 
-    q = mp.Queue()
+    q = Queue()
     q.put(EndOfQueue())
 
     w = _ProbeWriter()
@@ -67,7 +68,7 @@ def test_init_logging_called(monkeypatch):
 
 
 def test_open_once_write_batches_then_close(caplog):
-    q = mp.Queue()
+    q = Queue()
     q.put(["a", "b"])  # batch #1
     q.put(["c"])  # batch #2
     q.put(EndOfQueue())  # stop
@@ -94,7 +95,7 @@ def test_open_once_write_batches_then_close(caplog):
 
 
 def test_end_of_stream_triggers_on_end_of_stream_without_write():
-    q = mp.Queue()
+    q = Queue()
     q.put(EndOfStream())  # should call on_end_of_stream, not write
     q.put(["x"])  # then a real batch
     q.put(EndOfQueue())
@@ -111,8 +112,8 @@ def test_end_of_stream_triggers_on_end_of_stream_without_write():
 
 
 def test_stop_event_causes_clean_exit_when_queue_empty(caplog):
-    q = mp.Queue()
-    evt = mp.Event()
+    q = Queue()
+    evt = Event()
     evt.set()  # simulate external stop while queue empty
 
     w = _ProbeWriter()
@@ -126,7 +127,7 @@ def test_stop_event_causes_clean_exit_when_queue_empty(caplog):
 
 
 def test_exception_in_write_is_logged_and_close_still_called(caplog):
-    q = mp.Queue()
+    q = Queue()
     q.put(["boom"])  # will cause write to raise
     q.put(EndOfQueue())  # eventual shutdown
 
@@ -148,7 +149,7 @@ def test_close_exception_is_logged_not_raised(monkeypatch, caplog):
             super().close()  # mark closed True to observe call
             raise RuntimeError("boom in close")
 
-    q = mp.Queue()
+    q = Queue()
     q.put(EndOfQueue())
 
     w = _CloseBoomWriter()

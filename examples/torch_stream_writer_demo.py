@@ -20,7 +20,7 @@ def main():
         .to(TorchStreamWriter(layout="NCHW"))
     )
 
-    stream = p.stream(cpu_processes=2, profile=False, verbosity_level="INFO")
+    stream = p.stream(num_workers=2, profile=False, verbosity_level="INFO")
 
     for wsi_id, images_t, coords_t, metadata in stream:
         ...

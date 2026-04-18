@@ -48,7 +48,7 @@ def main(argv=None):
     )
 
     start_time = time.time()
-    p.materialize(cpu_processes=args.procs, profile=args.profile, verbosity_level="INFO")
+    p.materialize(num_workers=args.procs, profile=args.profile, verbosity_level="INFO")
     logging.info(f"Done in {time.time() - start_time:.1f} seconds.")
 
     if args.profile:

@@ -22,7 +22,7 @@ def main():
         .to(NumpyStreamWriter(layout="NCHW"))
     )
 
-    stream = p.stream(cpu_processes=2, profile=False, verbosity_level="INFO")
+    stream = p.stream(num_workers=2, profile=False, verbosity_level="INFO")
     for wsi_ids, final_images, final_coords, meta in stream:
         ...
 
