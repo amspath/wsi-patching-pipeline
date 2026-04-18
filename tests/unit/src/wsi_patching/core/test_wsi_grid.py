@@ -30,7 +30,6 @@ def test_export_context_resample_interpolation_custom():
     assert ctx["resample_interpolation"] == "area"
 
 
-@patch("wsi_patching.core.wsi_grid.get_torch_device", new=lambda use_gpu: None)
 @patch("wsi_patching.core.wsi_grid.validate_xp_backend")
 def test_validate_invokes_backends(mock_validate_xp):
     grid = WSIGrid(slides=[], use_gpu=False, resolution=0.5, unit="mpp")

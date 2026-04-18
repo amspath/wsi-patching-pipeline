@@ -1,7 +1,8 @@
 # test_torch_stream_writer.py
 import numpy as np
 import pytest
-import torch
+
+torch = pytest.importorskip("torch")
 
 from wsi_patching.writers.stream_writers.torch_stream_writer import TorchStreamWriter
 

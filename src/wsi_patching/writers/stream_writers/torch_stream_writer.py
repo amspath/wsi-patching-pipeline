@@ -1,7 +1,14 @@
 from typing import TYPE_CHECKING, Iterable, Literal, Optional, Tuple, Union
 
 import numpy as np
-import torch
+
+try:
+    import torch
+except ImportError as e:
+    raise ImportError(
+        "TorchStreamWriter requires torch. "
+        "Install it with: pip install wsi-patching[gpu]"
+    ) from e
 
 from wsi_patching.core.types.types import CollatedPatchBatch
 from wsi_patching.writers.stream_writers.stream_writer_base import StreamWriterBase

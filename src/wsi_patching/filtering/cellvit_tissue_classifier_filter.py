@@ -1,9 +1,16 @@
 from typing import Iterable, List, Union
 
 import numpy as np
-import torch
-import torch.nn as nn
-from torchvision.models import mobilenet_v3_small
+
+try:
+    import torch
+    import torch.nn as nn
+    from torchvision.models import mobilenet_v3_small
+except ImportError as e:
+    raise ImportError(
+        "CellVitTissueClassifierFilter requires torch and torchvision. "
+        "Install them with: pip install wsi-patching[gpu]"
+    ) from e
 
 from wsi_patching.backends.torch_device import get_torch_device
 from wsi_patching.core.pipeline import Stage
