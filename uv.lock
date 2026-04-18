@@ -1110,7 +1110,7 @@ gpu = [
 [package.metadata]
 requires-dist = [
     { name = "cupy-cuda12x", marker = "sys_platform != 'darwin' and extra == 'gpu'" },
-    { name = "fastslide" },
+    { name = "fastslide", specifier = ">=0.4.0" },
     { name = "importlib-resources", marker = "python_full_version < '3.9'", specifier = ">=5" },
     { name = "numpy" },
     { name = "opencv-python-headless" },
