@@ -37,7 +37,7 @@ def main(argv=None):
     ]
 
     # Example ROI dict (compat with old code)
-    rois_dict = {Path(s).stem: [(0, 0, 4000, 4000)] for s in slides}
+    rois_dict = {Path(s).stem: [(0, 0, 18000, 10000)] for s in slides}
 
     p = (
         WSIGrid(slides=slides, resolution=0, unit="level", use_gpu=False)
