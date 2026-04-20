@@ -12,11 +12,11 @@ except ImportError as e:
         "Install them with: pip install wsi-patching[gpu]"
     ) from e
 
+from importlib.resources import as_file, files
+
 from wsi_patching.backends.torch_device import get_torch_device
 from wsi_patching.core.pipeline import Stage
 from wsi_patching.core.types.types import CollatedPatchBatch
-
-from importlib.resources import as_file, files
 
 
 class CellVitTissueClassifierFilter(Stage):

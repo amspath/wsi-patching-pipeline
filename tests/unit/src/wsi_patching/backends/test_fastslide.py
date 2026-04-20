@@ -108,6 +108,13 @@ def _make_patcher(fake: FakeFastSlide):
     return _open_slide
 
 
+@pytest.fixture(autouse=True)
+def _clear_slide_cache():
+    """Reset the thread-local slide cache between tests to prevent cross-test pollution."""
+    yield
+    mod.close_cached_slides()
+
+
 # ---------------------------------------------------------------------------
 # get_dimensions_for_level
 # ---------------------------------------------------------------------------

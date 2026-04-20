@@ -1,20 +1,18 @@
 import logging
-import queue as _queue
 import threading
 from dataclasses import dataclass, field
 from pathlib import Path
 from queue import Empty, Full, Queue
 from threading import Event, Thread
-from typing import Any, Callable, Iterable, Iterator, List, Optional, Tuple, Union
+from typing import Any, Callable, Iterable, Iterator, List, Optional, Tuple, Union, get_args, get_origin
 
+from wsi_patching.backends.fastslide import close_cached_slides
 from wsi_patching.core.types.util_types import EndOfQueue, EndOfStream
 from wsi_patching.utils.logging_config import LogLevel, init_logging
 from wsi_patching.utils.meta_typing import ContextAware, PipelineContext, StageMeta
 from wsi_patching.utils.profiling import PipelineProfileAggregator, Profiler, get_current_profiler, set_current_profiler
 from wsi_patching.writers.materialize_writers.materialize_writer_base import MaterializeWriterBase
 from wsi_patching.writers.stream_writers.stream_writer_base import StreamWriterBase
-
-from typing import get_args, get_origin
 
 
 def _type_options(t: Any) -> Tuple[type, ...]:
@@ -547,6 +545,7 @@ def _producer_worker(
         if fail_box is not None:
             fail_box.append(str(e))
     finally:
+        close_cached_slides()
         if profile and profiler_queue is not None and profiler is not None:
             try:
                 profiler_queue.put({"_profile": True, **profiler.serialize()})

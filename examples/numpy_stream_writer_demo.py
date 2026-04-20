@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import numpy as np
-
 from wsi_patching.core import PatchExtractor, WSIGrid
 from wsi_patching.filtering import LowContrastBackgroundFilter, OtsuFilter, PenArtifactFilter
 from wsi_patching.transforms import MacenkoNormalizer
