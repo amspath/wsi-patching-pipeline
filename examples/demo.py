@@ -20,9 +20,9 @@ def main(argv=None):
         description="Minimal streaming WSI patcher with region-prefetch and WebDataset sink."
     )
     parser.add_argument("--out", type=str, default="./output/train-%06d.tar", help="Shard pattern for WebDataset.")
-    parser.add_argument("--procs", type=int, default=4, help="Max producer processes (one per slide concurrently).")
+    parser.add_argument("--num-workers", type=int, default=4, help="Max slides processed concurrently.")
     parser.add_argument("--batch", type=int, default=200, help="Batch size for GPU micro-batching.")
-    parser.add_argument("--num-workers", type=int, default=8, help="cuCIM num_workers per region read.")
+    parser.add_argument("--io-workers", type=int, default=8, help="cuCIM I/O workers per region read.")
     parser.add_argument(
         "--profile", action="store_true", help="Enable per-stage profiling for producers.", default=True
     )
@@ -42,13 +42,13 @@ def main(argv=None):
     p = (
         WSIGrid(slides=slides, resolution=0, unit="level", use_gpu=False)
         .then(AttachROIs(providers=[RectROIProvider(rois_dict)]))
-        .then(PatchExtractor(tile_size=224, stride=224, max_batch_size=args.batch, num_workers=args.num_workers))
+        .then(PatchExtractor(tile_size=224, stride=224, max_batch_size=args.batch, num_workers=args.io_workers))
         .then(PNGEncoder())
         .to(WebDatasetWriter(shard_size=300, shuffle_buffer_size=500))
     )
 
     start_time = time.time()
-    p.materialize(num_workers=args.procs, profile=args.profile, verbosity_level="INFO")
+    p.materialize(num_workers=args.num_workers, profile=args.profile, verbosity_level="INFO")
     logging.info(f"Done in {time.time() - start_time:.1f} seconds.")
 
     if args.profile:
