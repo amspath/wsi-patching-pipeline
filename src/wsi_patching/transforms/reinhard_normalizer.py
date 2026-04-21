@@ -10,7 +10,6 @@ from wsi_patching.core.types.types import CollatedPatchBatch
 def _rgb_to_lab(rgb_nhwc: np.ndarray, xp) -> np.ndarray:
     """
     Convert NHWC RGB (float32, [0,1]) to NHWC Lab.
-    Mimics the old PyTorch implementation exactly.
     """
     # Convert to NCHW for processing
     if rgb_nhwc.ndim == 4:
@@ -28,7 +27,7 @@ def _rgb_to_lab(rgb_nhwc: np.ndarray, xp) -> np.ndarray:
         rgb_nchw / 12.92,
     )  # (N,3,H,W)
 
-    # RGB -> XYZ using the same transposed matrix as old code
+    # RGB -> XYZ
     rgb2xyz = xp.array(
         [[0.412453, 0.357580, 0.180423],
         [0.212671, 0.715160, 0.072169],
@@ -63,14 +62,13 @@ def _rgb_to_lab(rgb_nhwc: np.ndarray, xp) -> np.ndarray:
 def _lab_to_rgb(lab_nhwc: np.ndarray, xp, clip: bool = True) -> np.ndarray:
     """
     Convert NHWC Lab to NHWC RGB (float32, [0,1]).
-    Mimics the old PyTorch implementation exactly.
     """
     if lab_nhwc.ndim == 4:
-        N, H, W, C = lab_nhwc.shape
+        # N, H, W, C = lab_nhwc.shape
         lab_nchw = lab_nhwc.transpose(0, 3, 1, 2)  # (N,3,H,W)
     else:
         lab_nchw = lab_nhwc.transpose(2, 0, 1)[None, ...]
-        N = 1
+        # N = 1
 
     L = lab_nchw[:, 0, :, :]
     a = lab_nchw[:, 1, :, :]
@@ -96,7 +94,7 @@ def _lab_to_rgb(lab_nhwc: np.ndarray, xp, clip: bool = True) -> np.ndarray:
     y = xyz_im[:, 1, :, :]
     z = xyz_im[:, 2, :, :]
 
-    # Direct linear formulas (same as old code)
+    # Direct linear formulas
     r = 3.2404813432005266 * x + -1.5371515162713185 * y + -0.4985363261688878 * z
     g = -0.9692549499965682 * x + 1.8759900014898907 * y + 0.0415559265582928 * z
     b_lin = 0.0556466391351772 * x + -0.2040413383665112 * y + 1.0573110696453443 * z
@@ -121,12 +119,12 @@ def _lab_to_rgb(lab_nhwc: np.ndarray, xp, clip: bool = True) -> np.ndarray:
 class ReinhardNormalizer(Stage):
     def __init__(
         self,
-        lab_reference_mean: Tuple[float, float, float] = [68.9408950805664, 29.759305953979492, -18.966672897338867],
-        lab_reference_std: Tuple[float, float, float] = [11.51551342010498, 13.4147310256958, 8.590845108032227],
+        lab_reference_mean: Tuple[float, float, float] = [68.94, 29.76, -18.97],
+        lab_reference_std: Tuple[float, float, float] = [11.52, 13.42, 8.59],
         apply_modified_reinhard: bool = False,
     ) -> None:
-        self.lab_reference_mean = np.array(lab_reference_mean, dtype=np.float32)
-        self.lab_reference_std = np.array(lab_reference_std, dtype=np.float32)
+        self.lab_reference_mean = lab_reference_mean
+        self.lab_reference_std = lab_reference_std
         self.apply_modified_reinhard = apply_modified_reinhard
 
         self._xp = None
@@ -161,7 +159,6 @@ class ReinhardNormalizer(Stage):
             lab = _rgb_to_lab(rgb_float, self._xp)  # (N, H, W, 3)
 
             # Compute per‑patch mean and std over spatial axes (H,W)
-            # Use ddof=1 to match PyTorch's default (sample standard deviation)
             mean_lab = lab.reshape(len(lab), -1, 3).mean(axis=1)   # (N,3)
             std_lab = lab.reshape(len(lab), -1, 3).std(axis=1, ddof=1)  # (N,3)
 
