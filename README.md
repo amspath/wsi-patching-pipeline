@@ -82,6 +82,11 @@ for wsi_ids, final_images, final_coords, meta in stream:
   - `CellVitTissueClassifierFilter`: Using CellVits original tissue classifier, it classifies patches as background using a mobilenetv3. 
 - Transforms: For transforming your patches 
   - `Macenko Normalizer`: Applies Macenko normalizer, fitting on the first batch it encounters (watch out for the first batch being a background batch).
+  - `Reinhard Normalizer`: Applies Reinhard normalizer with the reference LAB color mean and std statistics provided. Uses this configuration by default:
+    ```
+        lab_reference_mean = [68.94, 29.76, -18.97]
+        lab_reference_std = [11.52, 13.42, 8.59]
+    ``` 
 - Encoders: For encoding your patches into the right format
   - `PNGEncoder` Transforming your patches into PNGs. Particularly useful for the WebDatasetWriter.
 
