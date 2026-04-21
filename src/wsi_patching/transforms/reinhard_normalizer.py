@@ -136,9 +136,6 @@ class ReinhardNormalizer(Stage):
     def validate(self) -> None:
         self.ctx.require_key("use_gpu")
 
-    def fit(self, reference_slide_path: str) -> None:
-        raise NotImplementedError("Fit from slide not implemented. Provide reference statistics explicitly.")
-
     def __call__(self, it: Iterable[CollatedPatchBatch]) -> Iterable[CollatedPatchBatch]:
         for batch in it:
             if self._xp is None:
