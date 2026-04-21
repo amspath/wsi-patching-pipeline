@@ -27,7 +27,7 @@ def main():
     )
 
     start_time = time.time()
-    stream = p.stream(num_workers=1, profile=False, verbosity_level="INFO")
+    stream = p.stream(num_workers=4, profile=False, verbosity_level="INFO", writer_prefetch_factor=10)
     for wsi_ids, final_images, final_coords, meta in stream:
         ...
 
