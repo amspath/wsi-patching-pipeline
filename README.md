@@ -74,7 +74,7 @@ p.materialize(num_workers=4)
   - `CellVitTissueClassifierFilter`: Using CellVits original tissue classifier, it classifies patches as background using a mobilenetv3. 
 - Transforms: For transforming your patches 
   - `Macenko Normalizer`: Applies Macenko normalizer, fitting on the first batch it encounters (watch out for the first batch being a background batch).
-  - `Reinhard Normalizer`: Applies Reinhard normalizer with the reference LAB color mean and std statistics provided. Uses this configuration by default:
+  - `Reinhard Normalizer`: Applies Reinhard normalizer with the reference LAB color mean and std statistics provided. Uses this configuration by default (computed for "golden" kidney AUMC scans):
     ```
         lab_reference_mean = [68.94, 29.76, -18.97]
         lab_reference_std = [11.52, 13.42, 8.59]

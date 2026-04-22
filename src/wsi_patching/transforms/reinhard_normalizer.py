@@ -9,7 +9,16 @@ from wsi_patching.core.types.types import CollatedPatchBatch
 
 def _rgb_to_lab(rgb_nhwc: np.ndarray, xp, rgb2xyz=None, white=None) -> np.ndarray:
     """
-    Convert NHWC RGB (float32, [0,1]) to NHWC Lab.
+    Convert an RGB image to Lab colorspace.
+
+    Args:
+        rgb_nhwc: RGB image(s) as float32 in [0, 1]. Shape (N, H, W, 3) or (H, W, 3).
+        xp: array backend module (numpy or cupy).
+        rgb2xyz: optional pre-allocated (3, 3) RGB->XYZ matrix on the backend.
+        white: optional pre-allocated (1, 3, 1, 1) D65 white point on the backend.
+
+    Returns:
+        Lab image with same layout as input. L in [0, 100], a/b in ~[-128, 127].
     """
     # Convert to NCHW for processing
     if rgb_nhwc.ndim == 4:
@@ -62,7 +71,16 @@ def _rgb_to_lab(rgb_nhwc: np.ndarray, xp, rgb2xyz=None, white=None) -> np.ndarra
 
 def _lab_to_rgb(lab_nhwc: np.ndarray, xp, clip: bool = True, white=None) -> np.ndarray:
     """
-    Convert NHWC Lab to NHWC RGB (float32, [0,1]).
+    Convert Lab to RGB. Inverse of ``_rgb_to_lab``.
+
+    Args:
+        lab_nhwc: Lab image(s). Shape (N, H, W, 3) or (H, W, 3).
+        xp: array backend module (numpy or cupy).
+        clip: if True, clamp output to [0, 1]; else out-of-gamut values are preserved.
+        white: optional pre-allocated (1, 3, 1, 1) D65 white point on the backend.
+
+    Returns:
+        RGB image with same layout as input, float32 in [0, 1] (when ``clip=True``).
     """
     if lab_nhwc.ndim == 4:
         # N, H, W, C = lab_nhwc.shape
@@ -119,12 +137,41 @@ def _lab_to_rgb(lab_nhwc: np.ndarray, xp, clip: bool = True, white=None) -> np.n
 
 
 class ReinhardNormalizer(Stage):
+    """
+    Per-patch Reinhard stain normalization in Lab space.
+
+    Each incoming patch is shifted and scaled in Lab so that its per-patch
+    (mean, std) matches a fixed target (lab_reference_mean, lab_reference_std).
+    Operates on NHWC uint8 batches and stays on the pipeline backend (NumPy/CuPy).
+
+    Reference stats define the target stain appearance and should be computed
+    from tissue-only patches. Including background biases L high and a/b
+    toward zero, which produces washed-out normalized output.
+
+    Example of computing reference stats from a list of tissue-only RGB tensors
+    of shape (3, H, W) with values in [0, 1]::
+
+        def compute_lab_mean_std(tissue_rgb: list[torch.Tensor]):
+            lab = torch.stack([rgb_to_lab(img) for img in tissue_rgb])
+            mean = lab.mean(dim=(0, 2, 3)).numpy().astype(np.float32)
+            std = lab.std(dim=(0, 2, 3)).numpy().astype(np.float32)
+            return mean, std
+    """
+
     def __init__(
         self,
         lab_reference_mean: Tuple[float, float, float] = (68.94, 29.76, -18.97),
         lab_reference_std: Tuple[float, float, float] = (11.52, 13.42, 8.59),
         apply_modified_reinhard: bool = False,
     ) -> None:
+        """
+        Args:
+            lab_reference_mean: target Lab mean (L, a, b). L in [0, 100], a/b in
+                ~[-128, 127]. Defaults are reasonable H&E values computed for kidney AUMC scans.
+            lab_reference_std: target Lab std (L, a, b).
+            apply_modified_reinhard: if True, scale L and shift a/b only when the
+                source patch is less saturated than the reference.
+        """
         self.lab_reference_mean = lab_reference_mean
         self.lab_reference_std = lab_reference_std
         self.apply_modified_reinhard = apply_modified_reinhard
@@ -141,6 +188,16 @@ class ReinhardNormalizer(Stage):
         self.ctx.require_key("use_gpu")
 
     def __call__(self, it: Iterable[CollatedPatchBatch]) -> Iterable[CollatedPatchBatch]:
+        """
+        Apply Reinhard normalization to each batch in the stream. Backend
+        constants are allocated lazily on the first batch.
+
+        Args:
+            it: stream of CollatedPatchBatch with NHWC uint8 patches.
+
+        Yields:
+            Same batches with ``batch.patches`` replaced by the normalized NHWC uint8 array.
+        """
         for batch in it:
             if self._xp is None:
                 self._xp = get_xp_backend(self.ctx["use_gpu"])
