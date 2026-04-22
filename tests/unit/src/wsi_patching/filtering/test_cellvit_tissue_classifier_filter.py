@@ -62,7 +62,7 @@ def _patch_lazy_load_to_dummy(filter_obj: CellVitTissueClassifierFilter, device:
     "wsi_patching.filtering.cellvit_tissue_classifier_filter.get_torch_device", new=lambda use_gpu: torch.device("cpu")
 )
 def test_validate_requires_keys():
-    f = CellVitTissueClassifierFilter()
+    f = CellVitTissueClassifierFilter("dummy_path.pt")
     f.attach_context(PipelineContext({}))
     with pytest.raises(KeyError):
         f.validate()
@@ -76,7 +76,7 @@ def test_filter_keeps_only_class0_on_cpu():
     patches, coords = _mk_batch([255, 10, 200, 0])  # [B=4]
     batch = CollatedPatchBatch(wsi_id="WSI1", patches=patches, coords=coords, use_gpu=False)
 
-    f = CellVitTissueClassifierFilter()
+    f = CellVitTissueClassifierFilter("dummy_path.pt")
     f.attach_context(PipelineContext({"use_gpu": False, "tile_size": 128}))
     f.validate()
 
