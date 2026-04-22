@@ -14,7 +14,7 @@ def _stream_patches(slide_path: str, **wsi_grid_kwargs) -> list[np.ndarray]:
         .then(PatchExtractor(tile_size=64, stride=64, max_batch_size=200))
         .to(NumpyStreamWriter(layout="NHWC"))
     )
-    return [imgs for _, imgs, _, _ in p.stream(cpu_processes=1)]
+    return [imgs for _, imgs, _, _ in p.stream()]
 
 
 class TestResampleFallbackMode:

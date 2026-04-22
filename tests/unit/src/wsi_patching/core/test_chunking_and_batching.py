@@ -16,7 +16,7 @@ def fake_read_region(path, x, y, w, h, level):
 
 # ------------------- TilePlanner -------------------
 def test_tileplanner_whole_slide_no_rois_generates_tiles():
-    slide = Slide("S", "/s", (64, 64), {})
+    slide = Slide("S", "/s", (64, 64), 0)
     tp = TilePlanner(tile_selection_mode="full_inside_bounds", tile_size=16, stride=16)
     # seed context
     tp.attach_context(PipelineContext({"tile_size": 16, "stride": 16, "level": 0}))
@@ -35,7 +35,7 @@ def test_tileplanner_whole_slide_no_rois_generates_tiles():
 def test_tileplanner_center_mode_accepts_boundary_tiles():
     # ROI that starts at (8,8) sized 9x9; tile_size 16
     # full_inside_bounds would reject (0,0) tile, but center (16,16) lies inside -> accept in center_in_roi.
-    slide = SlideWithROIs("S", "/s", (40, 40), {}, rois=[BoxROI(8, 8, 9, 9)])
+    slide = SlideWithROIs("S", "/s", (40, 40), 0, rois=[BoxROI(8, 8, 9, 9)])
     tp = TilePlanner(tile_size=16, stride=16, tile_selection_mode="center_in_roi")
     tp.attach_context(PipelineContext({"tile_size": 16, "stride": 16, "level": 0}))
     tp.validate()
@@ -50,7 +50,7 @@ def test_tileplanner_center_mode_accepts_boundary_tiles():
 
 def test_tileplanner_warns_when_no_tiles(caplog):
     # Tiny slide 15x15 with tile_size 16 -> no tiles
-    slide = Slide("S", "/s", (15, 15), {})
+    slide = Slide("S", "/s", (15, 15), 0)
     tp = TilePlanner(tile_size=16, stride=16, tile_selection_mode="full_inside_bounds")
     tp.attach_context(PipelineContext({"tile_size": 16, "stride": 16, "level": 0}))
     tp.validate()
@@ -68,7 +68,7 @@ def test_tileplanner_roi_smaller_than_tile_size_single_tile():
     anchored at the ROI start, even if stride < tile_size.
     """
     # ROI 1000x1000, tile_size 1024, stride 700
-    slide = SlideWithROIs("S", "/s", (1000, 1000), {}, rois=[BoxROI(0, 0, 1000, 1000)])
+    slide = SlideWithROIs("S", "/s", (1000, 1000), 0, rois=[BoxROI(0, 0, 1000, 1000)])
     tp = TilePlanner(tile_size=1024, stride=700, tile_selection_mode="any_overlap")
 
     tp.attach_context(PipelineContext({"tile_size": 1024, "stride": 700, "level": 0}))
@@ -92,7 +92,7 @@ def test_tileplanner_large_roi_with_overlap_no_redundant_tiles():
     # ROI 2000x2000, tile_size 1200, stride 900
     # Old behavior: 3x3 grid = 9 tiles.
     # New behavior (axis_positions): starts at [0, 900] -> 2x2 grid = 4 tiles.
-    slide = SlideWithROIs("S", "/s", (2000, 2000), {}, rois=[BoxROI(0, 0, 2000, 2000)])
+    slide = SlideWithROIs("S", "/s", (2000, 2000), 0, rois=[BoxROI(0, 0, 2000, 2000)])
     tp = TilePlanner(tile_size=1200, stride=900, tile_selection_mode="any_overlap")
 
     tp.attach_context(PipelineContext({"tile_size": 1200, "stride": 900, "level": 0}))
@@ -197,7 +197,7 @@ def test_region_read_and_batch_happy_path_and_batch_split():
         )
     ]
 
-    r = RegionReadAndBatch(batch_size=3, num_workers=2, dtype=np.uint8)
+    r = RegionReadAndBatch(batch_size=3, dtype=np.uint8)
     r.attach_context(PipelineContext({"tile_size": 16, "level": 0, "use_gpu": False}))
     r.validate()
 
@@ -232,7 +232,7 @@ def test_region_read_and_batch_skips_incomplete_patches():
                 meta={},
             )
         ]
-        r = RegionReadAndBatch(batch_size=10, num_workers=1, dtype=np.uint8, wsi_edge_policy="drop")
+        r = RegionReadAndBatch(batch_size=10, dtype=np.uint8, wsi_edge_policy="drop")
         r.attach_context(PipelineContext({"tile_size": 16, "level": 0, "use_gpu": False}))
         r.validate()
 
@@ -262,7 +262,7 @@ def test_region_read_and_batch_pads_incomplete_patches_pad_with_zeros():
                 meta={},
             )
         ]
-        r = RegionReadAndBatch(batch_size=10, num_workers=1, dtype=np.uint8, wsi_edge_policy="pad_with_zeros")
+        r = RegionReadAndBatch(batch_size=10, dtype=np.uint8, wsi_edge_policy="pad_with_zeros")
         r.attach_context(PipelineContext({"tile_size": 16, "level": 0, "use_gpu": False}))
         r.validate()
 
@@ -291,7 +291,7 @@ def test_region_read_and_batch_pads_incomplete_patches_pad_with_edge():
                 meta={},
             )
         ]
-        r = RegionReadAndBatch(batch_size=10, num_workers=1, dtype=np.uint8, wsi_edge_policy="pad_with_edge")
+        r = RegionReadAndBatch(batch_size=10, dtype=np.uint8, wsi_edge_policy="pad_with_edge")
         r.attach_context(PipelineContext({"tile_size": 16, "level": 0, "use_gpu": False}))
         r.validate()
 
@@ -321,11 +321,7 @@ def test_region_read_and_batch_pads_incomplete_patches_within_roi_pad_with_zeros
             )
         ]
         r = RegionReadAndBatch(
-            batch_size=10,
-            num_workers=1,
-            dtype=np.uint8,
-            roi_edge_policy="use_wsi_edge_policy",
-            wsi_edge_policy="pad_with_zeros",
+            batch_size=10, dtype=np.uint8, roi_edge_policy="use_wsi_edge_policy", wsi_edge_policy="pad_with_zeros"
         )
         r.attach_context(PipelineContext({"tile_size": 16, "level": 0, "use_gpu": False}))
         r.validate()
@@ -359,9 +355,7 @@ def test_region_read_and_batch_roi_edge_policy_read_from_image_expands_region():
                 wsi_id="S", wsi_path="/s", wsi_dims=(40, 40), level=0, region=(0, 0, 20, 20), tiles=[(8, 8)], meta={}
             )
         ]
-        r = RegionReadAndBatch(
-            batch_size=10, num_workers=1, dtype=np.uint8, roi_edge_policy="read_from_image", wsi_edge_policy="drop"
-        )
+        r = RegionReadAndBatch(batch_size=10, dtype=np.uint8, roi_edge_policy="read_from_image", wsi_edge_policy="drop")
         r.attach_context(PipelineContext({"tile_size": 16, "level": 0, "use_gpu": False}))
         r.validate()
 
@@ -402,9 +396,7 @@ def test_region_read_and_batch_roi_edge_policy_read_from_image_expands_when_w_is
                 meta={},
             )
         ]
-        r = RegionReadAndBatch(
-            batch_size=10, num_workers=1, dtype=np.uint8, roi_edge_policy="read_from_image", wsi_edge_policy="drop"
-        )
+        r = RegionReadAndBatch(batch_size=10, dtype=np.uint8, roi_edge_policy="read_from_image", wsi_edge_policy="drop")
         r.attach_context(PipelineContext({"tile_size": 256, "level": 0, "use_gpu": False}))
         r.validate()
 
@@ -445,9 +437,7 @@ def test_region_read_and_batch_roi_edge_policy_read_from_image_clamps_to_wsi_edg
                 meta={},
             )
         ]
-        r = RegionReadAndBatch(
-            batch_size=10, num_workers=1, dtype=np.uint8, roi_edge_policy="read_from_image", wsi_edge_policy="drop"
-        )
+        r = RegionReadAndBatch(batch_size=10, dtype=np.uint8, roi_edge_policy="read_from_image", wsi_edge_policy="drop")
         r.attach_context(PipelineContext({"tile_size": 16, "level": 0, "use_gpu": False}))
         r.validate()
 
@@ -489,7 +479,7 @@ def test_region_read_and_batch_scales_coords_to_level0():
                 meta={},
             )
         ]
-        r = RegionReadAndBatch(batch_size=10, num_workers=1, dtype=np.uint8)
+        r = RegionReadAndBatch(batch_size=10, dtype=np.uint8)
         r.attach_context(PipelineContext({"tile_size": 16, "level": 2, "use_gpu": False}))
         r.validate()
 
@@ -512,7 +502,7 @@ def test_region_read_and_batch_scales_coords_to_level0():
                 meta={},
             )
         ]
-        r0 = RegionReadAndBatch(batch_size=10, num_workers=1, dtype=np.uint8)
+        r0 = RegionReadAndBatch(batch_size=10, dtype=np.uint8)
         r0.attach_context(PipelineContext({"tile_size": 16, "level": 0, "use_gpu": False}))
         r0.validate()
 
@@ -529,13 +519,12 @@ def test_patchextractor_end_to_end_whole_slide():
 
     64x64 slide, tile_size=16, stride=16 -> 4x4 grid = 16 patches total.
     """
-    slide = Slide("S", "/s", (64, 64), {})
+    slide = Slide("S", "/s", (64, 64), 0)
 
     pe = PatchExtractor(
         tile_size=16,
         stride=16,
         max_batch_size=5,
-        num_workers=0,
         wsi_edge_policy="pad_with_zeros",
         roi_edge_policy="use_wsi_edge_policy",
         dtype=np.uint8,

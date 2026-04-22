@@ -10,8 +10,9 @@ class StageMeta(type):
         in_t, out_t = _infer_types_from_annotations(
             ns.get("__call__"), in_key="it", out_key="return", default_in=in_t, default_out=out_t
         )
-        cls.input_type, cls.output_type = in_t, out_t
-        if cls.input_type is object or cls.output_type is object:
+        setattr(cls, "input_type", in_t)
+        setattr(cls, "output_type", out_t)
+        if getattr(cls, "input_type") is object or getattr(cls, "output_type") is object:
             raise ValueError(f"{name}: __call__ must have type annotations for both 'it' and return")
         return cls
 
@@ -23,8 +24,8 @@ class WriterMeta(type):
         in_t, _ = _infer_types_from_annotations(
             ns.get("write") or ns.get("stream"), in_key="batch", default_in=in_t, default_out=None
         )
-        cls.input_type = in_t
-        if cls.input_type is object:
+        setattr(cls, "input_type", in_t)
+        if getattr(cls, "input_type") is object:
             raise ValueError(f"{name}: write() must annotate its 'batch' parameter type")
         return cls
 
@@ -49,6 +50,8 @@ class PipelineContext(dict):
 class ContextAware:
     """Mixin for pipeline components that want a PipelineContext."""
 
+    _ctx: PipelineContext
+
     def attach_context(self, ctx: PipelineContext) -> None:
         self._ctx = ctx
 
@@ -60,7 +63,9 @@ class ContextAware:
 
     @property
     def ctx(self) -> PipelineContext:
-        return getattr(self, "_ctx", PipelineContext())
+        if not hasattr(self, "_ctx"):
+            return PipelineContext()
+        return self._ctx
 
 
 # -------- Annotation utilities --------

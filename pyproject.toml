@@ -12,20 +12,15 @@ dependencies = [
     "numpy",
     "webdataset",
     "pillow",
-    "torch",
-    "torchvision",
-    "fastslide",
-    "openslide-bin",
-    "openslide-python",
-    'importlib_resources>=5; python_version<"3.9"',
+    "fastslide==0.5.2",
     "orjson",
     "opencv-python-headless",
     "rtree",
 ]
 
 [project.optional-dependencies]
-gpu = ['cupy-cuda12x; platform_system != "Darwin"']
-dev = ["ruff", "pytest", "tifffile"]
+gpu = ['cupy-cuda12x; platform_system != "Darwin"', "torch", "torchvision"]
+dev = ["ruff", "pytest", "tifffile", "pytest-benchmark", "ty"]
 
 # --- Hatch VCS versioning (default-ish behavior) ---
 [tool.hatch.version]
@@ -49,7 +44,6 @@ exclude = ["/data", "/output", ".vscode", ".git", "__pycache__"]
 # --- Ruff ---
 [tool.ruff]
 line-length = 120
-select = ["E", "F", "I"]
 
 [tool.ruff.format]
 quote-style = "double"
@@ -58,7 +52,15 @@ skip-magic-trailing-comma = true
 docstring-code-format = false
 
 [tool.ruff.lint]
+select = ["E", "F", "I"]
 ignore = ["E731"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["E402"]
+
+# --- ty ---
+[tool.ty.src]
+exclude = ["examples"]
 
 # --- Pytest ---
 [tool.pytest.ini_options]

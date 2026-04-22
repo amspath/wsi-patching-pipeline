@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Union
+
 try:
     import cupy as cp
 
@@ -5,10 +9,10 @@ try:
 except ImportError:
     _cupy_available = False
 
-from typing import Union
+if TYPE_CHECKING:
+    import torch
 
 import numpy as np
-import torch
 
 
 def validate_xp_backend(use_gpu: bool) -> None:
@@ -65,6 +69,10 @@ def get_xp_backend(use_gpu: bool):
 
 def xp_from_tensor(t: torch.Tensor, use_gpu: bool):
     """Convert a Torch tensor to either a NumPy or CuPy array, depending on use_gpu."""
+    try:
+        import torch  # noqa: F401
+    except ImportError:
+        raise ImportError("torch is required to use xp_from_tensor. Install it with: pip install wsi-patching[gpu]")
     detached = t.detach()
     if use_gpu:
         return cp.from_dlpack(detached)

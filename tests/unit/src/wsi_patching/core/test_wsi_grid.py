@@ -30,7 +30,6 @@ def test_export_context_resample_interpolation_custom():
     assert ctx["resample_interpolation"] == "area"
 
 
-@patch("wsi_patching.core.wsi_grid.get_torch_device", new=lambda use_gpu: None)
 @patch("wsi_patching.core.wsi_grid.validate_xp_backend")
 def test_validate_invokes_backends(mock_validate_xp):
     grid = WSIGrid(slides=[], use_gpu=False, resolution=0.5, unit="mpp")
@@ -145,13 +144,7 @@ def test_resample_fallback_sets_virtual_dims_and_factor(
     mock_downsamples.return_value = [1.0, 2.0, 4.0]
     mock_rf.return_value = 1.5
 
-    grid = WSIGrid(
-        slides=["/slides/A.svs"],
-        use_gpu=False,
-        resolution=1.5,
-        unit="mpp",
-        fallback_mode="resample",
-    )
+    grid = WSIGrid(slides=["/slides/A.svs"], use_gpu=False, resolution=1.5, unit="mpp", fallback_mode="resample")
     out = list(grid(iter(())))
     assert len(out) == 1
     s = out[0]

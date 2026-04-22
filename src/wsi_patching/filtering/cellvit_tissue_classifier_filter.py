@@ -1,18 +1,21 @@
 from typing import Iterable, List, Union
 
 import numpy as np
-import torch
-import torch.nn as nn
-from torchvision.models import mobilenet_v3_small
+
+try:
+    import torch
+    import torch.nn as nn
+    from torchvision.models import mobilenet_v3_small
+except ImportError as e:
+    raise ImportError(
+        "CellVitTissueClassifierFilter requires torch and torchvision. Install them with: pip install wsi-patching[gpu]"
+    ) from e
+
+from importlib.resources import as_file, files
 
 from wsi_patching.backends.torch_device import get_torch_device
 from wsi_patching.core.pipeline import Stage
 from wsi_patching.core.types.types import CollatedPatchBatch
-
-try:
-    from importlib.resources import as_file, files  # Python 3.9+
-except Exception:  # Python 3.8 fallback
-    from importlib_resources import as_file, files  # type: ignore
 
 
 class CellVitTissueClassifierFilter(Stage):
@@ -58,6 +61,7 @@ class CellVitTissueClassifierFilter(Stage):
 
             with torch.inference_mode():
                 t = self._preprocess_batch(patches)  # (B,3,S,S) on device
+                assert self.model is not None
                 logits = self.model(t)  # (B,4)
                 probs = torch.softmax(logits, dim=1)  # (B,4)
                 preds = torch.argmax(probs, dim=1)  # (B,)

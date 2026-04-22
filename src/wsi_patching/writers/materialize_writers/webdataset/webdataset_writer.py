@@ -1,6 +1,6 @@
 import random
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, List, Optional, Tuple
 
 import orjson
 import webdataset as wds
@@ -23,14 +23,14 @@ class WebDatasetWriter(MaterializeWriterBase):
         self.write_count = 0
 
         # runtime (allocated in open)
-        self._buffer: List[EncodedCollatedPatchBatch] = []
-        self._sink: Optional[wds.ShardWriter] = None
+        self._buffer: List[Tuple[str, Any, Any]] = []
+        self._sink: Optional[Any] = None
 
     def open(self) -> None:
         self.log.info("Opening...")
         self.outdir.mkdir(parents=True, exist_ok=True)
         # allocate sink in the writer process
-        self._sink = wds.ShardWriter(self.shard_pattern, maxcount=self.shard_size, verbose=0)
+        self._sink = wds.ShardWriter(self.shard_pattern, maxcount=self.shard_size, verbose=0)  # ty: ignore[unresolved-attribute]
 
     def write(self, batch: EncodedCollatedPatchBatch) -> None:
         self.log.info(f"Received batch from wsi: {batch.wsi_id} size: {len(batch.encoded_patches)}")

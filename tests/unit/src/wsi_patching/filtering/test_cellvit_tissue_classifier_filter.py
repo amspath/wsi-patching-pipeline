@@ -1,9 +1,10 @@
-from typing import List
+from typing import Any, List, cast
 from unittest.mock import patch
 
 import numpy as np
 import pytest
-import torch
+
+torch = pytest.importorskip("torch")
 
 from wsi_patching.core.types.types import CollatedPatchBatch
 from wsi_patching.filtering.cellvit_tissue_classifier_filter import CellVitTissueClassifierFilter
@@ -53,7 +54,7 @@ def _patch_lazy_load_to_dummy(filter_obj: CellVitTissueClassifierFilter, device:
         filter_obj.mean = filter_obj.mean.to(device)
         filter_obj.std = filter_obj.std.to(device)
 
-    filter_obj._lazy_load = _lazy  # type: ignore[attr-defined]
+    cast(Any, filter_obj)._lazy_load = _lazy
 
 
 # -------- tests --------

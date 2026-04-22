@@ -15,7 +15,7 @@ def get_encoded_cbp(key: str, h: int = 2, w: int = 3, c: int = 3):
 
     cpb_it = PNGEncoder()([cpb])
 
-    return next(cpb_it)
+    return next(iter(cpb_it))
 
 
 def _list_shards(outdir: Path):

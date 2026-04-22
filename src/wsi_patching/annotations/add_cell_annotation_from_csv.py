@@ -41,6 +41,7 @@ class AddCellAnnotationFromCSV(Stage):
         self.ctx.require_key("use_gpu")
 
     def __call__(self, it: Iterable[CollatedPatchBatch]) -> Iterable[CollatedPatchBatch]:
+        it = iter(it)
         try:
             first: CollatedPatchBatch = next(it)
         except StopIteration:
@@ -118,6 +119,8 @@ class AddCellAnnotationFromCSV(Stage):
         with open(csv_path, "r", newline="") as f:
             reader = csv.DictReader(f)
             # Basic validation
+            if reader.fieldnames is None:
+                raise ValueError(f"CSV {csv_path} has no header row")
             missing = {c for c in (x_col, y_col, label_col) if c not in reader.fieldnames}
             if missing:
                 raise ValueError(f"CSV {csv_path} missing required column(s): {', '.join(sorted(missing))}")

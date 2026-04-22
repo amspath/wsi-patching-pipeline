@@ -1,4 +1,4 @@
-from typing import Iterable, Optional, Tuple
+from typing import Any, Iterable, Optional, Tuple
 
 from wsi_patching.backends.cupy_numpy import get_xp_backend
 from wsi_patching.core.pipeline import Stage
@@ -23,13 +23,18 @@ class MacenkoNormalizer(Stage):
         self.pixel_limit = pixel_limit
 
         self._fitted = False
-        self._H_mat = None  # xp.ndarray (3,2)
-        self._max_sat = None  # xp.ndarray (2,1)
-        self._xp = None  # module: numpy or cupy
+        self._H_mat: Any = None  # xp.ndarray (3,2)
+        self._max_sat: Any = None  # xp.ndarray (2,1)
+        self._xp: Any = None  # module: numpy or cupy
 
         self.log.info(
             "MacenkoNormalizer fits on the first batch of each image. If the first batch is background-only, "
             "fitting will likely result in unwanted behavior. Use with caution."
+        )
+
+    def for_slide(self, slide_path: str) -> "MacenkoNormalizer":
+        return MacenkoNormalizer(
+            alpha=self.alpha, beta=self.beta, light_intensity=self.I0, pixel_limit=self.pixel_limit
         )
 
     def validate(self):
