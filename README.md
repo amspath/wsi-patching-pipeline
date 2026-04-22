@@ -29,10 +29,11 @@ pip install "wsi-patching[gpu] @ git+https://github.com/amspath/wsi-patching-pip
 `numpy_mem_writer_demo.py` shows you how to build a basic pipeline for patching up a wsi in memory, without the need of writing to disk (RAM heavy for larger datasets, obviously).
 ```python
 p = (
-  WSIGrid(slides=slides, resolution=0, unit="level")
-  .then(AttachROIs(providers=[RectROIProvider(rois_dict)]))
-  .then(PatchExtractor(tile_size=256, stride=256))
-  .to(NumpyStreamWriter(layout="NCHW"))
+    WSIGrid(slides=slides, resolution=0, unit="level", use_gpu=True)
+    .then(PatchExtractor(tile_size=256, stride=256, max_batch_size=800, num_workers=4))
+    .then(LowContrastBackgroundFilter(range_threshold=0.2))
+    .then(ReinhardNormalizer())
+    .to(NumpyMemoryWriter(layout="NCHW"))
 )
 stream = p.stream(num_workers=4)
 for wsi_id, final_images, final_coords, meta in stream:
@@ -73,6 +74,11 @@ p.materialize(num_workers=4)
   - `CellVitTissueClassifierFilter`: Using CellVits original tissue classifier, it classifies patches as background using a mobilenetv3. 
 - Transforms: For transforming your patches 
   - `Macenko Normalizer`: Applies Macenko normalizer, fitting on the first batch it encounters (watch out for the first batch being a background batch).
+  - `Reinhard Normalizer`: Applies Reinhard normalizer with the reference LAB color mean and std statistics provided. Uses this configuration by default (computed for "golden" kidney AUMC scans):
+    ```
+        lab_reference_mean = [68.94, 29.76, -18.97]
+        lab_reference_std = [11.52, 13.42, 8.59]
+    ``` 
 - Encoders: For encoding your patches into the right format
   - `PNGEncoder` Transforming your patches into PNGs. Particularly useful for the WebDatasetWriter.
 
