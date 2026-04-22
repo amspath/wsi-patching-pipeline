@@ -10,8 +10,8 @@ class StageMeta(type):
         in_t, out_t = _infer_types_from_annotations(
             ns.get("__call__"), in_key="it", out_key="return", default_in=in_t, default_out=out_t
         )
-        cls.input_type, cls.output_type = in_t, out_t
-        if cls.input_type is object or cls.output_type is object:
+        cls.input_type, cls.output_type = in_t, out_t  # type: ignore
+        if cls.input_type is object or cls.output_type is object:  # type: ignore
             raise ValueError(f"{name}: __call__ must have type annotations for both 'it' and return")
         return cls
 
@@ -23,8 +23,8 @@ class WriterMeta(type):
         in_t, _ = _infer_types_from_annotations(
             ns.get("write") or ns.get("stream"), in_key="batch", default_in=in_t, default_out=None
         )
-        cls.input_type = in_t
-        if cls.input_type is object:
+        cls.input_type = in_t  # type: ignore
+        if cls.input_type is object:  # type: ignore
             raise ValueError(f"{name}: write() must annotate its 'batch' parameter type")
         return cls
 
@@ -60,7 +60,7 @@ class ContextAware:
 
     @property
     def ctx(self) -> PipelineContext:
-        return getattr(self, "_ctx", PipelineContext())
+        return getattr(self, "_ctx", PipelineContext())  # type: ignore
 
 
 # -------- Annotation utilities --------

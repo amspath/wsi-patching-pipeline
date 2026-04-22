@@ -11,8 +11,8 @@ def test_stage_meta_infers_iterable_payload_and_return_scalar():
         def __call__(self, it: Iterable[int]) -> str:
             return "x"
 
-    assert S.input_type is int
-    assert S.output_type is str
+    assert S.input_type is int  # type: ignore
+    assert S.output_type is str  # type: ignore
 
 
 def test_stage_meta_infers_union_payload_and_union_return():
@@ -21,9 +21,9 @@ def test_stage_meta_infers_union_payload_and_union_return():
             return b"x"
 
     # input becomes a tuple of the union args
-    assert S.input_type == (int, str)
+    assert S.input_type == (int, str)  # type: ignore
     # output becomes a tuple of the union args
-    assert S.output_type == (bytes, str)
+    assert S.output_type == (bytes, str)  # type: ignore
 
 
 def test_stage_meta_ignores_none_in_union_optional():
@@ -31,8 +31,8 @@ def test_stage_meta_ignores_none_in_union_optional():
         def __call__(self, it: Iterable[Optional[Union[int, str]]]) -> Optional[int]:
             return 1
 
-    assert S.input_type == (int, str)
-    assert S.output_type == (int,)
+    assert S.input_type == (int, str)  # type: ignore
+    assert S.output_type == (int,)  # type: ignore
 
 
 def test_stage_meta_defaults_to_object_when_no_annotations():
@@ -49,7 +49,7 @@ def test_writer_meta_infers_iterable_payload():
         def write(self, batch: Iterable[float]) -> None:
             pass
 
-    assert W.input_type is float
+    assert W.input_type is float  # type: ignore
 
 
 def test_writer_meta_keeps_existing_input_type_when_no_write_annotations():

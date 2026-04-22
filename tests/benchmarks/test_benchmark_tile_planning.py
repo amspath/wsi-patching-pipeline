@@ -6,6 +6,7 @@ A 10 000×10 000 virtual bounding box is used so tile counts are large:
   128 px / stride 128  →  ~6 100 tiles
   128 px / stride  64  →  ~24 000 tiles  (overlapping)
 """
+
 from __future__ import annotations
 
 import pytest
@@ -18,8 +19,8 @@ ROI = BoxROI(x=0, y=0, w=SIDE, h=SIDE)
 
 
 def _plan(tile_size: int, stride: int, mode: str = "any_overlap") -> list:
-    planner = TilePlanner(tile_size=tile_size, stride=stride, tile_selection_mode=mode)
-    return planner._generate_tiles_vectorized(ROI, 0, 0, SIDE, SIDE, SIDE, SIDE, tile_size, stride)
+    planner = TilePlanner(tile_size=tile_size, stride=stride, tile_selection_mode=mode)  # type: ignore
+    return planner._generate_tiles_vectorized(ROI, 0, 0, SIDE, SIDE, SIDE, SIDE, tile_size, stride)  # type: ignore[arg-type]
 
 
 @pytest.mark.parametrize("tile_size,stride", [(224, 224), (128, 128), (128, 64)])

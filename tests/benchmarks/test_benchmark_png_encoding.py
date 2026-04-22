@@ -4,6 +4,7 @@ Benchmarks for PNGEncoder.
 - Single-patch encoding: raw PIL encode speed (compress_level=1).
 - Batch encoding: ThreadPoolExecutor throughput for batches of 32 and 64 patches.
 """
+
 from __future__ import annotations
 
 import numpy as np
@@ -26,6 +27,7 @@ def single_patch():
 def test_encode_single_patch(benchmark, encoder, single_patch):
     def _run():
         return encoder._encode_one(single_patch)
+
     result = benchmark.pedantic(_run, warmup_rounds=3, rounds=50, iterations=5)
     assert len(result) > 0
 

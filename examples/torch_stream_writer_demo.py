@@ -32,5 +32,6 @@ def main():
 
     logging.warning(f"Done in {time.time() - start_time:.1f} seconds.")
 
+
 if __name__ == "__main__":
     main()

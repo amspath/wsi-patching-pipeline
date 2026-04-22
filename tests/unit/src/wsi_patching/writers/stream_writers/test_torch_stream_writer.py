@@ -1,4 +1,6 @@
 # test_torch_stream_writer.py
+import importlib.util
+
 import numpy as np
 import pytest
 
@@ -44,7 +46,7 @@ def test_stream_single_batch_layout_and_dtype(layout, out_dtype):
     writer = TorchStreamWriter(layout=layout, dtype=out_dtype, device=torch.device("cpu"))
 
     (wsi_id, imgs_t, coords_t, meta_out) = next(
-        writer.stream(_DummyBatch(wsi_id="S1", patches=patches, coords=coords, metadata_rows=meta_rows))
+        writer.stream(_DummyBatch(wsi_id="S1", patches=patches, coords=coords, metadata_rows=meta_rows))  # type: ignore
     )
 
     # Basic returns
@@ -76,7 +78,7 @@ def test_stream_single_channel_preserves_values_and_shapes():
 
     writer = TorchStreamWriter(layout="NCHW", dtype=torch.float32, device=torch.device("cpu"))
     wsi_id, imgs_t, coords_t, meta_out = next(
-        writer.stream(_DummyBatch(wsi_id="A", patches=patches, coords=coords, metadata_rows=meta_rows))
+        writer.stream(_DummyBatch(wsi_id="A", patches=patches, coords=coords, metadata_rows=meta_rows))  # type: ignore
     )
 
     assert wsi_id == "A"
@@ -96,13 +98,13 @@ def test_stream_length_mismatch_raises():
     writer = TorchStreamWriter(layout="NCHW", device=torch.device("cpu"))
 
     with pytest.raises(ValueError) as ei:
-        _ = next(writer.stream(_DummyBatch("X", patches, coords, metadata_rows={})))
+        _ = next(writer.stream(_DummyBatch("X", patches, coords, metadata_rows={})))  # type: ignore
     msg = str(ei.value)
     assert "Batch length mismatch" in msg
     assert "wsi_id=X" in msg
 
 
-@pytest.mark.skipif(__import__("importlib").util.find_spec("cupy") is None, reason="cupy not installed")
+@pytest.mark.skipif(importlib.util.find_spec("cupy") is None, reason="cupy not installed")
 def test_stream_accepts_cupy_array_on_cpu_device():
     import cupy as cp
 
@@ -113,7 +115,7 @@ def test_stream_accepts_cupy_array_on_cpu_device():
 
     writer = TorchStreamWriter(layout="NHWC", dtype=torch.float32, device=torch.device("cpu"))
     wsi_id, imgs_t, coords_t, meta_out = next(
-        writer.stream(_DummyBatch(wsi_id="CUPY", patches=patches_cu, coords=coords, metadata_rows=meta_rows))
+        writer.stream(_DummyBatch(wsi_id="CUPY", patches=patches_cu, coords=coords, metadata_rows=meta_rows))  # type: ignore
     )
 
     assert wsi_id == "CUPY"

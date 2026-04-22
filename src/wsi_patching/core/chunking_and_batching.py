@@ -1,5 +1,5 @@
 import math
-from typing import Iterable, List, Literal, Optional, Tuple, Union
+from typing import Any, Iterable, List, Literal, Optional, Tuple, Union
 
 import cv2
 import numpy as np
@@ -236,6 +236,7 @@ class ReadWindowChunker(Stage):
         stride = int(self.ctx["stride"])
         overlap = max(0, tile_size - stride)  # e.g. 64 when tile_size=1022, stride=958
         mws = self.max_window_size
+        assert mws is not None
 
         for plan in it:
             bx, by, bw, bh = plan.roi_bounds
@@ -311,7 +312,7 @@ class RegionReadAndBatch(Stage):
         batch_size: int = 200,
         wsi_edge_policy: Literal["drop", "pad_with_zeros", "pad_with_edge"] = "pad_with_zeros",
         roi_edge_policy: Literal["read_from_image", "use_wsi_edge_policy"] = "use_wsi_edge_policy",
-        dtype: str = np.uint8,
+        dtype: Any = np.uint8,
     ):
         """
         Args:
@@ -454,7 +455,7 @@ class PatchExtractor(Stage):
         max_batch_size: int = 200,
         wsi_edge_policy: Literal["drop", "pad_with_zeros", "pad_with_edge"] = "pad_with_zeros",
         roi_edge_policy: Literal["read_from_image", "use_wsi_edge_policy"] = "use_wsi_edge_policy",
-        dtype: str = np.uint8,
+        dtype: Any = np.uint8,
         max_window_size: Optional[int] = None,
     ):
         """
@@ -490,10 +491,7 @@ class PatchExtractor(Stage):
         self._tp = TilePlanner(tile_size=tile_size, stride=stride, tile_selection_mode=tile_selection_mode)
         self._rwc = ReadWindowChunker(max_window_size=max_window_size)
         self._rbb = RegionReadAndBatch(
-            batch_size=max_batch_size,
-            dtype=dtype,
-            wsi_edge_policy=wsi_edge_policy,
-            roi_edge_policy=roi_edge_policy,
+            batch_size=max_batch_size, dtype=dtype, wsi_edge_policy=wsi_edge_policy, roi_edge_policy=roi_edge_policy
         )
         self._substages: List[Stage] = [self._tp, self._rwc, self._rbb]
 
@@ -518,4 +516,4 @@ class PatchExtractor(Stage):
         stream = it
         for s in self._substages:
             stream = s(stream)
-        return stream
+        return stream  # type: ignore

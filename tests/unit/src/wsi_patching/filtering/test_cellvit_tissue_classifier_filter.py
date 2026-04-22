@@ -54,7 +54,7 @@ def _patch_lazy_load_to_dummy(filter_obj: CellVitTissueClassifierFilter, device:
         filter_obj.mean = filter_obj.mean.to(device)
         filter_obj.std = filter_obj.std.to(device)
 
-    filter_obj._lazy_load = _lazy  # type: ignore[attr-defined]
+    filter_obj._lazy_load = _lazy  # type: ignore
 
 
 # -------- tests --------

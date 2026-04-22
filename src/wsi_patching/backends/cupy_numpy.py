@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING, Union
+
 try:
     import cupy as cp
 
@@ -7,7 +9,8 @@ try:
 except ImportError:
     _cupy_available = False
 
-from typing import Union
+if TYPE_CHECKING:
+    import torch
 
 import numpy as np
 
@@ -69,10 +72,7 @@ def xp_from_tensor(t: torch.Tensor, use_gpu: bool):
     try:
         import torch  # noqa: F401
     except ImportError:
-        raise ImportError(
-            "torch is required to use xp_from_tensor. "
-            "Install it with: pip install wsi-patching[gpu]"
-        )
+        raise ImportError("torch is required to use xp_from_tensor. Install it with: pip install wsi-patching[gpu]")
     detached = t.detach()
     if use_gpu:
         return cp.from_dlpack(detached)

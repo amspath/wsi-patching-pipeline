@@ -25,7 +25,7 @@ def _write_shard(tmpdir: Path, items):
     import webdataset as wds
 
     shard = tmpdir / "shard-000000.tar"
-    with wds.ShardWriter(str(tmpdir / "shard-%06d.tar"), maxcount=1000, verbose=0) as sink:
+    with wds.ShardWriter(str(tmpdir / "shard-%06d.tar"), maxcount=1000, verbose=0) as sink:  # type: ignore
         for key, img_bytes, meta in items:
             sink.write(
                 {"__key__": key, "png": img_bytes, "meta": orjson.dumps(meta, option=orjson.OPT_SERIALIZE_NUMPY)}
@@ -114,12 +114,10 @@ def test_dataloader_with_safe_collate_numpy_path(tmp_path: Path):
 # ------------------------ safe_collate unit coverage ------------------------
 def test_safe_collate_handles_empty_batch():
     loader = WebDatasetLoader()
-    out = loader.safe_collate([])
-    # For empty, function returns a dict with empty tensors/lists
-    assert isinstance(out, dict)
-    assert out["patch"].shape == (0,)
-    assert out["key"] == []
-    assert out["meta"] == []
+    patches, keys, metas = loader.safe_collate([])
+    assert patches.shape == (0,)
+    assert keys == []
+    assert metas == []
 
 
 def test_safe_collate_numpy_and_torch_inputs_and_rgba_drop_alpha():

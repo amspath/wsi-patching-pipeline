@@ -5,8 +5,11 @@ Box = Tuple[int, int, int, int]
 
 
 class ROI:
-    def bounds(self) -> Box: ...
-    def contains_point(self, x: float, y: float) -> bool: ...
+    def bounds(self) -> Box:
+        raise NotImplementedError
+
+    def contains_point(self, x: float, y: float) -> bool:
+        raise NotImplementedError
 
     def contains_patch(self, bx, by, bw, bh) -> bool:
         return (

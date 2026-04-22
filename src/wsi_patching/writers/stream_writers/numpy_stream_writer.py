@@ -1,4 +1,4 @@
-from typing import Iterable, Literal, Tuple
+from typing import Any, Iterator, Literal, Tuple
 
 import numpy as np
 
@@ -12,12 +12,12 @@ class NumpyStreamWriter(StreamWriterBase):
     Returns the collated patches as numpy arrays in a streaming fashion.
     """
 
-    def __init__(self, layout: Literal["NCHW", "NHWC"] = "NCHW", dtype: np.dtype = np.float32) -> None:
+    def __init__(self, layout: Literal["NCHW", "NHWC"] = "NCHW", dtype: Any = np.float32) -> None:
         super().__init__()
         self.layout = layout
         self.dtype = dtype
 
-    def stream(self, batch: CollatedPatchBatch) -> Iterable[Tuple[str, np.ndarray, np.ndarray, dict]]:
+    def stream(self, batch: CollatedPatchBatch) -> Iterator[Tuple[str, np.ndarray, np.ndarray, Any]]:
         self.log.info(f"Received batch from wsi: {batch.wsi_id} size: {len(batch.patches)}")
 
         # coords -> np.int64

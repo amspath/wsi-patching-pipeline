@@ -1,3 +1,5 @@
+import importlib.util
+
 import numpy as np
 import pytest
 
@@ -39,7 +41,7 @@ def test_stream_single_batch_layout_and_dtype(layout, out_dtype):
     writer = NumpyStreamWriter(layout=layout, dtype=out_dtype)
 
     (wsi_id, imgs, coords_np, meta_out) = next(
-        writer.stream(_DummyBatch(wsi_id="S1", patches=patches, coords=coords, metadata_rows=meta_rows))
+        writer.stream(_DummyBatch(wsi_id="S1", patches=patches, coords=coords, metadata_rows=meta_rows))  # type: ignore
     )
 
     # Basic returns
@@ -70,7 +72,7 @@ def test_stream_handles_single_channel_and_preserves_values():
     writer = NumpyStreamWriter(layout="NCHW", dtype=np.float32)
 
     wsi_id, imgs, coords_np, meta_out = next(
-        writer.stream(_DummyBatch(wsi_id="A", patches=patches, coords=coords, metadata_rows=meta_rows))
+        writer.stream(_DummyBatch(wsi_id="A", patches=patches, coords=coords, metadata_rows=meta_rows))  # type: ignore
     )
 
     assert wsi_id == "A"
@@ -82,7 +84,7 @@ def test_stream_handles_single_channel_and_preserves_values():
     assert meta_out == meta_rows
 
 
-@pytest.mark.skipif(__import__("importlib").util.find_spec("cupy") is None, reason="cupy not installed")
+@pytest.mark.skipif(importlib.util.find_spec("cupy") is None, reason="cupy not installed")
 def test_stream_converts_cupy_to_numpy_when_present():
     import cupy as cp
 
@@ -94,7 +96,7 @@ def test_stream_converts_cupy_to_numpy_when_present():
 
     writer = NumpyStreamWriter(layout="NHWC", dtype=np.float32)
     wsi_id, imgs, coords_np, meta_out = next(
-        writer.stream(_DummyBatch(wsi_id="CUPY", patches=patches_cu, coords=coords, metadata_rows=meta_rows))
+        writer.stream(_DummyBatch(wsi_id="CUPY", patches=patches_cu, coords=coords, metadata_rows=meta_rows))  # type: ignore
     )
 
     assert wsi_id == "CUPY"

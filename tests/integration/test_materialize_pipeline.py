@@ -20,8 +20,5 @@ def test_webdataset_output(synthetic_slide, tmp_path):
     p.materialize()
     tars = list(out_dir.glob("*.tar"))
     assert len(tars) >= 1
-    total = sum(
-        sum(1 for m in tarfile.open(t).getmembers() if m.name.endswith(".png"))
-        for t in tars
-    )
+    total = sum(sum(1 for m in tarfile.open(t).getmembers() if m.name.endswith(".png")) for t in tars)
     assert total == 16

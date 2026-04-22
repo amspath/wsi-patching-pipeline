@@ -1,25 +1,21 @@
 from dataclasses import dataclass
-from typing import Tuple
 
 import pytest
 
+from wsi_patching.core.types.types import Slide
 from wsi_patching.regions_of_interest.attach_rois import AttachROIs
 from wsi_patching.regions_of_interest.roi_providers import RectROIProvider, ROIProvider
 from wsi_patching.regions_of_interest.rois import BoxROI
 
 
-@dataclass
-class SlideStub:
-    wsi_id: str
-    wsi_path: str
-    dims: Tuple[int, int]  # (W, H)
-    level: int
-    meta: dict
+@dataclass(frozen=True)
+class SlideStub(Slide):
+    pass
 
 
 def test_attach_rois_combines_providers_and_defaults_with_warning(caplog):
-    slideA = SlideStub("A", "/a", (100, 100), 0, {})
-    slideB = SlideStub("B", "/b", (50, 40), 0, {})
+    slideA = SlideStub("A", "/a", (100, 100), 0)
+    slideB = SlideStub("B", "/b", (50, 40), 0)
 
     class StaticProv(ROIProvider):
         def for_slide(self, slide):
@@ -54,7 +50,7 @@ def test_attach_rois_combines_providers_and_defaults_with_warning(caplog):
 
 
 def test_attach_rois_out_of_bounds_roi_raises_actual_provider_exception(caplog):
-    slide = SlideStub("A", "/a", (100, 100), 0, {})
+    slide = SlideStub("A", "/a", (100, 100), 0)
 
     prov = RectROIProvider(rois={"A": [(90, 90, 20, 20)]})  # out of bounds
     attach = AttachROIs([prov], on_empty="error")
@@ -70,7 +66,7 @@ def test_attach_rois_out_of_bounds_roi_raises_actual_provider_exception(caplog):
 
 
 def test_attach_rois_multiple_provider_failures_aggregates_and_sets_cause(caplog):
-    slide = SlideStub("A", "/a", (100, 100), 0, {})
+    slide = SlideStub("A", "/a", (100, 100), 0)
 
     class BoomProv(ROIProvider):
         def for_slide(self, slide):
