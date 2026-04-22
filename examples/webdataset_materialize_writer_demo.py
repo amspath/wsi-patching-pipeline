@@ -7,10 +7,7 @@ import logging
 import time
 from pathlib import Path
 
-from wsi_patching.core import PatchExtractor, WSIGrid
-from wsi_patching.encoders import PNGEncoder
-from wsi_patching.regions_of_interest import AttachROIs, RectROIProvider
-from wsi_patching.writers import WebDatasetWriter
+from wsi_patching import AttachROIs, PatchExtractor, PNGEncoder, RectROIProvider, WebDatasetWriter, WSIGrid
 
 
 def main(argv=None):

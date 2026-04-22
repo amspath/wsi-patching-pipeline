@@ -1,11 +1,15 @@
 import logging
 import time
 
-from wsi_patching.core import PatchExtractor, WSIGrid
-from wsi_patching.filtering import PenArtifactFilter
-from wsi_patching.regions_of_interest import AttachROIs, RectROIfromXMLProvider
-from wsi_patching.transforms import MacenkoNormalizer
-from wsi_patching.writers import TorchStreamWriter
+from wsi_patching import (
+    AttachROIs,
+    PatchExtractor,
+    PenArtifactFilter,
+    RectROIfromXMLProvider,
+    TorchStreamWriter,
+    WSIGrid,
+)
+from wsi_patching.transforms.macenko_normalizer import MacenkoNormalizer
 
 
 def main():

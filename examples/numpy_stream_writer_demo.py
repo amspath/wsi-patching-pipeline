@@ -2,10 +2,7 @@ import logging
 import time
 from pathlib import Path
 
-from wsi_patching.core import PatchExtractor, WSIGrid
-from wsi_patching.regions_of_interest.attach_rois import AttachROIs
-from wsi_patching.regions_of_interest.roi_providers import RectROIProvider
-from wsi_patching.writers import NumpyStreamWriter
+from wsi_patching import AttachROIs, NumpyStreamWriter, PatchExtractor, RectROIProvider, WSIGrid
 
 
 def main():
