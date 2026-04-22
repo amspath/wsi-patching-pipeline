@@ -17,23 +17,23 @@ A pragmatic pipeline for streaming whole-slide image (WSI) patches with region p
 Python ≥3.10 <3.14 is recommended. 3.14 is yet unsupported.
 ```
 # CPU install
-pip install "wsi-patching @ git+https://github.com/amspath/wsi-patching-pipeline.git"
+pip install wsi-patching
 
 # GPU install
-pip install "wsi-patching[gpu] @ git+https://github.com/amspath/wsi-patching-pipeline.git"
+pip install wsi-patching[gpu]
 ```
 > For some stages, GPUs are required, and thus the GPU install is required. 
 
 
 ## 2) Checkout the examples
-`numpy_mem_writer_demo.py` shows you how to build a basic pipeline for patching up a wsi in memory, without the need of writing to disk (RAM heavy for larger datasets, obviously).
+`torch_stream_writer_demo.py` shows you how to build a basic pipeline for patching up a wsi in memory, without the need of writing to disk (RAM heavy for larger datasets, obviously).
 ```python
 p = (
-    WSIGrid(slides=slides, resolution=0, unit="level", use_gpu=True)
-    .then(PatchExtractor(tile_size=256, stride=256, max_batch_size=800, num_workers=4))
-    .then(LowContrastBackgroundFilter(range_threshold=0.2))
+    WSIGrid(slides=slides, resolution=2, unit="level", use_gpu=True)
+    .then(PatchExtractor(tile_size=256, stride=256))
+    .then(PenArtifactFilter())
     .then(ReinhardNormalizer())
-    .to(NumpyMemoryWriter(layout="NCHW"))
+    .to(TorchStreamWriter(layout="NCHW"))
 )
 stream = p.stream(num_workers=4)
 for wsi_id, final_images, final_coords, meta in stream:

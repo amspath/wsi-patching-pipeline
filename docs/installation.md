@@ -5,13 +5,13 @@ Python **≥ 3.10, < 3.14** is required. Python 3.14 is not yet supported.
 ## CPU
 
 ```bash
-pip install "wsi-patching @ git+https://github.com/amspath/wsi-patching-pipeline.git"
+pip install wsi-patching
 ```
 
 ## GPU
 
 ```bash
-pip install "wsi-patching[gpu] @ git+https://github.com/amspath/wsi-patching-pipeline.git"
+pip install wsi-patching[gpu]
 ```
 
 The `[gpu]` extra adds `torch`, `torchvision`, and `cupy-cuda12x` (Linux only). The following components require it:
