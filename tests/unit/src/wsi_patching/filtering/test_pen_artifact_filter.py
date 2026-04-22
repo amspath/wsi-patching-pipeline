@@ -88,8 +88,9 @@ def test_filter_drops_pen_like_and_keeps_normal_and_dark(collated_mixed_batch):
     assert out.patches.shape[0] == 2
 
     # Optional: if using the stub, we can inspect pen_fraction shape == kept count
-    if hasattr(out, "_cols") and "pen_fraction" in out._cols:  # type: ignore
-        assert out._cols["pen_fraction"].shape[0] == 2  # type: ignore
+    cols = getattr(out, "_cols", None)
+    if cols is not None and "pen_fraction" in cols:
+        assert cols["pen_fraction"].shape[0] == 2
 
 
 def test_accepts_float32_scaled_input_and_casts(xp):

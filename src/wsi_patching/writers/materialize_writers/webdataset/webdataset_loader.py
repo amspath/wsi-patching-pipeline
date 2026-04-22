@@ -1,6 +1,6 @@
 from glob import glob
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, cast
 
 import numpy as np
 import orjson
@@ -9,6 +9,7 @@ import webdataset as wds
 try:
     import torch
     from torch.utils.data import DataLoader
+    from torch.utils.data import IterableDataset as TorchIterableDataset
 except ImportError as e:
     raise ImportError("WebDatasetLoader requires torch. Install it with: pip install wsi-patching[gpu]") from e
 
@@ -50,13 +51,13 @@ class WebDatasetLoader:
         return any(key.startswith(prefix) for prefix in self.sampled_wsi_names)
 
     # ---- dataset & dataloader -----------------------------------------------
-    def get_dataset(self) -> Iterable[Dict[str, Any]]:
+    def get_dataset(self) -> "TorchIterableDataset[Dict[str, Any]]":
         self.shards = sorted(glob(str(self.tar_dir / "*.tar")))
         if not self.shards:
             raise FileNotFoundError(f"No shards found in {self.tar_dir}")
 
         # Build core pipeline
-        ds = wds.WebDataset(self.shards, shardshuffle=50)  # type: ignore
+        ds = wds.WebDataset(self.shards, shardshuffle=50)  # ty: ignore[unresolved-attribute]
 
         # Optional prefix-filter on __key__
         if self.sampled_wsi_names:
@@ -71,7 +72,7 @@ class WebDatasetLoader:
 
         ds = ds.map(WebDatasetLoader._map_to_dict)
 
-        return ds
+        return cast("TorchIterableDataset[Dict[str, Any]]", ds)
 
     @staticmethod
     def _map_to_dict(sample):
@@ -99,7 +100,7 @@ class WebDatasetLoader:
             extra["prefetch_factor"] = prefetch_factor
 
         return DataLoader(
-            dataset,  # type: ignore
+            dataset,
             batch_size=self.batch_size,
             num_workers=num_workers,
             drop_last=drop_last,

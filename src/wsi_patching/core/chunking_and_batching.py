@@ -1,5 +1,5 @@
 import math
-from typing import Any, Iterable, List, Literal, Optional, Tuple, Union
+from typing import Any, Iterable, List, Literal, Optional, Tuple, Union, cast
 
 import cv2
 import numpy as np
@@ -516,4 +516,4 @@ class PatchExtractor(Stage):
         stream = it
         for s in self._substages:
             stream = s(stream)
-        return stream  # type: ignore
+        return cast(Iterable[CollatedPatchBatch], stream)

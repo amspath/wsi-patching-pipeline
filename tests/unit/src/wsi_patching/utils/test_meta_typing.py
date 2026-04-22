@@ -1,4 +1,4 @@
-from typing import Iterable, Optional, Union
+from typing import Any, ClassVar, Iterable, Optional, Union
 
 import pytest
 
@@ -8,31 +8,40 @@ from wsi_patching.utils.meta_typing import ContextAware, PipelineContext, StageM
 # -------- StageMeta --------
 def test_stage_meta_infers_iterable_payload_and_return_scalar():
     class S(metaclass=StageMeta):
+        input_type: ClassVar[Any]
+        output_type: ClassVar[Any]
+
         def __call__(self, it: Iterable[int]) -> str:
             return "x"
 
-    assert S.input_type is int  # type: ignore
-    assert S.output_type is str  # type: ignore
+    assert S.input_type is int
+    assert S.output_type is str
 
 
 def test_stage_meta_infers_union_payload_and_union_return():
     class S(metaclass=StageMeta):
+        input_type: ClassVar[Any]
+        output_type: ClassVar[Any]
+
         def __call__(self, it: Iterable[Union[int, str]]) -> Union[bytes, str]:
             return b"x"
 
     # input becomes a tuple of the union args
-    assert S.input_type == (int, str)  # type: ignore
+    assert S.input_type == (int, str)
     # output becomes a tuple of the union args
-    assert S.output_type == (bytes, str)  # type: ignore
+    assert S.output_type == (bytes, str)
 
 
 def test_stage_meta_ignores_none_in_union_optional():
     class S(metaclass=StageMeta):
+        input_type: ClassVar[Any]
+        output_type: ClassVar[Any]
+
         def __call__(self, it: Iterable[Optional[Union[int, str]]]) -> Optional[int]:
             return 1
 
-    assert S.input_type == (int, str)  # type: ignore
-    assert S.output_type == (int,)  # type: ignore
+    assert S.input_type == (int, str)
+    assert S.output_type == (int,)
 
 
 def test_stage_meta_defaults_to_object_when_no_annotations():
@@ -46,10 +55,12 @@ def test_stage_meta_defaults_to_object_when_no_annotations():
 # -------- WriterMeta --------
 def test_writer_meta_infers_iterable_payload():
     class W(metaclass=WriterMeta):
+        input_type: ClassVar[Any]
+
         def write(self, batch: Iterable[float]) -> None:
             pass
 
-    assert W.input_type is float  # type: ignore
+    assert W.input_type is float
 
 
 def test_writer_meta_keeps_existing_input_type_when_no_write_annotations():

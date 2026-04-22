@@ -9,18 +9,22 @@ A 10 000×10 000 virtual bounding box is used so tile counts are large:
 
 from __future__ import annotations
 
+from typing import Literal
+
 import pytest
 
 from wsi_patching.core.chunking_and_batching import TilePlanner
 from wsi_patching.regions_of_interest.rois import BoxROI
 
+TileMode = Literal["any_overlap", "full_inside_bounds", "center_in_roi"]
+
 SIDE = 10_000
 ROI = BoxROI(x=0, y=0, w=SIDE, h=SIDE)
 
 
-def _plan(tile_size: int, stride: int, mode: str = "any_overlap") -> list:
-    planner = TilePlanner(tile_size=tile_size, stride=stride, tile_selection_mode=mode)  # type: ignore
-    return planner._generate_tiles_vectorized(ROI, 0, 0, SIDE, SIDE, SIDE, SIDE, tile_size, stride)  # type: ignore[arg-type]
+def _plan(tile_size: int, stride: int, mode: TileMode = "any_overlap") -> list:
+    planner = TilePlanner(tile_size=tile_size, stride=stride, tile_selection_mode=mode)
+    return planner._generate_tiles_vectorized(ROI, 0, 0, SIDE, SIDE, SIDE, SIDE, tile_size, stride)
 
 
 @pytest.mark.parametrize("tile_size,stride", [(224, 224), (128, 128), (128, 64)])

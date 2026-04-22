@@ -25,7 +25,7 @@ def _write_shard(tmpdir: Path, items):
     import webdataset as wds
 
     shard = tmpdir / "shard-000000.tar"
-    with wds.ShardWriter(str(tmpdir / "shard-%06d.tar"), maxcount=1000, verbose=0) as sink:  # type: ignore
+    with wds.ShardWriter(str(tmpdir / "shard-%06d.tar"), maxcount=1000, verbose=0) as sink:  # ty: ignore[unresolved-attribute]
         for key, img_bytes, meta in items:
             sink.write(
                 {"__key__": key, "png": img_bytes, "meta": orjson.dumps(meta, option=orjson.OPT_SERIALIZE_NUMPY)}

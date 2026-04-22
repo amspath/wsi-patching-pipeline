@@ -1,5 +1,6 @@
 from pathlib import Path
 from typing import Iterable, Mapping, Optional, Sequence, Tuple, Union
+from typing import cast as _cast
 
 import numpy as np
 from PIL import Image, ImageDraw
@@ -62,7 +63,8 @@ def visualize_selected_patches(
         if isinstance(patch_images, Mapping):
             # dict mapping top-left to image
             for k, v in patch_images.items():
-                coord_to_patch[(int(k[0]), int(k[1]))] = np.asarray(v)  # type: ignore
+                _k = _cast(Sequence[int], k)
+                coord_to_patch[(int(_k[0]), int(_k[1]))] = np.asarray(v)
         else:
             # assume same order as coords
             if len(patch_images) != len(coords_arr):

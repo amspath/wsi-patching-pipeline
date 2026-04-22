@@ -1,8 +1,10 @@
 import importlib.util
+from typing import Any, cast
 
 import numpy as np
 import pytest
 
+from wsi_patching.core.types.types import CollatedPatchBatch
 from wsi_patching.writers.stream_writers.numpy_stream_writer import NumpyStreamWriter
 
 
@@ -22,7 +24,12 @@ class _DummyMetadata:
 class _DummyBatch:
     """Lightweight stand-in for CollatedPatchBatch."""
 
-    def __init__(self, wsi_id, patches, coords, metadata_rows):
+    wsi_id: str
+    patches: Any
+    coords: np.ndarray
+    metadata: Any
+
+    def __init__(self, wsi_id: str, patches: Any, coords: np.ndarray, metadata_rows: Any) -> None:
         self.wsi_id = wsi_id
         self.patches = patches
         self.coords = coords
@@ -39,10 +46,9 @@ def test_stream_single_batch_layout_and_dtype(layout, out_dtype):
     meta_rows = {"level": [0, 0, 1], "tile_ix": [1, 2, 3]}
 
     writer = NumpyStreamWriter(layout=layout, dtype=out_dtype)
+    batch = cast(CollatedPatchBatch, _DummyBatch(wsi_id="S1", patches=patches, coords=coords, metadata_rows=meta_rows))
 
-    (wsi_id, imgs, coords_np, meta_out) = next(
-        writer.stream(_DummyBatch(wsi_id="S1", patches=patches, coords=coords, metadata_rows=meta_rows))  # type: ignore
-    )
+    (wsi_id, imgs, coords_np, meta_out) = next(writer.stream(batch))
 
     # Basic returns
     assert wsi_id == "S1"
@@ -70,10 +76,9 @@ def test_stream_handles_single_channel_and_preserves_values():
     meta_rows = [{"a": 1}, {"a": 2}]  # also works if this is a list of row dicts
 
     writer = NumpyStreamWriter(layout="NCHW", dtype=np.float32)
+    batch = cast(CollatedPatchBatch, _DummyBatch(wsi_id="A", patches=patches, coords=coords, metadata_rows=meta_rows))
 
-    wsi_id, imgs, coords_np, meta_out = next(
-        writer.stream(_DummyBatch(wsi_id="A", patches=patches, coords=coords, metadata_rows=meta_rows))  # type: ignore
-    )
+    wsi_id, imgs, coords_np, meta_out = next(writer.stream(batch))
 
     assert wsi_id == "A"
     assert imgs.shape == (N, C, H, W)  # NCHW with C=1
@@ -95,9 +100,11 @@ def test_stream_converts_cupy_to_numpy_when_present():
     meta_rows = {"ok": [True, True]}
 
     writer = NumpyStreamWriter(layout="NHWC", dtype=np.float32)
-    wsi_id, imgs, coords_np, meta_out = next(
-        writer.stream(_DummyBatch(wsi_id="CUPY", patches=patches_cu, coords=coords, metadata_rows=meta_rows))  # type: ignore
+    batch = cast(
+        CollatedPatchBatch, _DummyBatch(wsi_id="CUPY", patches=patches_cu, coords=coords, metadata_rows=meta_rows)
     )
+
+    wsi_id, imgs, coords_np, meta_out = next(writer.stream(batch))
 
     assert wsi_id == "CUPY"
     assert isinstance(imgs, np.ndarray)

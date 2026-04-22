@@ -1,11 +1,13 @@
 # test_torch_stream_writer.py
 import importlib.util
+from typing import Any, cast
 
 import numpy as np
 import pytest
 
 torch = pytest.importorskip("torch")
 
+from wsi_patching.core.types.types import CollatedPatchBatch
 from wsi_patching.writers.stream_writers.torch_stream_writer import TorchStreamWriter
 
 
@@ -25,12 +27,17 @@ class _DummyMetadata:
 class _DummyBatch:
     """Lightweight stand-in for CollatedPatchBatch with only the fields the writer uses."""
 
-    def __init__(self, wsi_id, patches, coords, metadata_rows):
+    wsi_id: str
+    patches: Any
+    coords: np.ndarray
+    metadata: Any
+    use_gpu: bool
+
+    def __init__(self, wsi_id: str, patches: Any, coords: np.ndarray, metadata_rows: Any) -> None:
         self.wsi_id = wsi_id
         self.patches = patches
         self.coords = coords
         self.metadata = _DummyMetadata(metadata_rows)
-        # attribute present in your real CollatedPatchBatch; not required by TorchStreamWriter
         self.use_gpu = False
 
 
@@ -44,10 +51,9 @@ def test_stream_single_batch_layout_and_dtype(layout, out_dtype):
 
     # Provide device explicitly to avoid needing a PipelineContext in validate()
     writer = TorchStreamWriter(layout=layout, dtype=out_dtype, device=torch.device("cpu"))
+    batch = cast(CollatedPatchBatch, _DummyBatch(wsi_id="S1", patches=patches, coords=coords, metadata_rows=meta_rows))
 
-    (wsi_id, imgs_t, coords_t, meta_out) = next(
-        writer.stream(_DummyBatch(wsi_id="S1", patches=patches, coords=coords, metadata_rows=meta_rows))  # type: ignore
-    )
+    (wsi_id, imgs_t, coords_t, meta_out) = next(writer.stream(batch))
 
     # Basic returns
     assert wsi_id == "S1"
@@ -77,9 +83,9 @@ def test_stream_single_channel_preserves_values_and_shapes():
     meta_rows = [{"a": 1}, {"a": 2}]
 
     writer = TorchStreamWriter(layout="NCHW", dtype=torch.float32, device=torch.device("cpu"))
-    wsi_id, imgs_t, coords_t, meta_out = next(
-        writer.stream(_DummyBatch(wsi_id="A", patches=patches, coords=coords, metadata_rows=meta_rows))  # type: ignore
-    )
+    batch = cast(CollatedPatchBatch, _DummyBatch(wsi_id="A", patches=patches, coords=coords, metadata_rows=meta_rows))
+
+    wsi_id, imgs_t, coords_t, meta_out = next(writer.stream(batch))
 
     assert wsi_id == "A"
     assert imgs_t.shape == (N, C, H, W)
@@ -98,7 +104,7 @@ def test_stream_length_mismatch_raises():
     writer = TorchStreamWriter(layout="NCHW", device=torch.device("cpu"))
 
     with pytest.raises(ValueError) as ei:
-        _ = next(writer.stream(_DummyBatch("X", patches, coords, metadata_rows={})))  # type: ignore
+        _ = next(writer.stream(cast(CollatedPatchBatch, _DummyBatch("X", patches, coords, metadata_rows={}))))
     msg = str(ei.value)
     assert "Batch length mismatch" in msg
     assert "wsi_id=X" in msg
@@ -114,9 +120,11 @@ def test_stream_accepts_cupy_array_on_cpu_device():
     meta_rows = {"ok": [True, True]}
 
     writer = TorchStreamWriter(layout="NHWC", dtype=torch.float32, device=torch.device("cpu"))
-    wsi_id, imgs_t, coords_t, meta_out = next(
-        writer.stream(_DummyBatch(wsi_id="CUPY", patches=patches_cu, coords=coords, metadata_rows=meta_rows))  # type: ignore
+    batch = cast(
+        CollatedPatchBatch, _DummyBatch(wsi_id="CUPY", patches=patches_cu, coords=coords, metadata_rows=meta_rows)
     )
+
+    wsi_id, imgs_t, coords_t, meta_out = next(writer.stream(batch))
 
     assert wsi_id == "CUPY"
     assert imgs_t.device.type == "cpu"

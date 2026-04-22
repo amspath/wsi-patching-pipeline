@@ -1,3 +1,5 @@
+from typing import Literal, cast
+
 import numpy as np
 import pytest
 
@@ -278,11 +280,21 @@ class TestGetLevelForResolutionInvalidInputs:
 
     def test_unknown_unit_raises(self):
         with pytest.raises(ValueError, match="Unknown unit"):
-            mod.get_level_for_resolution("dummy.svs", resolution=1.0, unit="pixels", fallback_mode="nearest")  # type: ignore
+            mod.get_level_for_resolution(
+                "dummy.svs",
+                resolution=1.0,
+                unit=cast(Literal["level", "mpp", "downsample"], "pixels"),
+                fallback_mode="nearest",
+            )
 
     def test_unknown_fallback_mode_raises(self):
         with pytest.raises(ValueError, match="Unknown fallback_mode"):
-            mod.get_level_for_resolution("dummy.svs", resolution=1.0, unit="downsample", fallback_mode="fuzzy")  # type: ignore
+            mod.get_level_for_resolution(
+                "dummy.svs",
+                resolution=1.0,
+                unit="downsample",
+                fallback_mode=cast(Literal["nearest", "floor", "ceil", "error", "resample"], "fuzzy"),
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -421,7 +433,12 @@ class TestGetResampleFactor:
 
     def test_unknown_unit_raises(self):
         with pytest.raises(ValueError, match="Unknown unit"):
-            mod.get_resample_factor("dummy.svs", resolution=1.0, unit="level", selected_level=0)  # type: ignore
+            mod.get_resample_factor(
+                "dummy.svs",
+                resolution=1.0,
+                unit=cast(Literal["mpp", "downsample"], "level"),
+                selected_level=0,
+            )
 
     def test_missing_mpp_raises(self, monkeypatch):
         fake_no_mpp = FakeFastSlide("dummy.svs", mpp=(None, None))
