@@ -23,7 +23,7 @@ def main(argv=None):
     parser.add_argument("--num-workers", type=int, default=4, help="Max slides processed concurrently.")
     parser.add_argument("--batch", type=int, default=200, help="Batch size for micro-batching.")
     parser.add_argument(
-        "--profile", action="store_true", help="Enable per-stage profiling for producers.", default=True
+        "--profile", action="store_true", help="Enable per-stage profiling for producers."
     )
     args = parser.parse_args(argv)
 

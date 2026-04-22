@@ -1,5 +1,8 @@
+import logging
 import threading
 from typing import Any, Dict, Optional, Union
+
+logger = logging.getLogger(__name__)
 
 
 class Profiler:
@@ -86,16 +89,16 @@ class PipelineProfileAggregator:
                 f"{float(stats['avg_ms_per_yield']):16.3f}"
             )
 
-        print("\n=== Pipeline Profile (isolated timings only) ===")
-        print(f"{'Stage':30} {'Yields':>10} {'Wall (s)':>12} {'Avg (ms/yield)':>16}")
+        logger.info("\n=== Pipeline Profile (isolated timings only) ===")
+        logger.info(f"{'Stage':30} {'Yields':>10} {'Wall (s)':>12} {'Avg (ms/yield)':>16}")
         for name, stats in sorted(prof["by_stage"].items(), key=lambda kv: kv[1]["wall_time_sec"], reverse=True):
-            print(f"{name:30} {fmt(stats)}")
+            logger.info(f"{name:30} {fmt(stats)}")
 
-        print("\n--- Per slide breakdown ---")
+        logger.info("\n--- Per slide breakdown ---")
         for slide_id, stages in prof["by_slide"].items():
-            print(f"[{slide_id}]")
+            logger.info(f"[{slide_id}]")
             for name, stats in sorted(stages.items(), key=lambda kv: kv[1]["wall_time_sec"], reverse=True):
-                print(
+                logger.info(
                     f"  {name:28} yields={int(stats['yields']):6d} "
                     f"wall={float(stats['wall_time_sec']):8.3f}s avg={float(stats['avg_ms_per_yield']):8.3f}ms"
                 )
