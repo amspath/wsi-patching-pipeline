@@ -4,7 +4,8 @@ from pathlib import Path
 import numpy as np
 import orjson
 import pytest
-import torch
+
+torch = pytest.importorskip("torch")
 
 from wsi_patching.writers.materialize_writers.webdataset.webdataset_loader import WebDatasetLoader
 

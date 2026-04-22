@@ -1,7 +1,6 @@
 import logging
-from multiprocessing.queues import Queue as MPQueue
-from multiprocessing.synchronize import Event as MpEvent
-from queue import Empty
+from queue import Empty, Queue
+from threading import Event
 from typing import Any, Optional
 
 from wsi_patching.core.types.util_types import EndOfQueue, EndOfStream
@@ -54,9 +53,9 @@ class MaterializeWriterBase(ContextAware, metaclass=WriterMeta):
             self.open()
             self._is_open = True
 
-    # ----- Multiprocess consumer entrypoint -----
+    # ----- Threaded consumer entrypoint -----
     def start_writer(
-        self, queue: MPQueue, verbosity_level: LogLevel, stop_event: Optional[MpEvent] = None, poll_s: float = 0.5
+        self, queue: Queue, verbosity_level: LogLevel, stop_event: Optional[Event] = None, poll_s: float = 0.5
     ) -> None:
         """
         Multi-process: consume from a queue. Handles EndOfStream/EndOfQueue for you.

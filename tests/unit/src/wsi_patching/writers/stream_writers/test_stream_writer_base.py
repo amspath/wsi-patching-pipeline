@@ -1,4 +1,5 @@
-import multiprocessing as mp
+from queue import Queue
+from threading import Event
 from typing import Any, Iterable
 
 import pytest
@@ -27,12 +28,6 @@ def _drain(gen):
     return list(gen)
 
 
-def test_rejects_non_mpqueue():
-    w = _PassThroughWriter()
-    with pytest.raises(ValueError):
-        _ = _drain(w.start_writer(queue=object(), verbosity_level="INFO"))
-
-
 def test_init_logging_called(monkeypatch):
     called = {}
 
@@ -43,7 +38,7 @@ def test_init_logging_called(monkeypatch):
         "wsi_patching.writers.stream_writers.stream_writer_base.init_logging", fake_init_logging, raising=True
     )
 
-    q = mp.Queue()
+    q = Queue()
     q.put(EndOfQueue())
     w = _PassThroughWriter()
     _ = _drain(w.start_writer(q, verbosity_level="DEBUG", poll_s=0.05))
@@ -51,7 +46,7 @@ def test_init_logging_called(monkeypatch):
 
 
 def test_streams_batches_until_end_of_queue(caplog):
-    q = mp.Queue()
+    q = Queue()
     w = _PassThroughWriter()
 
     # put a batch, then EndOfQueue
@@ -69,7 +64,7 @@ def test_streams_batches_until_end_of_queue(caplog):
 
 
 def test_ignores_end_of_stream_and_continues():
-    q = mp.Queue()
+    q = Queue()
     w = _PassThroughWriter()
 
     q.put(EndOfStream())  # should be ignored
@@ -81,8 +76,8 @@ def test_ignores_end_of_stream_and_continues():
 
 
 def test_stop_event_causes_clean_exit_without_items(caplog):
-    q = mp.Queue()
-    evt = mp.Event()
+    q = Queue()
+    evt = Event()
     evt.set()  # simulate external stop request when queue is empty
 
     w = _PassThroughWriter()
@@ -96,7 +91,7 @@ def test_stop_event_causes_clean_exit_without_items(caplog):
 
 
 def test_exception_in_stream_is_propagated(caplog):
-    q = mp.Queue()
+    q = Queue()
     q.put(["anything"])  # will trigger stream
     # ensure we terminate loop after exception (not strictly necessary; it will raise first)
     q.put(EndOfQueue())

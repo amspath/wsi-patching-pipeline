@@ -1,3 +1,4 @@
+import threading
 from typing import Any, Dict, Optional, Union
 
 
@@ -100,14 +101,12 @@ class PipelineProfileAggregator:
                 )
 
 
-# Global per-process profiler handle
-CURRENT_PROFILER: Optional["Profiler"] = None
+_profiler_local = threading.local()
 
 
 def set_current_profiler(p: Optional["Profiler"]) -> None:
-    global CURRENT_PROFILER
-    CURRENT_PROFILER = p
+    _profiler_local.profiler = p
 
 
 def get_current_profiler() -> Optional["Profiler"]:
-    return CURRENT_PROFILER
+    return getattr(_profiler_local, "profiler", None)

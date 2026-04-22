@@ -32,6 +32,9 @@ class MacenkoNormalizer(Stage):
             "fitting will likely result in unwanted behavior. Use with caution."
         )
 
+    def for_slide(self, slide_path: str) -> "MacenkoNormalizer":
+        return MacenkoNormalizer(alpha=self.alpha, beta=self.beta, light_intensity=self.I0, pixel_limit=self.pixel_limit)
+
     def validate(self):
         self.ctx.require_key("use_gpu")
 

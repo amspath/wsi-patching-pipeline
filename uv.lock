@@ -132,29 +132,29 @@ wheels = [
 
 [[package]]
 name = "fastslide"
-version = "0.4.0"
+version = "0.5.2"
 source = { registry = "https://pypi.org/simple" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/8f/61/c590b25530fff9a6645583c4df6fa2b3e1c1c767728df2710d04da9bb658/fastslide-0.4.0-cp310-none-macosx_10_9_x86_64.whl", hash = "sha256:d0927b9b4894138436c15ec50509f7fbcf250d0a363fd14ed8271e9fdd7aed63", size = 1551573, upload-time = "2026-04-15T22:12:56.604Z" },
-    { url = "https://files.pythonhosted.org/packages/84/98/ecad55da7b9baf17d7979428566784adf63b2a59bae82c81d9a0192ff8c6/fastslide-0.4.0-cp310-none-macosx_11_0_arm64.whl", hash = "sha256:0bdc45e63413eeb32976af1cf634fbad20ffdc538ec480643295102c559bd51b", size = 1398962, upload-time = "2026-04-15T22:13:00.764Z" },
-    { url = "https://files.pythonhosted.org/packages/21/f1/bfb747bb2fda08c99a8c58931097df59eb14d92722641366a1a6141bff86/fastslide-0.4.0-cp310-none-manylinux2014_aarch64.whl", hash = "sha256:c6c43aec43e1951b70ca966eaa52371c993c62e32e061c137cbc7f243d6ee83d", size = 1862683, upload-time = "2026-04-15T22:13:06.382Z" },
-    { url = "https://files.pythonhosted.org/packages/dd/e0/b52316dbab34b84c4243ad5a76fbe58a614b882effe50832b27dc22dd6cf/fastslide-0.4.0-cp310-none-manylinux2014_x86_64.whl", hash = "sha256:773e709e3a62607b7a65c6b206c54bbefbc1b16147fe1137a2ae494ed1031ea9", size = 2052193, upload-time = "2026-04-15T22:13:12.199Z" },
-    { url = "https://files.pythonhosted.org/packages/29/77/c9f4693ac479aa1352debce303e7730a1ec5c558e250ea16f8efe82b01bc/fastslide-0.4.0-cp310-none-win_amd64.whl", hash = "sha256:d7b4d100c558b36cd357cb7d0e5edc711cc5a2aeb811c5027addae8febba017f", size = 1763004, upload-time = "2026-04-15T22:13:16.549Z" },
-    { url = "https://files.pythonhosted.org/packages/a1/0c/394d2e2d441317920b94b29ca11e88b63e103372491f9911caf68f914219/fastslide-0.4.0-cp311-none-macosx_10_9_x86_64.whl", hash = "sha256:78a61d47096e1e96e65e1bccea60ba3c63403f65bef133aa0523bd0a809b7a34", size = 1553182, upload-time = "2026-04-15T22:13:20.885Z" },
-    { url = "https://files.pythonhosted.org/packages/e2/25/1cc348a4aae1886ac9d8685d09d541c218cad41535bb1c3397b82e5b7503/fastslide-0.4.0-cp311-none-macosx_11_0_arm64.whl", hash = "sha256:df27cac82483746cbca0bd2653a324025ed6e25f2c8f40377c75bfbfa013526f", size = 1400576, upload-time = "2026-04-15T22:13:24.487Z" },
-    { url = "https://files.pythonhosted.org/packages/3a/9c/93285b9bea6f565f3ca6245a9bdf56cd7f0ba7b882704af09993b5c8deed/fastslide-0.4.0-cp311-none-manylinux2014_aarch64.whl", hash = "sha256:e132e9e4d78942be80b266e6e2d00e4d43d28d16e064408bef06cf8a6247bab8", size = 1863708, upload-time = "2026-04-15T22:13:29.167Z" },
-    { url = "https://files.pythonhosted.org/packages/b8/f6/3baba93f7b94d6a2c031f0e09a4fcff2e4cac73ed50f0e82bc88d20085fd/fastslide-0.4.0-cp311-none-manylinux2014_x86_64.whl", hash = "sha256:d40c1729494efc20eb02d8594cff404e28c4a85e0abcbe42a4ec322623b5b82f", size = 2053234, upload-time = "2026-04-15T22:13:34.287Z" },
-    { url = "https://files.pythonhosted.org/packages/99/7a/46ae2ba8240c74462eff6c1d8ea40d9deac8426464e8cd2bee95a5b66188/fastslide-0.4.0-cp311-none-win_amd64.whl", hash = "sha256:58dc544b916d8ea636b1431ce1e9eb806eed64c268d2a9065907f295d03e27a0", size = 1764280, upload-time = "2026-04-15T22:13:38.709Z" },
-    { url = "https://files.pythonhosted.org/packages/8a/81/ad22cad70f0eb0714d8323679af24306f3368a2ffa898865650470bb7312/fastslide-0.4.0-cp312-none-macosx_10_9_x86_64.whl", hash = "sha256:5c9b9775b22706b8132b7c1188ad05d083910dcf97b39271f08bdbeedb7977c5", size = 1555562, upload-time = "2026-04-15T22:13:42.713Z" },
-    { url = "https://files.pythonhosted.org/packages/1b/95/d4e2aadbb62f581145654b71bbea0bb04af3939e1e2ee1cbe6969da642ca/fastslide-0.4.0-cp312-none-macosx_11_0_arm64.whl", hash = "sha256:dd2168ae694689e54c426bb095bb1ad731da3a60d2d67cfd8af3c212bba995fe", size = 1400834, upload-time = "2026-04-15T22:13:46.038Z" },
-    { url = "https://files.pythonhosted.org/packages/d4/9d/02459b6554b42fce28291debf0d41f6a99d8c0b2c3aea7084a48830abd0e/fastslide-0.4.0-cp312-none-manylinux2014_aarch64.whl", hash = "sha256:b58a84e1397dd3798a1e76e5f9d514fb1a4fa8c6d2feaf254feafcb3e6200d64", size = 1863974, upload-time = "2026-04-15T22:13:50.155Z" },
-    { url = "https://files.pythonhosted.org/packages/80/86/544c3ac3711ec5cbfecbff219de63b37117d8227494adca3b1fd524762b8/fastslide-0.4.0-cp312-none-manylinux2014_x86_64.whl", hash = "sha256:98e2d3b14f8600e7d918ce215faaf5c1029f13f7542948f68ecc26cc9f1e12f0", size = 2054888, upload-time = "2026-04-15T22:13:54.276Z" },
-    { url = "https://files.pythonhosted.org/packages/f7/d8/df3f77a0dc0238bbb8d3ed6134e478c341ec537d5a91862696d6d1f90ea7/fastslide-0.4.0-cp312-none-win_amd64.whl", hash = "sha256:b85f90a02526e0f86b563da735cc2914b3674b182c9553808e3ec8caf89c6b30", size = 1766523, upload-time = "2026-04-15T22:13:58.495Z" },
-    { url = "https://files.pythonhosted.org/packages/56/52/e447ae7414312552e67ab1816fc07d224dc4c253c92d88918980f25814b2/fastslide-0.4.0-cp313-none-macosx_10_9_x86_64.whl", hash = "sha256:aac40e72237a4dd94cbac27222cbd554dc011ae833ef76baa4ce37e9c208300a", size = 1555568, upload-time = "2026-04-15T22:14:02.646Z" },
-    { url = "https://files.pythonhosted.org/packages/1c/0c/2a01701a9f98ab684a38944b3b7d6f7a85d591300ea9cd31be5cfe83bb82/fastslide-0.4.0-cp313-none-macosx_11_0_arm64.whl", hash = "sha256:13117361b63248f8f5f78fc7d0d881118765c3da9327e0f03893df751176d2d4", size = 1400783, upload-time = "2026-04-15T22:14:06.54Z" },
-    { url = "https://files.pythonhosted.org/packages/8a/8a/c140bdf565fa752e3baf158da59790dd926bb2314ca14faff7eb0397ade4/fastslide-0.4.0-cp313-none-manylinux2014_aarch64.whl", hash = "sha256:5f6c8c0f33ee2ccc72131bfd6ebb5072dba7ca2fc7d66029f941a80fd964cf8e", size = 1864122, upload-time = "2026-04-15T22:14:11.621Z" },
-    { url = "https://files.pythonhosted.org/packages/6e/f2/7ef56c5479696d6f4ee0ad88c7ef563eca95f6a622636255be92fd44c8bc/fastslide-0.4.0-cp313-none-manylinux2014_x86_64.whl", hash = "sha256:2af75245520f6aa1873cea808c114e07a87e1e0219800eda0bffe3e7a6098a3c", size = 2055101, upload-time = "2026-04-15T22:14:16.398Z" },
-    { url = "https://files.pythonhosted.org/packages/90/69/3266c74c81e5c7e30367c59df855e7f08a77995d102243d3018c4bd268a6/fastslide-0.4.0-cp313-none-win_amd64.whl", hash = "sha256:7d8c3ab91584cb7d10a717e788a77e232ddc9a9e2bb3885a866a165b4b1d1ebf", size = 1766484, upload-time = "2026-04-15T22:14:21.156Z" },
+    { url = "https://files.pythonhosted.org/packages/43/80/3601ae42d52a09a02eeb9513eec025ed4818cfadfc9d24ef14e9c574ddfc/fastslide-0.5.2-cp310-none-macosx_10_9_x86_64.whl", hash = "sha256:302de22eba9b9041607f890c5e3e1e8bc40acd3c72ba7f74ad2861c270543da6", size = 1761296, upload-time = "2026-04-21T12:27:04.99Z" },
+    { url = "https://files.pythonhosted.org/packages/5e/7d/5fc3de122c2a8b5d13ec07b99edef157e5b6fdbb954f3a2566fe894af530/fastslide-0.5.2-cp310-none-macosx_11_0_arm64.whl", hash = "sha256:237a2f9c8bd38885b62e2da1647cd48c1cbdd8b453f6b623cd9caa8cb9399060", size = 1560342, upload-time = "2026-04-21T12:27:07.023Z" },
+    { url = "https://files.pythonhosted.org/packages/b7/f4/308c54c831e948f1ebb24de8ec1d13e7bdefb0a5851049cf29f3c47179ee/fastslide-0.5.2-cp310-none-manylinux2014_aarch64.whl", hash = "sha256:2aa586013a995795e3287f2dab1ec8a9cbd9326714b78252553af593781f415b", size = 1901483, upload-time = "2026-04-21T12:27:08.814Z" },
+    { url = "https://files.pythonhosted.org/packages/4c/16/685dd7463fccb37c2dab318517fb2d020a4559c2cd43c5b64d5ec96ed165/fastslide-0.5.2-cp310-none-manylinux2014_x86_64.whl", hash = "sha256:0715b230948e176e3a841e00c6d7ed2d068f593a8de82161788b43125426c417", size = 2112298, upload-time = "2026-04-21T12:27:10.906Z" },
+    { url = "https://files.pythonhosted.org/packages/91/9b/63d93636e2e4bb9b979a2014f6ddce49d7a97e4910ab63be3e3a3fca3ce1/fastslide-0.5.2-cp310-none-win_amd64.whl", hash = "sha256:2eecdef429117bd05304ddce19574c7e986071624345143e6153240faef7c3a2", size = 1791652, upload-time = "2026-04-21T12:27:13.012Z" },
+    { url = "https://files.pythonhosted.org/packages/5f/4d/9fae1fe5f4d28cac912c5b3ddab2a34a94c422a79d28f77e5a92e8d0cb58/fastslide-0.5.2-cp311-none-macosx_10_9_x86_64.whl", hash = "sha256:4f87d49494c575521ff0ff183f3aa661e3c741e32b445fe092c56200215755b1", size = 1761940, upload-time = "2026-04-21T12:27:15.152Z" },
+    { url = "https://files.pythonhosted.org/packages/e2/42/a60fb38d37a1e71d3b7ae220590441420cae126253b4c8166d713feb548b/fastslide-0.5.2-cp311-none-macosx_11_0_arm64.whl", hash = "sha256:a18189653e06472b66df54841130266b4f52aad25f3ed16c9a7dc3c40d201764", size = 1560509, upload-time = "2026-04-21T12:27:18.585Z" },
+    { url = "https://files.pythonhosted.org/packages/18/fd/9686bc5bbfa885c84c87ce4cbc1599ab149e61ef6577d0d49839675dd439/fastslide-0.5.2-cp311-none-manylinux2014_aarch64.whl", hash = "sha256:582f60318fc15f3b34dd6217c7f8d58e846302e015807f2008cd14087ae795a3", size = 1901755, upload-time = "2026-04-21T12:27:21.265Z" },
+    { url = "https://files.pythonhosted.org/packages/60/5e/c78b960366c821b44a13a83c2ba859e60127774504ab998d534288b73de1/fastslide-0.5.2-cp311-none-manylinux2014_x86_64.whl", hash = "sha256:71aacc13a51b76686a6e8644421ea180d4b2f9de97d7a7fe424ed9a2714667b8", size = 2112511, upload-time = "2026-04-21T12:27:23.324Z" },
+    { url = "https://files.pythonhosted.org/packages/8d/d5/0603835809a848a5cc901c70641b0d121b4cd6edc064c7de9b4c0d3708be/fastslide-0.5.2-cp311-none-win_amd64.whl", hash = "sha256:9774ef34ec6e348f24b657e82ff43426d2b547939bb9cc7cbabf82a0cd25d7f7", size = 1791801, upload-time = "2026-04-21T12:27:25.229Z" },
+    { url = "https://files.pythonhosted.org/packages/75/79/1d17de5f4e8ebcaef6f270d84fcd92197e3a6479787a26da211b768d26d4/fastslide-0.5.2-cp312-none-macosx_10_9_x86_64.whl", hash = "sha256:7210cc15296ba05c946b5e0d0715c2f06d6c4cc8171f06dfbda131ffa4bbdaea", size = 1761036, upload-time = "2026-04-21T12:27:27.438Z" },
+    { url = "https://files.pythonhosted.org/packages/7d/61/49cc03f8d68c3156c3baac961cd222d5d395dc72c45204ecc8e2e206e677/fastslide-0.5.2-cp312-none-macosx_11_0_arm64.whl", hash = "sha256:0d79429ccab61c6b3600b12aee90ad510953fcbb8545c8bcc75a708b21fed2a9", size = 1559989, upload-time = "2026-04-21T12:27:29.571Z" },
+    { url = "https://files.pythonhosted.org/packages/43/3a/a3fe0cb21a3d4a8eaec19c8f0f476c036f7fa1344a92c3c812fccee0f422/fastslide-0.5.2-cp312-none-manylinux2014_aarch64.whl", hash = "sha256:d1337c8ca935f451b85a54e4d5094b33ba4a9b2da136e23906113f8f2a89c901", size = 1901186, upload-time = "2026-04-21T12:27:31.59Z" },
+    { url = "https://files.pythonhosted.org/packages/6e/b5/4689af9ae7372443bad41c0127dfd9f5e52f10feda6f931889f41b739db9/fastslide-0.5.2-cp312-none-manylinux2014_x86_64.whl", hash = "sha256:aa5903e5dd11fa6867601cd602299540c2f5b4fdd863479399b19da15ba580f2", size = 2111733, upload-time = "2026-04-21T12:27:33.747Z" },
+    { url = "https://files.pythonhosted.org/packages/67/f7/5ea508da8be62918a33e45bc9b8026569f909cc11a237ddf6dae426f0140/fastslide-0.5.2-cp312-none-win_amd64.whl", hash = "sha256:a277e9f3c139ab7bd246e3c49598a6fb421598d4be0a9fa328a29e91bb2b4dce", size = 1791562, upload-time = "2026-04-21T12:27:35.73Z" },
+    { url = "https://files.pythonhosted.org/packages/1a/83/c51eeff7a7fa915b1b9cbe29f4c68ce9d3bd4cbb0c56c92ff3c19792a504/fastslide-0.5.2-cp313-none-macosx_10_9_x86_64.whl", hash = "sha256:1374a7b7490ca0b712b989c1d2b8e56ce9485b786d47cfbaa06ce092d8362b3b", size = 1760912, upload-time = "2026-04-21T12:27:37.861Z" },
+    { url = "https://files.pythonhosted.org/packages/58/5d/e2a284554a7d0086b7fdd85ebc0ed7af5b86b78ba0e1ecdde35ea87bd973/fastslide-0.5.2-cp313-none-macosx_11_0_arm64.whl", hash = "sha256:d54124aeb301e9b015d951895f8bbc93c137367e0368b24d01293de12afec3d4", size = 1559925, upload-time = "2026-04-21T12:27:39.583Z" },
+    { url = "https://files.pythonhosted.org/packages/d1/a8/b2812821e3d890e87667f7db52c04265ef54f5bb06487ebc7f171dc8ff66/fastslide-0.5.2-cp313-none-manylinux2014_aarch64.whl", hash = "sha256:e3b96578b1b6514cd83bb6ea79b869805276665faeeb14e719fe45e138cfe88b", size = 1901057, upload-time = "2026-04-21T12:27:41.457Z" },
+    { url = "https://files.pythonhosted.org/packages/9e/2f/c5471ca001b18b6a57a4c7721f0ba5d2f640a6a19d5dc945a7352edfde11/fastslide-0.5.2-cp313-none-manylinux2014_x86_64.whl", hash = "sha256:f3cf168498dbb1b8c0eeb7186bb23e4814a3d19485decea394334c32e9f95070", size = 2111611, upload-time = "2026-04-21T12:27:43.71Z" },
+    { url = "https://files.pythonhosted.org/packages/87/44/ed9f065b1cd0cefacb9461c3ca3beda7c152efa65074f36b61dbc5532fe6/fastslide-0.5.2-cp313-none-win_amd64.whl", hash = "sha256:912dfc01116ccc30627e29e5c0a72f1eba070959d6f09c9abf90dc6d7c434e4b", size = 1791539, upload-time = "2026-04-21T12:27:45.889Z" },
 ]
 
 [[package]]
@@ -746,6 +746,15 @@ wheels = [
 ]
 
 [[package]]
+name = "py-cpuinfo"
+version = "9.0.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/37/a8/d832f7293ebb21690860d2e01d8115e5ff6f2ae8bbdc953f0eb0fa4bd2c7/py-cpuinfo-9.0.0.tar.gz", hash = "sha256:3cdbbf3fac90dc6f118bfd64384f309edeadd902d7c8fb17f02ffa1fc3f49690", size = 104716, upload-time = "2022-10-25T20:38:06.303Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e0/a9/023730ba63db1e494a271cb018dcd361bd2c917ba7004c3e49d5daf795a2/py_cpuinfo-9.0.0-py3-none-any.whl", hash = "sha256:859625bc251f64e21f077d099d4162689c762b5d6a4c3c97553d56241c9674d5", size = 22335, upload-time = "2022-10-25T20:38:27.636Z" },
+]
+
+[[package]]
 name = "pygments"
 version = "2.20.0"
 source = { registry = "https://pypi.org/simple" }
@@ -770,6 +779,19 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/7d/0d/549bd94f1a0a402dc8cf64563a117c0f3765662e2e668477624baeec44d5/pytest-9.0.3.tar.gz", hash = "sha256:b86ada508af81d19edeb213c681b1d48246c1a91d304c6c81a427674c17eb91c", size = 1572165, upload-time = "2026-04-07T17:16:18.027Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/d4/24/a372aaf5c9b7208e7112038812994107bc65a84cd00e0354a88c2c77a617/pytest-9.0.3-py3-none-any.whl", hash = "sha256:2c5efc453d45394fdd706ade797c0a81091eccd1d6e4bccfcd476e2b8e0ab5d9", size = 375249, upload-time = "2026-04-07T17:16:16.13Z" },
+]
+
+[[package]]
+name = "pytest-benchmark"
+version = "5.2.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "py-cpuinfo" },
+    { name = "pytest" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/24/34/9f732b76456d64faffbef6232f1f9dbec7a7c4999ff46282fa418bd1af66/pytest_benchmark-5.2.3.tar.gz", hash = "sha256:deb7317998a23c650fd4ff76e1230066a76cb45dcece0aca5607143c619e7779", size = 341340, upload-time = "2025-11-09T18:48:43.215Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/33/29/e756e715a48959f1c0045342088d7ca9762a2f509b945f362a316e9412b7/pytest_benchmark-5.2.3-py3-none-any.whl", hash = "sha256:bc839726ad20e99aaa0d11a127445457b4219bdb9e80a1afc4b51da7f96b0803", size = 45255, upload-time = "2025-11-09T18:48:39.765Z" },
 ]
 
 [[package]]
@@ -1090,14 +1112,13 @@ dependencies = [
     { name = "orjson" },
     { name = "pillow" },
     { name = "rtree" },
-    { name = "torch" },
-    { name = "torchvision" },
     { name = "webdataset" },
 ]
 
 [package.optional-dependencies]
 dev = [
     { name = "pytest" },
+    { name = "pytest-benchmark" },
     { name = "ruff" },
     { name = "tifffile", version = "2025.5.10", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "tifffile", version = "2026.3.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.11.*'" },
@@ -1105,23 +1126,25 @@ dev = [
 ]
 gpu = [
     { name = "cupy-cuda12x", marker = "sys_platform != 'darwin'" },
+    { name = "torch" },
+    { name = "torchvision" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "cupy-cuda12x", marker = "sys_platform != 'darwin' and extra == 'gpu'" },
-    { name = "fastslide", specifier = ">=0.4.0" },
-    { name = "importlib-resources", marker = "python_full_version < '3.9'", specifier = ">=5" },
+    { name = "fastslide", specifier = "==0.5.2" },
     { name = "numpy" },
     { name = "opencv-python-headless" },
     { name = "orjson" },
     { name = "pillow" },
     { name = "pytest", marker = "extra == 'dev'" },
+    { name = "pytest-benchmark", marker = "extra == 'dev'" },
     { name = "rtree" },
     { name = "ruff", marker = "extra == 'dev'" },
     { name = "tifffile", marker = "extra == 'dev'" },
-    { name = "torch" },
-    { name = "torchvision" },
+    { name = "torch", marker = "extra == 'gpu'" },
+    { name = "torchvision", marker = "extra == 'gpu'" },
     { name = "webdataset" },
 ]
 provides-extras = ["dev", "gpu"]

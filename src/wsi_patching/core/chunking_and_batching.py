@@ -1,17 +1,15 @@
-from typing import TYPE_CHECKING, Iterable, List, Literal, Optional, Tuple, Union
+import math
+from typing import Iterable, List, Literal, Optional, Tuple, Union
 
 import cv2
+import numpy as np
 
 from wsi_patching.backends.cupy_numpy import get_xp_backend
 from wsi_patching.backends.fastslide import read_region
 from wsi_patching.core.pipeline import Stage
 from wsi_patching.core.types.types import CollatedPatchBatch, RegionTask, Slide, SlideWithROIs, TilePlan
 from wsi_patching.regions_of_interest.roi_providers import WholeSlideProvider
-from wsi_patching.regions_of_interest.rois import ROI
-
-if TYPE_CHECKING:
-    import cupy as cp
-import numpy as np
+from wsi_patching.regions_of_interest.rois import ROI, BoxROI
 
 _CV2_INTERPOLATION = {
     "nearest": cv2.INTER_NEAREST,
@@ -83,15 +81,8 @@ class TilePlanner(Stage):
                 bx, by, bw, bh = roi.bounds()
                 x1 = min(bx + bw, W)
                 y1 = min(by + bh, H)
-                tiles: List[Tuple[int, int]] = []
 
-                xs = self._axis_positions(bx, x1, tile_size, stride)
-                ys = self._axis_positions(by, y1, tile_size, stride)
-
-                for y in ys:
-                    for x in xs:
-                        if self._accept_tile(roi, x, y, tile_size):
-                            tiles.append((x, y))
+                tiles = self._generate_tiles_vectorized(roi, bx, by, bw, bh, x1, y1, tile_size, stride)
 
                 if tiles:
                     yield TilePlan(
@@ -137,6 +128,58 @@ class TilePlanner(Stage):
             pos += stride
 
         return positions
+
+    def _generate_tiles_vectorized(
+        self, roi: ROI, bx: int, by: int, bw: int, bh: int, x1: int, y1: int, tile_size: int, stride: int
+    ) -> List[Tuple[int, int]]:
+        """Generate accepted tile positions using numpy operations where possible.
+
+        For BoxROI, acceptance checks are fully vectorized. For other ROI types,
+        grid generation is vectorized but per-tile filtering falls back to scalar.
+        """
+        last_tile_correction = max(0, tile_size - stride)
+
+        # Generate x positions
+        roi_w = x1 - bx
+        if roi_w <= tile_size:
+            xs = np.array([bx], dtype=np.int64)
+        else:
+            xs = np.arange(bx, x1 - last_tile_correction, stride, dtype=np.int64)
+
+        # Generate y positions
+        roi_h = y1 - by
+        if roi_h <= tile_size:
+            ys = np.array([by], dtype=np.int64)
+        else:
+            ys = np.arange(by, y1 - last_tile_correction, stride, dtype=np.int64)
+
+        # Build full grid of (tx, ty) pairs
+        gx, gy = np.meshgrid(xs, ys)
+        tx = gx.ravel()
+        ty = gy.ravel()
+
+        if isinstance(roi, BoxROI):
+            mode = self.tile_selection_mode
+            if mode == "any_overlap":
+                # All positions are within ROI bounding box by construction; top-left
+                # corner is always inside, so intersects_patch is always True.
+                pass  # tx/ty already the full set
+            elif mode == "full_inside_bounds":
+                mask = (tx + tile_size <= bx + bw) & (ty + tile_size <= by + bh)
+                tx, ty = tx[mask], ty[mask]
+            elif mode == "center_in_roi":
+                cx = tx + tile_size / 2.0
+                cy = ty + tile_size / 2.0
+                mask = (cx < bx + bw) & (cy < by + bh)
+                tx, ty = tx[mask], ty[mask]
+            return list(zip(tx.tolist(), ty.tolist()))
+
+        # Non-BoxROI: scalar fallback for per-tile acceptance
+        result: List[Tuple[int, int]] = []
+        for txx, tyy in zip(tx.tolist(), ty.tolist()):
+            if self._accept_tile(roi, txx, tyy, tile_size):
+                result.append((txx, tyy))
+        return result
 
     def _accept_tile(self, roi: ROI, tx: int, ty: int, tile_size: int) -> bool:
         mode = self.tile_selection_mode
@@ -192,6 +235,7 @@ class ReadWindowChunker(Stage):
         tile_size = int(self.ctx["tile_size"])
         stride = int(self.ctx["stride"])
         overlap = max(0, tile_size - stride)  # e.g. 64 when tile_size=1022, stride=958
+        mws = self.max_window_size
 
         for plan in it:
             bx, by, bw, bh = plan.roi_bounds
@@ -202,48 +246,58 @@ class ReadWindowChunker(Stage):
 
             x_roi_end, y_roi_end = min(bx + bw, W), min(by + bh, H)
 
-            # We iterate base (non-overlapping) assignment windows of size max_window_size,
-            # but we READ a region that is expanded by `overlap` to the right/bottom
-            # to ensure any overlapping tiles near the boundary can be sliced without padding.
-            for y_region_start in range(by, y_roi_end, self.max_window_size):
-                for x_region_start in range(bx, x_roi_end, self.max_window_size):
-                    in_window: List[Tuple[int, int]] = []
+            # Number of base windows along each axis
+            n_x_win = max(1, math.ceil((x_roi_end - bx) / mws))
+            n_y_win = max(1, math.ceil((y_roi_end - by) / mws))
 
-                    # Base window size (defines which tiles belong to this chunk)
-                    base_w = min(self.max_window_size, x_roi_end - x_region_start)
-                    base_h = min(self.max_window_size, y_roi_end - y_region_start)
-                    x_region_end = x_region_start + base_w
-                    y_region_end = y_region_start + base_h
+            # Assign each tile to a window index using numpy vectorised division
+            tiles_arr = np.array(plan.tiles, dtype=np.int64)  # (N, 2)
+            win_x = np.clip((tiles_arr[:, 0] - bx) // mws, 0, n_x_win - 1)
+            win_y = np.clip((tiles_arr[:, 1] - by) // mws, 0, n_y_win - 1)
 
-                    # Read window size (expanded to include overlap, clamped to ROI end)
-                    read_w = min(base_w + overlap, x_roi_end - x_region_start)
-                    read_h = min(base_h + overlap, y_roi_end - y_region_start)
+            # Stable sort by combined window key so groups come out in scan order
+            win_key = win_y * n_x_win + win_x
+            order = np.argsort(win_key, kind="stable")
+            sorted_keys = win_key[order]
 
-                    # Assign tiles by their top-left being inside the BASE window.
-                    # The READ window is larger so tiles near the boundary still have full pixel support.
-                    for tx, ty in plan.tiles:
-                        if (x_region_start <= tx < x_region_end) and (y_region_start <= ty < y_region_end):
-                            in_window.append((tx, ty))
+            boundaries = np.where(np.diff(sorted_keys) != 0)[0] + 1
+            groups = np.split(order, boundaries)
+            unique_keys = sorted_keys[np.concatenate([[0], boundaries])]
 
-                    if in_window:
-                        yield RegionTask(
-                            wsi_id=plan.wsi_id,
-                            wsi_path=plan.wsi_path,
-                            wsi_dims=plan.dims,
-                            level=plan.level,
-                            region=(x_region_start, y_region_start, read_w, read_h),
-                            tiles=in_window,
-                            downsample=plan.downsample,
-                            resample_factor=plan.resample_factor,
-                            meta=plan.meta,
-                        )
+            for group_indices, ukey in zip(groups, unique_keys.tolist()):
+                wx = int(ukey % n_x_win)
+                wy = int(ukey // n_x_win)
+
+                x_region_start = bx + wx * mws
+                y_region_start = by + wy * mws
+
+                # Base window size (defines ownership; READ window is expanded by overlap)
+                base_w = min(mws, x_roi_end - x_region_start)
+                base_h = min(mws, y_roi_end - y_region_start)
+                read_w = min(base_w + overlap, x_roi_end - x_region_start)
+                read_h = min(base_h + overlap, y_roi_end - y_region_start)
+
+                in_window: List[Tuple[int, int]] = [tuple(t) for t in tiles_arr[group_indices].tolist()]
+
+                if in_window:
+                    yield RegionTask(
+                        wsi_id=plan.wsi_id,
+                        wsi_path=plan.wsi_path,
+                        wsi_dims=plan.dims,
+                        level=plan.level,
+                        region=(x_region_start, y_region_start, read_w, read_h),
+                        tiles=in_window,
+                        downsample=plan.downsample,
+                        resample_factor=plan.resample_factor,
+                        meta=plan.meta,
+                    )
 
 
 class RegionReadAndBatch(Stage):
     """
     For each RegionTask:
       - open slide (per-process, no sharing)
-      - read the entire region once (cuCIM read_region with num_workers, else PIL crop)
+      - read the entire region once
       - slice region into tile patches
       - Pad or drop patches at the wsi edge according to edge_policy
       - accumulate into batches of 'batch_size', yield {"batch": [samples,...]}
@@ -255,7 +309,6 @@ class RegionReadAndBatch(Stage):
     def __init__(
         self,
         batch_size: int = 200,
-        num_workers: int = 8,
         wsi_edge_policy: Literal["drop", "pad_with_zeros", "pad_with_edge"] = "pad_with_zeros",
         roi_edge_policy: Literal["read_from_image", "use_wsi_edge_policy"] = "use_wsi_edge_policy",
         dtype: str = np.uint8,
@@ -263,7 +316,6 @@ class RegionReadAndBatch(Stage):
         """
         Args:
             batch_size: Maximum number of patches per output batch
-            num_workers: number of parallel workers for reading WSI images using cuCIM
             wsi_edge_policy: how to handle tiles that extend beyond the WSI edge.
                 - "drop": drop incomplete tiles
                 - "pad_with_zeros": right/bottom pad incomplete tiles with zeros
@@ -276,7 +328,6 @@ class RegionReadAndBatch(Stage):
             dtype: output patch dtype, e.g. np.uint8 or np.float32
         """
         self.batch_size = int(batch_size)
-        self.num_workers = int(num_workers)
         self.dtype = dtype
         self.roi_edge_policy = roi_edge_policy
         self.wsi_edge_policy = wsi_edge_policy
@@ -331,8 +382,11 @@ class RegionReadAndBatch(Stage):
                 interp = _CV2_INTERPOLATION[self.ctx.get("resample_interpolation", "lanczos")]
                 region_img = cv2.resize(region_img, (w, h), interpolation=interp)
 
-            coords: List[Tuple[int, int]] = []
-            patches: List[Union[np.ndarray, "cp.ndarray"]] = []
+            n_tiles = len(task.tiles)
+            buf_size = min(n_tiles, self.batch_size)
+            batch_buf = np.empty((buf_size, tile_size, tile_size, 3), dtype=np.uint8)
+            coords_buf = np.empty((buf_size, 2), dtype=np.int64)
+            fill_idx = 0
 
             for tx, ty in task.tiles:
                 rx, ry = tx - x0, ty - y0
@@ -342,22 +396,26 @@ class RegionReadAndBatch(Stage):
                         continue
                     patch = self._pad_to_tile_size(patch, tile_size, xp)
 
-                coords.append((tx, ty))
-                patches.append(patch)
+                batch_buf[fill_idx] = patch
+                coords_buf[fill_idx, 0] = tx
+                coords_buf[fill_idx, 1] = ty
+                fill_idx += 1
 
-                if len(patches) >= self.batch_size:
-                    yield self._make_batch(task, coords, patches, xp)
-                    coords, patches = [], []
+                if fill_idx >= self.batch_size:
+                    yield self._make_batch_from_buf(task, coords_buf[:fill_idx], batch_buf[:fill_idx], xp)
+                    fill_idx = 0
 
-            if patches:
-                yield self._make_batch(task, coords, patches, xp)
+            if fill_idx > 0:
+                yield self._make_batch_from_buf(task, coords_buf[:fill_idx], batch_buf[:fill_idx], xp)
 
-    def _make_batch(self, task, coords, patches, xp):
-        batch_array = np.stack(patches, axis=0)
-        patches_xp = xp.asarray(batch_array, dtype=self.dtype)
-        cpb = CollatedPatchBatch(task.wsi_id, np.asarray(coords), patches_xp, use_gpu=self.ctx["use_gpu"])
+    def _make_batch_from_buf(self, task, coords_slice: np.ndarray, batch_slice: np.ndarray, xp):
+        # Both .copy() calls are mandatory: xp.asarray on CPU with matching dtype
+        # returns a view of the buffer, which is reused on the next batch iteration.
+        coords_out = coords_slice.copy()
+        patches_xp = xp.asarray(batch_slice.copy(), dtype=self.dtype)
+        cpb = CollatedPatchBatch(task.wsi_id, coords_out, patches_xp, use_gpu=self.ctx["use_gpu"])
         for k, v in task.meta.items():
-            cpb.add_meta_column(k, np.array([v] * len(coords)))
+            cpb.add_meta_column(k, np.array([v] * len(coords_out)))
         return cpb
 
     def _pad_to_tile_size(self, patch, tile_size: int, xp_module):
@@ -394,7 +452,6 @@ class PatchExtractor(Stage):
         stride: int,
         tile_selection_mode: Literal["any_overlap", "full_inside_bounds", "center_in_roi"] = "any_overlap",
         max_batch_size: int = 200,
-        num_workers: int = 8,
         wsi_edge_policy: Literal["drop", "pad_with_zeros", "pad_with_edge"] = "pad_with_zeros",
         roi_edge_policy: Literal["read_from_image", "use_wsi_edge_policy"] = "use_wsi_edge_policy",
         dtype: str = np.uint8,
@@ -406,7 +463,6 @@ class PatchExtractor(Stage):
             stride: spacing between patch top-left corners of each of the patches
             tile_selection_mode: how to select tiles with respect to ROIs.
             max_batch_size: Maximum number of patches per output batch
-            num_workers: number of parallel workers for reading WSI images using cuCIM
             wsi_edge_policy: how to handle tiles that extend beyond the WSI edge.
                 - "drop": drop incomplete tiles
                 - "pad_with_zeros": right/bottom pad incomplete tiles with zeros
@@ -425,7 +481,6 @@ class PatchExtractor(Stage):
             tile_selection_mode=tile_selection_mode,
             max_window_size=max_window_size,
             batch_size=max_batch_size,
-            num_workers=num_workers,
             dtype=dtype,
             wsi_edge_policy=wsi_edge_policy,
             roi_edge_policy=roi_edge_policy,
@@ -436,7 +491,6 @@ class PatchExtractor(Stage):
         self._rwc = ReadWindowChunker(max_window_size=max_window_size)
         self._rbb = RegionReadAndBatch(
             batch_size=max_batch_size,
-            num_workers=num_workers,
             dtype=dtype,
             wsi_edge_policy=wsi_edge_policy,
             roi_edge_policy=roi_edge_policy,

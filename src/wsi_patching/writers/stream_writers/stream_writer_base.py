@@ -1,7 +1,6 @@
 import logging
-from multiprocessing.queues import Queue as MPQueue
-from multiprocessing.synchronize import Event as MpEvent
-from queue import Empty
+from queue import Empty, Queue
+from threading import Event
 from typing import Any, Iterable, Optional
 
 from wsi_patching.core.types.util_types import EndOfQueue, EndOfStream
@@ -35,15 +34,12 @@ class StreamWriterBase(ContextAware, metaclass=WriterMeta):
         raise NotImplementedError
 
     def start_writer(
-        self, queue: MPQueue, verbosity_level: LogLevel, stop_event: Optional[MpEvent] = None, poll_s: float = 0.5
+        self, queue: Queue, verbosity_level: LogLevel, stop_event: Optional[Event] = None, poll_s: float = 0.5
     ) -> Iterable[Any]:
         """
-        Start the writer process. This will block and consume messages from the queue.
+        Start the writer. This will block and consume messages from the queue.
         It will yield items as they are written.
         """
-        if not isinstance(queue, MPQueue):
-            raise ValueError("queue must be a multiprocessing.Queue")
-
         init_logging(verbosity_level)
 
         self.log.info("Starting generator writer...")

@@ -2,7 +2,8 @@ from unittest.mock import patch
 
 import numpy as np
 import pytest
-import torch
+
+torch = pytest.importorskip("torch")
 
 from wsi_patching.core.types.types import CollatedPatchBatch
 from wsi_patching.filtering.dummy_tissue_classifier_filter import DummyTissueClassifierFilter

@@ -2,7 +2,8 @@ from contextlib import ExitStack
 from unittest.mock import patch
 
 import pytest
-import torch
+
+torch = pytest.importorskip("torch")
 
 from wsi_patching.backends.torch_device import get_torch_device
 

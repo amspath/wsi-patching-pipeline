@@ -15,7 +15,7 @@ def test_rect_roi_limits_patches(synthetic_slide):
         .then(PatchExtractor(tile_size=128, stride=128, max_batch_size=100))
         .to(NumpyStreamWriter(layout="NHWC"))
     )
-    patches_list = [imgs for _, imgs, _, _ in p.stream(cpu_processes=1)]
+    patches_list = [imgs for _, imgs, _, _ in p.stream()]
     total = sum(b.shape[0] for b in patches_list)
     assert total == 8  # 4×2 grid in 512×256 ROI
 
@@ -30,6 +30,6 @@ def test_xml_roi_limits_patches(synthetic_slide, synthetic_xml_annotation):
         .then(PatchExtractor(tile_size=128, stride=128, max_batch_size=100))
         .to(NumpyStreamWriter(layout="NHWC"))
     )
-    patches_list = [imgs for _, imgs, _, _ in p.stream(cpu_processes=1)]
+    patches_list = [imgs for _, imgs, _, _ in p.stream()]
     total = sum(b.shape[0] for b in patches_list)
     assert total == 4  # XML ROI is 256×256 → 2×2 grid

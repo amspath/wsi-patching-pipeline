@@ -197,7 +197,7 @@ def test_region_read_and_batch_happy_path_and_batch_split():
         )
     ]
 
-    r = RegionReadAndBatch(batch_size=3, num_workers=2, dtype=np.uint8)
+    r = RegionReadAndBatch(batch_size=3, dtype=np.uint8)
     r.attach_context(PipelineContext({"tile_size": 16, "level": 0, "use_gpu": False}))
     r.validate()
 
@@ -232,7 +232,7 @@ def test_region_read_and_batch_skips_incomplete_patches():
                 meta={},
             )
         ]
-        r = RegionReadAndBatch(batch_size=10, num_workers=1, dtype=np.uint8, wsi_edge_policy="drop")
+        r = RegionReadAndBatch(batch_size=10, dtype=np.uint8, wsi_edge_policy="drop")
         r.attach_context(PipelineContext({"tile_size": 16, "level": 0, "use_gpu": False}))
         r.validate()
 
@@ -262,7 +262,7 @@ def test_region_read_and_batch_pads_incomplete_patches_pad_with_zeros():
                 meta={},
             )
         ]
-        r = RegionReadAndBatch(batch_size=10, num_workers=1, dtype=np.uint8, wsi_edge_policy="pad_with_zeros")
+        r = RegionReadAndBatch(batch_size=10, dtype=np.uint8, wsi_edge_policy="pad_with_zeros")
         r.attach_context(PipelineContext({"tile_size": 16, "level": 0, "use_gpu": False}))
         r.validate()
 
@@ -291,7 +291,7 @@ def test_region_read_and_batch_pads_incomplete_patches_pad_with_edge():
                 meta={},
             )
         ]
-        r = RegionReadAndBatch(batch_size=10, num_workers=1, dtype=np.uint8, wsi_edge_policy="pad_with_edge")
+        r = RegionReadAndBatch(batch_size=10, dtype=np.uint8, wsi_edge_policy="pad_with_edge")
         r.attach_context(PipelineContext({"tile_size": 16, "level": 0, "use_gpu": False}))
         r.validate()
 
@@ -322,7 +322,6 @@ def test_region_read_and_batch_pads_incomplete_patches_within_roi_pad_with_zeros
         ]
         r = RegionReadAndBatch(
             batch_size=10,
-            num_workers=1,
             dtype=np.uint8,
             roi_edge_policy="use_wsi_edge_policy",
             wsi_edge_policy="pad_with_zeros",
@@ -360,7 +359,7 @@ def test_region_read_and_batch_roi_edge_policy_read_from_image_expands_region():
             )
         ]
         r = RegionReadAndBatch(
-            batch_size=10, num_workers=1, dtype=np.uint8, roi_edge_policy="read_from_image", wsi_edge_policy="drop"
+            batch_size=10, dtype=np.uint8, roi_edge_policy="read_from_image", wsi_edge_policy="drop"
         )
         r.attach_context(PipelineContext({"tile_size": 16, "level": 0, "use_gpu": False}))
         r.validate()
@@ -403,7 +402,7 @@ def test_region_read_and_batch_roi_edge_policy_read_from_image_expands_when_w_is
             )
         ]
         r = RegionReadAndBatch(
-            batch_size=10, num_workers=1, dtype=np.uint8, roi_edge_policy="read_from_image", wsi_edge_policy="drop"
+            batch_size=10, dtype=np.uint8, roi_edge_policy="read_from_image", wsi_edge_policy="drop"
         )
         r.attach_context(PipelineContext({"tile_size": 256, "level": 0, "use_gpu": False}))
         r.validate()
@@ -446,7 +445,7 @@ def test_region_read_and_batch_roi_edge_policy_read_from_image_clamps_to_wsi_edg
             )
         ]
         r = RegionReadAndBatch(
-            batch_size=10, num_workers=1, dtype=np.uint8, roi_edge_policy="read_from_image", wsi_edge_policy="drop"
+            batch_size=10, dtype=np.uint8, roi_edge_policy="read_from_image", wsi_edge_policy="drop"
         )
         r.attach_context(PipelineContext({"tile_size": 16, "level": 0, "use_gpu": False}))
         r.validate()
@@ -489,7 +488,7 @@ def test_region_read_and_batch_scales_coords_to_level0():
                 meta={},
             )
         ]
-        r = RegionReadAndBatch(batch_size=10, num_workers=1, dtype=np.uint8)
+        r = RegionReadAndBatch(batch_size=10, dtype=np.uint8)
         r.attach_context(PipelineContext({"tile_size": 16, "level": 2, "use_gpu": False}))
         r.validate()
 
@@ -512,7 +511,7 @@ def test_region_read_and_batch_scales_coords_to_level0():
                 meta={},
             )
         ]
-        r0 = RegionReadAndBatch(batch_size=10, num_workers=1, dtype=np.uint8)
+        r0 = RegionReadAndBatch(batch_size=10, dtype=np.uint8)
         r0.attach_context(PipelineContext({"tile_size": 16, "level": 0, "use_gpu": False}))
         r0.validate()
 
@@ -535,7 +534,6 @@ def test_patchextractor_end_to_end_whole_slide():
         tile_size=16,
         stride=16,
         max_batch_size=5,
-        num_workers=0,
         wsi_edge_policy="pad_with_zeros",
         roi_edge_policy="use_wsi_edge_policy",
         dtype=np.uint8,

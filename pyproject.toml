@@ -12,18 +12,15 @@ dependencies = [
     "numpy",
     "webdataset",
     "pillow",
-    "torch",
-    "torchvision",
-    "fastslide>=0.4.0",
-    'importlib_resources>=5; python_version<"3.9"',
+    "fastslide==0.5.2",
     "orjson",
     "opencv-python-headless",
     "rtree",
 ]
 
 [project.optional-dependencies]
-gpu = ['cupy-cuda12x; platform_system != "Darwin"']
-dev = ["ruff", "pytest", "tifffile"]
+gpu = ['cupy-cuda12x; platform_system != "Darwin"', "torch", "torchvision"]
+dev = ["ruff", "pytest", "tifffile", "pytest-benchmark"]
 
 # --- Hatch VCS versioning (default-ish behavior) ---
 [tool.hatch.version]

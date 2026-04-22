@@ -4,9 +4,16 @@ from typing import Any, Dict, Iterable, List, Optional
 
 import numpy as np
 import orjson
-import torch
 import webdataset as wds
-from torch.utils.data import DataLoader
+
+try:
+    import torch
+    from torch.utils.data import DataLoader
+except ImportError as e:
+    raise ImportError(
+        "WebDatasetLoader requires torch. "
+        "Install it with: pip install wsi-patching[gpu]"
+    ) from e
 
 
 class WebDatasetLoader:

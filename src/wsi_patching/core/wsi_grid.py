@@ -8,7 +8,6 @@ from wsi_patching.backends.fastslide import (
     get_level_for_resolution,
     get_resample_factor,
 )
-from wsi_patching.backends.torch_device import get_torch_device
 from wsi_patching.core.pipeline import PipelineContext, Stage
 from wsi_patching.core.types.types import Slide
 
@@ -22,9 +21,9 @@ class WSIGrid(Stage):
     def __init__(
         self,
         slides: List[str],
-        use_gpu: bool,
         resolution: float,
         unit: Literal["level", "mpp", "downsample"],
+        use_gpu: bool = False,
         fallback_mode: Literal["nearest", "floor", "ceil", "error", "resample"] = "error",
         resample_interpolation: Literal["nearest", "linear", "cubic", "area", "lanczos"] = "lanczos",
     ):
@@ -60,7 +59,6 @@ class WSIGrid(Stage):
 
     def validate(self) -> None:
         validate_xp_backend(self.use_gpu)
-        get_torch_device(self.use_gpu)
 
     def for_slide(self, slide_path: str) -> "Stage":
         return WSIGrid(

@@ -17,7 +17,7 @@ def test_webdataset_output(synthetic_slide, tmp_path):
         .then(PNGEncoder())
         .to(WebDatasetWriter(outdir=out_dir, shard_size=100))
     )
-    p.materialize(cpu_processes=1)
+    p.materialize()
     tars = list(out_dir.glob("*.tar"))
     assert len(tars) >= 1
     total = sum(

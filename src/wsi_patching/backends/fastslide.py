@@ -1,14 +1,55 @@
 import logging
-from typing import List, Literal, Optional, Tuple
+import threading
+from contextlib import contextmanager
+from typing import List, Literal, Tuple
 
-import fastslide
 import numpy as np
+from fastslide import FastSlide
 
 logger = logging.getLogger(__name__)
 
+_thread_local = threading.local()
 
+
+def _new_slide(path: str) -> FastSlide:
+    return FastSlide.from_file_path(str(path))
+
+
+@contextmanager
 def _open_slide(path: str):
-    return fastslide.FastSlide.from_file_path(str(path))
+    slide = _new_slide(path)
+    try:
+        yield slide
+    finally:
+        if hasattr(slide, "close"):
+            slide.close()
+
+
+def _get_cached_slide(path: str):
+    """Return a cached open FastSlide handle for the current thread."""
+    cache = getattr(_thread_local, "slide_cache", None)
+    if cache is None:
+        _thread_local.slide_cache = {}
+        cache = _thread_local.slide_cache
+    if path not in cache:
+        cache[path] = _new_slide(path)
+    return cache[path]
+
+
+def close_cached_slides() -> None:
+    """Close and evict all cached slide handles for the current thread.
+
+    Must be called by the producer thread after finishing a slide to prevent
+    resource leaks. Safe to call even if no slides are cached.
+    """
+    cache = getattr(_thread_local, "slide_cache", {})
+    for path, slide in list(cache.items()):
+        try:
+            if hasattr(slide, "close"):
+                slide.close()
+        except Exception:
+            logger.warning("Failed to close cached slide for path %s", path)
+    _thread_local.slide_cache = {}
 
 
 def _get_mpp0(slide) -> float:
@@ -25,7 +66,7 @@ def _get_mpp0(slide) -> float:
     raise ValueError("Could not retrieve mpp metadata from slide.mpp or openslide.mpp-x property.")
 
 
-def read_region(path: str, x: int, y: int, w: int, h: int, level: int) -> Optional[np.ndarray]:
+def read_region(path: str, x: int, y: int, w: int, h: int, level: int) -> np.ndarray:
     """
     Return the requested region at the given pyramid level as a NumPy array.
 
@@ -40,14 +81,10 @@ def read_region(path: str, x: int, y: int, w: int, h: int, level: int) -> Option
     Returns:
         NumPy array of shape (h, w, 3), dtype uint8.
     """
-    with _open_slide(path) as slide:
-        if hasattr(slide, "convert_level0_to_level_native"):
-            # fastslide uses level-native coordinates; convert from level-0 coords.
-            x_native, y_native = slide.convert_level0_to_level_native(x, y, level)
-            region = slide.read_region((x_native, y_native), level, (w, h))
-            return np.asarray(region.numpy())
-        region = slide.read_region((x, y), level, (w, h))
-        return np.asarray(region.convert("RGB"))
+    slide = _get_cached_slide(path)
+    x_native, y_native = slide.convert_level0_to_level_native(x, y, level)
+    region = slide.read_region((x_native, y_native), level, (w, h))
+    return np.asarray(region.numpy())
 
 
 def get_dimensions_for_level(path: str, level: int) -> Tuple[int, int]:
