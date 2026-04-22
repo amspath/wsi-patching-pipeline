@@ -24,11 +24,17 @@ def _plan(tile_size: int, stride: int, mode: str = "any_overlap") -> list:
 
 @pytest.mark.parametrize("tile_size,stride", [(224, 224), (128, 128), (128, 64)])
 def test_tile_planner_any_overlap(benchmark, tile_size, stride):
-    tiles = benchmark(_plan, tile_size, stride, "any_overlap")
+    def _run():
+        return _plan(tile_size, stride, "any_overlap")
+
+    tiles = benchmark.pedantic(_run, warmup_rounds=3, rounds=100, iterations=20)
     assert len(tiles) > 0
 
 
 @pytest.mark.parametrize("tile_size,stride", [(224, 224), (128, 128), (128, 64)])
 def test_tile_planner_full_inside_bounds(benchmark, tile_size, stride):
-    tiles = benchmark(_plan, tile_size, stride, "full_inside_bounds")
+    def _run():
+        return _plan(tile_size, stride, "full_inside_bounds")
+
+    tiles = benchmark.pedantic(_run, warmup_rounds=3, rounds=100, iterations=20)
     assert len(tiles) > 0

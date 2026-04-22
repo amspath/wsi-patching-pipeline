@@ -297,7 +297,7 @@ class RegionReadAndBatch(Stage):
     """
     For each RegionTask:
       - open slide (per-process, no sharing)
-      - read the entire region once (cuCIM read_region with num_workers, else PIL crop)
+      - read the entire region once
       - slice region into tile patches
       - Pad or drop patches at the wsi edge according to edge_policy
       - accumulate into batches of 'batch_size', yield {"batch": [samples,...]}
@@ -309,7 +309,6 @@ class RegionReadAndBatch(Stage):
     def __init__(
         self,
         batch_size: int = 200,
-        num_workers: int = 8,
         wsi_edge_policy: Literal["drop", "pad_with_zeros", "pad_with_edge"] = "pad_with_zeros",
         roi_edge_policy: Literal["read_from_image", "use_wsi_edge_policy"] = "use_wsi_edge_policy",
         dtype: str = np.uint8,
@@ -317,7 +316,6 @@ class RegionReadAndBatch(Stage):
         """
         Args:
             batch_size: Maximum number of patches per output batch
-            num_workers: number of parallel workers for reading WSI images using cuCIM
             wsi_edge_policy: how to handle tiles that extend beyond the WSI edge.
                 - "drop": drop incomplete tiles
                 - "pad_with_zeros": right/bottom pad incomplete tiles with zeros
@@ -330,7 +328,6 @@ class RegionReadAndBatch(Stage):
             dtype: output patch dtype, e.g. np.uint8 or np.float32
         """
         self.batch_size = int(batch_size)
-        self.num_workers = int(num_workers)
         self.dtype = dtype
         self.roi_edge_policy = roi_edge_policy
         self.wsi_edge_policy = wsi_edge_policy
@@ -455,7 +452,6 @@ class PatchExtractor(Stage):
         stride: int,
         tile_selection_mode: Literal["any_overlap", "full_inside_bounds", "center_in_roi"] = "any_overlap",
         max_batch_size: int = 200,
-        num_workers: int = 8,
         wsi_edge_policy: Literal["drop", "pad_with_zeros", "pad_with_edge"] = "pad_with_zeros",
         roi_edge_policy: Literal["read_from_image", "use_wsi_edge_policy"] = "use_wsi_edge_policy",
         dtype: str = np.uint8,
@@ -467,7 +463,6 @@ class PatchExtractor(Stage):
             stride: spacing between patch top-left corners of each of the patches
             tile_selection_mode: how to select tiles with respect to ROIs.
             max_batch_size: Maximum number of patches per output batch
-            num_workers: number of parallel workers for reading WSI images using cuCIM
             wsi_edge_policy: how to handle tiles that extend beyond the WSI edge.
                 - "drop": drop incomplete tiles
                 - "pad_with_zeros": right/bottom pad incomplete tiles with zeros
@@ -486,7 +481,6 @@ class PatchExtractor(Stage):
             tile_selection_mode=tile_selection_mode,
             max_window_size=max_window_size,
             batch_size=max_batch_size,
-            num_workers=num_workers,
             dtype=dtype,
             wsi_edge_policy=wsi_edge_policy,
             roi_edge_policy=roi_edge_policy,
@@ -497,7 +491,6 @@ class PatchExtractor(Stage):
         self._rwc = ReadWindowChunker(max_window_size=max_window_size)
         self._rbb = RegionReadAndBatch(
             batch_size=max_batch_size,
-            num_workers=num_workers,
             dtype=dtype,
             wsi_edge_policy=wsi_edge_policy,
             roi_edge_policy=roi_edge_policy,

@@ -31,5 +31,5 @@ def test_pipeline_throughput(benchmark, synthetic_slide_path, tile_size, stride,
     def run():
         result["total"] = _run_pipeline(synthetic_slide_path, tile_size, stride)
 
-    benchmark.pedantic(run, warmup_rounds=2, rounds=40)
+    benchmark.pedantic(run, warmup_rounds=2, rounds=25, iterations=3)
     assert result["total"] == expected

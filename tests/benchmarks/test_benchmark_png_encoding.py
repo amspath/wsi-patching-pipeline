@@ -24,7 +24,9 @@ def single_patch():
 
 
 def test_encode_single_patch(benchmark, encoder, single_patch):
-    result = benchmark(encoder._encode_one, single_patch)
+    def _run():
+        return encoder._encode_one(single_patch)
+    result = benchmark.pedantic(_run, warmup_rounds=3, rounds=50, iterations=5)
     assert len(result) > 0
 
 
@@ -35,6 +37,6 @@ def test_encode_batch(benchmark, encoder, make_patch_batch, batch_size):
     def _run():
         return list(encoder([batch]))
 
-    results = benchmark.pedantic(_run, warmup_rounds=3, rounds=100)
+    results = benchmark.pedantic(_run, warmup_rounds=3, rounds=50, iterations=5)
     assert len(results) == 1
     assert len(results[0].encoded_patches) == batch_size
