@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Iterable, List, Union
 
 import numpy as np
@@ -26,7 +27,7 @@ class CellVitTissueClassifierFilter(Stage):
       - Adds per-patch predictions & probabilities to batch.meta
     """
 
-    def __init__(self):
+    def __init__(self, model_file_path: Union[str, Path]):
         self.model_train_size = 224
 
         self.model: Union[nn.Module, None] = None
@@ -35,7 +36,7 @@ class CellVitTissueClassifierFilter(Stage):
         self.mean = torch.tensor([0.485, 0.456, 0.406]).view(1, 3, 1, 1)
         self.std = torch.tensor([0.229, 0.224, 0.225]).view(1, 3, 1, 1)
 
-        self._ckpt_resource = files("wsi_patching").joinpath("assets/models/cellvit_tissue_detector.pt")
+        self._ckpt_resource = files("wsi_patching").joinpath(str(model_file_path))
 
     def validate(self):
         # Use ctx['use_gpu'] if provided by the pipeline, else prefer_gpu
