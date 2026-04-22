@@ -8,8 +8,7 @@ try:
     from torchvision.models import mobilenet_v3_small
 except ImportError as e:
     raise ImportError(
-        "CellVitTissueClassifierFilter requires torch and torchvision. "
-        "Install them with: pip install wsi-patching[gpu]"
+        "CellVitTissueClassifierFilter requires torch and torchvision. Install them with: pip install wsi-patching[gpu]"
     ) from e
 
 from importlib.resources import as_file, files
@@ -62,6 +61,7 @@ class CellVitTissueClassifierFilter(Stage):
 
             with torch.inference_mode():
                 t = self._preprocess_batch(patches)  # (B,3,S,S) on device
+                assert self.model is not None
                 logits = self.model(t)  # (B,4)
                 probs = torch.softmax(logits, dim=1)  # (B,4)
                 preds = torch.argmax(probs, dim=1)  # (B,)

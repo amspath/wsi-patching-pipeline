@@ -1,23 +1,17 @@
 import textwrap
-import xml.etree.ElementTree as ET
 from dataclasses import dataclass
-from typing import Tuple
 from unittest.mock import patch
 
 import pytest
 
-from wsi_patching.regions_of_interest.roi_providers import RectROIProvider, RectROIfromXMLProvider, WholeSlideProvider
+from wsi_patching.core.types.types import SlideBase
+from wsi_patching.regions_of_interest.roi_providers import RectROIfromXMLProvider, RectROIProvider, WholeSlideProvider
 from wsi_patching.regions_of_interest.rois import BoxROI
 
 
-@dataclass
-class SlideStub:
-    wsi_id: str
-    wsi_path: str
-    dims: Tuple[int, int]  # (W, H)
-    meta: dict
-    level: int = 0
-    resample_factor: float = 1.0
+@dataclass(frozen=True)
+class SlideStub(SlideBase):
+    pass
 
 
 def _write_xml(tmp_path, group: str, x1: float, y1: float, x2: float, y2: float) -> str:
@@ -40,7 +34,7 @@ def _write_xml(tmp_path, group: str, x1: float, y1: float, x2: float, y2: float)
 
 
 def test_rect_roi_provider_ok_and_out_of_bounds():
-    slide = SlideStub("S", "/p", (100, 80), {})
+    slide = SlideStub("S", "/p", (100, 80), 0)
     prov = RectROIProvider(rois={"S": [(0, 0, 50, 50), (50, 30, 50, 50)]})
     rois = prov.for_slide(slide)
     assert len(rois) == 2
@@ -57,7 +51,7 @@ def test_rect_roi_provider_ok_and_out_of_bounds():
 
 
 def test_whole_slide_provider():
-    slide = SlideStub("S", "/p", (123, 77), {})
+    slide = SlideStub("S", "/p", (123, 77), 0)
     rois = WholeSlideProvider().for_slide(slide)
     assert len(rois) == 1
     assert rois[0].bounds() == (0, 0, 123, 77)
@@ -69,7 +63,7 @@ def test_whole_slide_provider():
 def test_xml_provider_default_group(tmp_path):
     """Default annotation_group='roi', no scaling → correct BoxROI returned."""
     xml = _write_xml(tmp_path, "roi", 10, 20, 60, 70)
-    slide = SlideStub("S", "/p", (200, 200), {}, level=0)
+    slide = SlideStub("S", "/p", (200, 200), 0)
     prov = RectROIfromXMLProvider(rois={"S": xml})
     rois = prov.for_slide(slide)
     assert len(rois) == 1
@@ -100,7 +94,7 @@ def test_xml_provider_custom_group(tmp_path):
     """)
     p = tmp_path / "ann.xml"
     p.write_text(xml)
-    slide = SlideStub("S", "/p", (200, 200), {}, level=0)
+    slide = SlideStub("S", "/p", (200, 200), 0)
 
     prov_tissue = RectROIfromXMLProvider(rois={"S": str(p)}, annotation_group="tissue")
     assert prov_tissue.for_slide(slide)[0].bounds() == (0, 0, 10, 10)
@@ -112,7 +106,7 @@ def test_xml_provider_custom_group(tmp_path):
 def test_xml_provider_same_level_no_backend_call(tmp_path):
     """annotation_level == slide.level → get_level_downsamples is NOT called."""
     xml = _write_xml(tmp_path, "roi", 0, 0, 50, 50)
-    slide = SlideStub("S", "/p", (200, 200), {}, level=1)
+    slide = SlideStub("S", "/p", (200, 200), 1)
     prov = RectROIfromXMLProvider(rois={"S": xml}, annotation_level=1)
 
     _backend = "wsi_patching.regions_of_interest.roi_providers.get_level_downsamples"
@@ -128,7 +122,7 @@ def test_xml_provider_annotation_level_scaling(tmp_path):
     # Annotation drawn at level 0: (100, 200) → (300, 400) → w=200, h=200
     xml = _write_xml(tmp_path, "roi", 100, 200, 300, 400)
     # slide.level=1, dims at level 1 are smaller
-    slide = SlideStub("S", "/p", (500, 500), {}, level=1)
+    slide = SlideStub("S", "/p", (500, 500), 1)
     prov = RectROIfromXMLProvider(rois={"S": xml}, annotation_level=0)
 
     _backend = "wsi_patching.regions_of_interest.roi_providers.get_level_downsamples"
@@ -144,7 +138,7 @@ def test_xml_provider_out_of_bounds_after_scaling(tmp_path):
     # Annotation at level 0 covering (0,0)→(400,400); after scale=0.5 → (0,0,200,200)
     # But slide dims are only (100, 100) at level 1 → out of bounds
     xml = _write_xml(tmp_path, "roi", 0, 0, 400, 400)
-    slide = SlideStub("S", "/p", (100, 100), {}, level=1)
+    slide = SlideStub("S", "/p", (100, 100), 1)
     prov = RectROIfromXMLProvider(rois={"S": xml}, annotation_level=0)
 
     _backend = "wsi_patching.regions_of_interest.roi_providers.get_level_downsamples"
@@ -159,7 +153,7 @@ def test_xml_provider_resample_factor_same_level(tmp_path):
     # slide.level=0, rf=2.0 → virtual dims are half of level-0
     # scale = 1.0 / 2.0 = 0.5 → ROI becomes (50, 100, 100, 100)
     xml = _write_xml(tmp_path, "roi", 100, 200, 300, 400)
-    slide = SlideStub("S", "/p", (500, 500), {}, level=0, resample_factor=2.0)
+    slide = SlideStub("S", "/p", (500, 500), 0, resample_factor=2.0)
     prov = RectROIfromXMLProvider(rois={"S": xml}, annotation_level=0)
     rois = prov.for_slide(slide)
     assert rois[0].bounds() == (50, 100, 100, 100)
@@ -172,7 +166,7 @@ def test_xml_provider_resample_factor_with_level_scaling(tmp_path):
     # scale = ds[0]/ds[1] / rf = 1.0/2.0 / 2.0 = 0.25
     # ROI becomes (25, 50, 50, 50)
     xml = _write_xml(tmp_path, "roi", 100, 200, 300, 400)
-    slide = SlideStub("S", "/p", (500, 500), {}, level=1, resample_factor=2.0)
+    slide = SlideStub("S", "/p", (500, 500), 1, resample_factor=2.0)
     prov = RectROIfromXMLProvider(rois={"S": xml}, annotation_level=0)
 
     _backend = "wsi_patching.regions_of_interest.roi_providers.get_level_downsamples"
@@ -190,7 +184,7 @@ def test_xml_provider_resample_factor_out_of_bounds(tmp_path):
     # Without fix: scale=1.0, 74501 > 67399 → spurious ValueError
     # With fix: scale=1.0/2.0=0.5, coords become (0,0,37250,22494) → valid
     xml = _write_xml(tmp_path, "roi", 0, 0, 74501, 44989)
-    slide = SlideStub("S", "/p", (67399, 44989), {}, level=0, resample_factor=2.0)
+    slide = SlideStub("S", "/p", (67399, 44989), 0, resample_factor=2.0)
     prov = RectROIfromXMLProvider(rois={"S": xml}, annotation_level=0)
     rois = prov.for_slide(slide)
     assert len(rois) == 1
@@ -199,7 +193,9 @@ def test_xml_provider_resample_factor_out_of_bounds(tmp_path):
     assert rois[0].bounds()[1] == 0
 
 
-def _write_polygon_bbox_xml(tmp_path, group: str, x1: float, y1: float, x2: float, y2: float, filename: str = "ann.xml") -> str:
+def _write_polygon_bbox_xml(
+    tmp_path, group: str, x1: float, y1: float, x2: float, y2: float, filename: str = "ann.xml"
+) -> str:
     """Write a minimal XML with one Polygon annotation that forms a 4-point axis-aligned bounding box."""
     xml = textwrap.dedent(f"""\
         <Annotations>
@@ -221,7 +217,7 @@ def _write_polygon_bbox_xml(tmp_path, group: str, x1: float, y1: float, x2: floa
 def test_xml_provider_polygon_valid_bbox(tmp_path):
     """4-point Polygon annotation that is a valid axis-aligned bounding box is accepted."""
     xml = _write_polygon_bbox_xml(tmp_path, "roi", 10, 20, 60, 70)
-    slide = SlideStub("S", "/p", (200, 200), {}, level=0)
+    slide = SlideStub("S", "/p", (200, 200), 0)
     prov = RectROIfromXMLProvider(rois={"S": xml})
     rois = prov.for_slide(slide)
     assert len(rois) == 1
@@ -245,7 +241,7 @@ def test_xml_provider_polygon_too_many_points(tmp_path):
     """)
     p = tmp_path / "ann.xml"
     p.write_text(xml)
-    slide = SlideStub("S", "/p", (200, 200), {}, level=0)
+    slide = SlideStub("S", "/p", (200, 200), 0)
     prov = RectROIfromXMLProvider(rois={"S": str(p)})
     with pytest.raises(ValueError, match="5 point"):
         prov.for_slide(slide)
@@ -267,7 +263,7 @@ def test_xml_provider_polygon_not_axis_aligned(tmp_path):
     """)
     p = tmp_path / "ann.xml"
     p.write_text(xml)
-    slide = SlideStub("S", "/p", (200, 200), {}, level=0)
+    slide = SlideStub("S", "/p", (200, 200), 0)
     prov = RectROIfromXMLProvider(rois={"S": str(p)})
     with pytest.raises(ValueError, match="axis-aligned"):
         prov.for_slide(slide)
@@ -297,7 +293,7 @@ def test_xml_provider_polygon_mixed_with_rectangle(tmp_path):
     """)
     p = tmp_path / "ann.xml"
     p.write_text(xml)
-    slide = SlideStub("S", "/p", (200, 200), {}, level=0)
+    slide = SlideStub("S", "/p", (200, 200), 0)
     prov = RectROIfromXMLProvider(rois={"S": str(p)})
     rois = prov.for_slide(slide)
     assert len(rois) == 2
@@ -328,7 +324,7 @@ def test_xml_provider_polygon_other_type_skipped(tmp_path):
     """)
     p = tmp_path / "ann.xml"
     p.write_text(xml)
-    slide = SlideStub("S", "/p", (200, 200), {}, level=0)
+    slide = SlideStub("S", "/p", (200, 200), 0)
     prov = RectROIfromXMLProvider(rois={"S": str(p)})
     rois = prov.for_slide(slide)
     assert len(rois) == 1

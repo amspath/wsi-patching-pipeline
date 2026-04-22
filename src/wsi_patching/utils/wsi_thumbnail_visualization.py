@@ -1,5 +1,6 @@
 from pathlib import Path
 from typing import Iterable, Mapping, Optional, Sequence, Tuple, Union
+from typing import cast as _cast
 
 import numpy as np
 from PIL import Image, ImageDraw
@@ -19,7 +20,7 @@ def visualize_selected_patches(
     thumb_long_side: int = 2000,
     selected_outline_rgba: Tuple[int, int, int, int] = (0, 220, 0, 100),
     save_path: Union[str, Path, None] = None,
-) -> Image:
+) -> Image.Image:
     """
     Render a thumbnail of the WSI and optionally overlay the actual patch images.
 
@@ -62,7 +63,8 @@ def visualize_selected_patches(
         if isinstance(patch_images, Mapping):
             # dict mapping top-left to image
             for k, v in patch_images.items():
-                coord_to_patch[(int(k[0]), int(k[1]))] = np.asarray(v)
+                _k = _cast(Sequence[int], k)
+                coord_to_patch[(int(_k[0]), int(_k[1]))] = np.asarray(v)
         else:
             # assume same order as coords
             if len(patch_images) != len(coords_arr):
@@ -128,7 +130,7 @@ def visualize_selected_patches(
             dst_w = max(1, int(round(patch_size * sx)))
             dst_h = max(1, int(round(patch_size * sy)))
             if patch_img.size != (dst_w, dst_h):
-                patch_img = patch_img.resize((dst_w, dst_h), resample=Image.BILINEAR)
+                patch_img = patch_img.resize((dst_w, dst_h), resample=Image.Resampling.BILINEAR)
 
             # destination location on the thumbnail
             x0_t, y0_t = int(round(x * sx)), int(round(y * sy))
@@ -169,9 +171,7 @@ def get_thumbnail(path, max_thumbnail_size: tuple[int, int], slide_dimensions: t
     else:
         im = im.convert("RGB")
 
-    # Pillow resampling constant handling
-    Resampling = getattr(Image, "Resampling", Image)
-    im.thumbnail(max_thumbnail_size, Resampling.LANCZOS)
+    im.thumbnail(max_thumbnail_size, Image.Resampling.LANCZOS)
     return im
 
 

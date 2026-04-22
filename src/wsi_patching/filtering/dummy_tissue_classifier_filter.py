@@ -4,8 +4,7 @@ try:
     import torch
 except ImportError as e:
     raise ImportError(
-        "DummyTissueClassifierFilter requires torch. "
-        "Install it with: pip install wsi-patching[gpu]"
+        "DummyTissueClassifierFilter requires torch. Install it with: pip install wsi-patching[gpu]"
     ) from e
 
 from wsi_patching.backends.cupy_numpy import ensure_numpy

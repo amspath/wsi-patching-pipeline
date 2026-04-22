@@ -16,7 +16,7 @@ def main():
 
     p = (
         # Since both macenko and PenArtifaceFilter can run on GPU, we set use_gpu=True here. Adjust as needed.
-        WSIGrid(slides=slides, resolution=2, unit="level", use_gpu=False)
+        WSIGrid(slides=slides, resolution=2, unit="level", use_gpu=True)
         .then(AttachROIs(providers=[RectROIfromXMLProvider(rois=roi_xml, annotation_level=0)]))
         .then(PatchExtractor(tile_size=256, stride=256, max_batch_size=800))
         .then(PenArtifactFilter())
@@ -31,6 +31,7 @@ def main():
         ...
 
     logging.warning(f"Done in {time.time() - start_time:.1f} seconds.")
+
 
 if __name__ == "__main__":
     main()

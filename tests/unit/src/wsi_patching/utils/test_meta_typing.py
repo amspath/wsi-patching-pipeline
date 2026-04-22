@@ -1,4 +1,4 @@
-from typing import Iterable, Optional, Union
+from typing import Any, ClassVar, Iterable, Optional, Union
 
 import pytest
 
@@ -8,6 +8,9 @@ from wsi_patching.utils.meta_typing import ContextAware, PipelineContext, StageM
 # -------- StageMeta --------
 def test_stage_meta_infers_iterable_payload_and_return_scalar():
     class S(metaclass=StageMeta):
+        input_type: ClassVar[Any]
+        output_type: ClassVar[Any]
+
         def __call__(self, it: Iterable[int]) -> str:
             return "x"
 
@@ -17,6 +20,9 @@ def test_stage_meta_infers_iterable_payload_and_return_scalar():
 
 def test_stage_meta_infers_union_payload_and_union_return():
     class S(metaclass=StageMeta):
+        input_type: ClassVar[Any]
+        output_type: ClassVar[Any]
+
         def __call__(self, it: Iterable[Union[int, str]]) -> Union[bytes, str]:
             return b"x"
 
@@ -28,6 +34,9 @@ def test_stage_meta_infers_union_payload_and_union_return():
 
 def test_stage_meta_ignores_none_in_union_optional():
     class S(metaclass=StageMeta):
+        input_type: ClassVar[Any]
+        output_type: ClassVar[Any]
+
         def __call__(self, it: Iterable[Optional[Union[int, str]]]) -> Optional[int]:
             return 1
 
@@ -46,6 +55,8 @@ def test_stage_meta_defaults_to_object_when_no_annotations():
 # -------- WriterMeta --------
 def test_writer_meta_infers_iterable_payload():
     class W(metaclass=WriterMeta):
+        input_type: ClassVar[Any]
+
         def write(self, batch: Iterable[float]) -> None:
             pass
 

@@ -6,18 +6,23 @@ A 10 000×10 000 virtual bounding box is used so tile counts are large:
   128 px / stride 128  →  ~6 100 tiles
   128 px / stride  64  →  ~24 000 tiles  (overlapping)
 """
+
 from __future__ import annotations
+
+from typing import Literal
 
 import pytest
 
 from wsi_patching.core.chunking_and_batching import TilePlanner
 from wsi_patching.regions_of_interest.rois import BoxROI
 
+TileMode = Literal["any_overlap", "full_inside_bounds", "center_in_roi"]
+
 SIDE = 10_000
 ROI = BoxROI(x=0, y=0, w=SIDE, h=SIDE)
 
 
-def _plan(tile_size: int, stride: int, mode: str = "any_overlap") -> list:
+def _plan(tile_size: int, stride: int, mode: TileMode = "any_overlap") -> list:
     planner = TilePlanner(tile_size=tile_size, stride=stride, tile_selection_mode=mode)
     return planner._generate_tiles_vectorized(ROI, 0, 0, SIDE, SIDE, SIDE, SIDE, tile_size, stride)
 

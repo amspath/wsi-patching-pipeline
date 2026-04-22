@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any, Iterable, List, Literal
+from typing import Any, Iterable, List, Literal, cast
 
 from wsi_patching.backends.cupy_numpy import validate_xp_backend
 from wsi_patching.backends.fastslide import (
@@ -83,7 +83,9 @@ class WSIGrid(Stage):
             downsample = level_downsamples[selected_level]
 
             if self.fallback_mode == "resample":
-                rf = get_resample_factor(path, self.resolution, self.unit, selected_level)
+                rf = get_resample_factor(
+                    path, self.resolution, cast(Literal["mpp", "downsample"], self.unit), selected_level
+                )
                 W_virtual = round(W / rf)
                 H_virtual = round(H / rf)
                 virtual_ds = downsample * rf

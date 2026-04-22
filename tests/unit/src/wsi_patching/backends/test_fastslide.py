@@ -1,3 +1,5 @@
+from typing import Literal, cast
+
 import numpy as np
 import pytest
 
@@ -64,7 +66,6 @@ class FakeFastSlide:
         self.read_region_calls.append({"location": location, "level": level, "size": size})
         w, h = size
         return FakeRegion(w, h, fill=self._fill)
-
 
 
 def _make_patcher(fake: FakeFastSlide):
@@ -279,11 +280,21 @@ class TestGetLevelForResolutionInvalidInputs:
 
     def test_unknown_unit_raises(self):
         with pytest.raises(ValueError, match="Unknown unit"):
-            mod.get_level_for_resolution("dummy.svs", resolution=1.0, unit="pixels", fallback_mode="nearest")
+            mod.get_level_for_resolution(
+                "dummy.svs",
+                resolution=1.0,
+                unit=cast(Literal["level", "mpp", "downsample"], "pixels"),
+                fallback_mode="nearest",
+            )
 
     def test_unknown_fallback_mode_raises(self):
         with pytest.raises(ValueError, match="Unknown fallback_mode"):
-            mod.get_level_for_resolution("dummy.svs", resolution=1.0, unit="downsample", fallback_mode="fuzzy")
+            mod.get_level_for_resolution(
+                "dummy.svs",
+                resolution=1.0,
+                unit="downsample",
+                fallback_mode=cast(Literal["nearest", "floor", "ceil", "error", "resample"], "fuzzy"),
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -339,6 +350,7 @@ class TestReadRegion:
         mod.read_region("test.svs", x=0, y=0, w=4, h=4, level=2)
 
         assert fake.read_region_calls[0]["level"] == 2
+
 
 # ---------------------------------------------------------------------------
 # get_level_for_resolution — fallback_mode="resample"
@@ -421,7 +433,12 @@ class TestGetResampleFactor:
 
     def test_unknown_unit_raises(self):
         with pytest.raises(ValueError, match="Unknown unit"):
-            mod.get_resample_factor("dummy.svs", resolution=1.0, unit="level", selected_level=0)
+            mod.get_resample_factor(
+                "dummy.svs",
+                resolution=1.0,
+                unit=cast(Literal["mpp", "downsample"], "level"),
+                selected_level=0,
+            )
 
     def test_missing_mpp_raises(self, monkeypatch):
         fake_no_mpp = FakeFastSlide("dummy.svs", mpp=(None, None))

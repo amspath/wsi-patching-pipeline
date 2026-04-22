@@ -1,14 +1,11 @@
-from typing import TYPE_CHECKING, Iterable, Literal, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Iterator, Literal, Optional, Tuple, Union
 
 import numpy as np
 
 try:
     import torch
 except ImportError as e:
-    raise ImportError(
-        "TorchStreamWriter requires torch. "
-        "Install it with: pip install wsi-patching[gpu]"
-    ) from e
+    raise ImportError("TorchStreamWriter requires torch. Install it with: pip install wsi-patching[gpu]") from e
 
 from wsi_patching.core.types.types import CollatedPatchBatch
 from wsi_patching.writers.stream_writers.stream_writer_base import StreamWriterBase
@@ -38,9 +35,10 @@ class TorchStreamWriter(StreamWriterBase):
         if self.device is None:
             self.device = torch.device("cuda" if self._ctx["use_gpu"] else "cpu")
 
-    def stream(self, batch: Iterable[CollatedPatchBatch]) -> Iterable[Tuple[str, torch.Tensor, torch.Tensor, dict]]:
+    def stream(self, batch: CollatedPatchBatch) -> Iterator[Tuple[str, torch.Tensor, torch.Tensor, Any]]:
         self.log.info(f"Received batch from wsi: {batch.wsi_id} size: {len(batch.patches)}")
 
+        assert self.device is not None
         # coords -> torch.long on target device
         coords_t = torch.as_tensor(batch.coords, dtype=torch.long, device=self.device)
 

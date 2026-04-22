@@ -136,7 +136,7 @@ class Pipeline(Stage):
             ):
                 errors.append(
                     f"Type mismatch: {type(self.stages[-1]).__name__}.out={_tname(self.stages[-1].output_type)} "
-                    f"-> {type(self.writer).__name__}.in={_tname(self.writer.input_type)}"
+                    f"-> {type(self.writer).__name__}.in={_tname(getattr(self.writer, 'input_type', object))}"
                 )
         if errors:
             raise TypeError("Pipeline type preflight failed:\n  - " + "\n  - ".join(errors))
@@ -175,7 +175,7 @@ class Pipeline(Stage):
         profile: bool,
         verbosity: LogLevel,
         gracefully_handle_producer_errors: bool,
-        sink_runner: Callable[[Queue], Union[Iterable[Any], Any]],
+        sink_runner: Callable[[Queue, Any, Any], Union[Iterable[Any], Any]],
         streaming: bool,
     ):
         """
@@ -402,7 +402,7 @@ class Pipeline(Stage):
                         active.append(spawn_for(pending.pop(0)))
                         self.log.info("Spawning new producer... %d slides left.", len(pending))
 
-                if profile and profiler_queue is not None and getattr(self, "prof_agg", None) is not None:
+                if profile and profiler_queue is not None and self.prof_agg is not None:
                     received, expected = 0, len(slides)
                     while received < expected:
                         try:
@@ -449,7 +449,11 @@ class Pipeline(Stage):
                 f"The writer {self.writer.__class__} is a MaterializeWriterBase; use .materialize() instead."
             )
 
-        sink_runner: Callable[[Queue], Iterable[Any]] = lambda q, v, e: self.writer.start_writer(q, v, stop_event=e)
+        assert self.writer is not None
+        _writer = self.writer
+        sink_runner: Callable[[Queue, Any, Any], Iterable[Any]] = lambda q, v, e: _writer.start_writer(
+            q, v, stop_event=e
+        )
 
         yield from self._orchestrate(
             num_workers=num_workers,
@@ -485,7 +489,9 @@ class Pipeline(Stage):
         if isinstance(self.writer, StreamWriterBase):
             raise RuntimeError(f"The writer {self.writer.__class__} is a StreamWriterBase; use .stream() instead.")
 
-        sink_runner: Callable[[Queue], Iterable[Any] | Any] = lambda q, v, e: self.writer.start_writer(
+        assert self.writer is not None
+        _writer = self.writer
+        sink_runner: Callable[[Queue, Any, Any], Iterable[Any] | Any] = lambda q, v, e: _writer.start_writer(
             q, v, stop_event=e
         )
 

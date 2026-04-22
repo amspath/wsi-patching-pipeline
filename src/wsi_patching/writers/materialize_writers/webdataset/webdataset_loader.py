@@ -1,6 +1,6 @@
 from glob import glob
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, List, Optional, Tuple, cast
 
 import numpy as np
 import orjson
@@ -9,11 +9,9 @@ import webdataset as wds
 try:
     import torch
     from torch.utils.data import DataLoader
+    from torch.utils.data import IterableDataset as TorchIterableDataset
 except ImportError as e:
-    raise ImportError(
-        "WebDatasetLoader requires torch. "
-        "Install it with: pip install wsi-patching[gpu]"
-    ) from e
+    raise ImportError("WebDatasetLoader requires torch. Install it with: pip install wsi-patching[gpu]") from e
 
 
 class WebDatasetLoader:
@@ -53,13 +51,13 @@ class WebDatasetLoader:
         return any(key.startswith(prefix) for prefix in self.sampled_wsi_names)
 
     # ---- dataset & dataloader -----------------------------------------------
-    def get_dataset(self) -> Iterable[Dict[str, Any]]:
+    def get_dataset(self) -> "TorchIterableDataset[Dict[str, Any]]":
         self.shards = sorted(glob(str(self.tar_dir / "*.tar")))
         if not self.shards:
             raise FileNotFoundError(f"No shards found in {self.tar_dir}")
 
         # Build core pipeline
-        ds = wds.WebDataset(self.shards, shardshuffle=50)
+        ds = wds.WebDataset(self.shards, shardshuffle=50)  # ty: ignore[unresolved-attribute]
 
         # Optional prefix-filter on __key__
         if self.sampled_wsi_names:
@@ -74,7 +72,7 @@ class WebDatasetLoader:
 
         ds = ds.map(WebDatasetLoader._map_to_dict)
 
-        return ds
+        return cast("TorchIterableDataset[Dict[str, Any]]", ds)
 
     @staticmethod
     def _map_to_dict(sample):
@@ -90,7 +88,7 @@ class WebDatasetLoader:
         pin_memory: bool = True,
         safe_collate: bool = True,
         persistent_workers: bool = True,
-        prefetch_factor: int = 4,
+        prefetch_factor: Optional[int] = 4,
     ) -> DataLoader:
         dataset = self.get_dataset()
         collate_fn = self.safe_collate if safe_collate else None
@@ -112,14 +110,14 @@ class WebDatasetLoader:
         )
 
     # ---- collate that “just works” ------------------------------------------
-    def safe_collate(self, batch: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def safe_collate(self, batch: List[Dict[str, Any]]) -> Tuple[Any, List[str], List[Any]]:
         """
         - Converts HWC uint8 numpy images to float32 tensors in [0,1] and stacks to [B, C, H, W].
         - Keeps keys as a list[str].
         - Keeps metas as a list[dict].
         """
         if not batch:
-            return {"patch": torch.empty(0), "key": [], "meta": []}
+            return torch.empty(0), [], []
 
         # Images: convert each HWC uint8 numpy -> CHW float32 tensor in [0,1]
         imgs: List[torch.Tensor] = []

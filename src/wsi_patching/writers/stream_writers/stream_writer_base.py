@@ -1,7 +1,7 @@
 import logging
 from queue import Empty, Queue
 from threading import Event
-from typing import Any, Iterable, Optional
+from typing import Any, Iterable, Iterator, Optional
 
 from wsi_patching.core.types.util_types import EndOfQueue, EndOfStream
 from wsi_patching.utils.logging_config import LogLevel, init_logging
@@ -29,7 +29,7 @@ class StreamWriterBase(ContextAware, metaclass=WriterMeta):
         super().__init_subclass__(**kwargs)
         cls.log = logging.getLogger(f"{cls.__name__}")
 
-    def stream(self, batch: Iterable[Any]) -> Iterable[Any]:
+    def stream(self, batch: Any) -> Iterator[Any]:
         """Stream a batch of items. Must be implemented by subclass."""
         raise NotImplementedError
 

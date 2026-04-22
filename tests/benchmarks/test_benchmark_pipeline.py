@@ -6,6 +6,7 @@ Measures total wall time to drain all patches from a 2048×2048 synthetic TIFF.
   128 px / stride 128  →  256 patches
   224 px / stride 224  →   81 patches
 """
+
 from __future__ import annotations
 
 import pytest
