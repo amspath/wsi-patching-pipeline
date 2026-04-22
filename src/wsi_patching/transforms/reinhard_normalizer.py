@@ -1,4 +1,4 @@
-from typing import Iterable, Tuple
+from typing import Any, Iterable, Tuple
 
 import numpy as np
 
@@ -7,7 +7,7 @@ from wsi_patching.core.pipeline import Stage
 from wsi_patching.core.types.types import CollatedPatchBatch
 
 
-def _rgb_to_lab(rgb_nhwc: np.ndarray, xp) -> np.ndarray:
+def _rgb_to_lab(rgb_nhwc: np.ndarray, xp, rgb2xyz=None, white=None) -> np.ndarray:
     """
     Convert NHWC RGB (float32, [0,1]) to NHWC Lab.
     """
@@ -17,7 +17,6 @@ def _rgb_to_lab(rgb_nhwc: np.ndarray, xp) -> np.ndarray:
         rgb_nchw = rgb_nhwc.transpose(0, 3, 1, 2)  # (N,3,H,W)
     else:  # single image (H,W,3)
         rgb_nchw = rgb_nhwc.transpose(2, 0, 1)[None, ...]  # (1,3,H,W)
-        N = 1
 
     # sRGB -> linear RGB
     threshold = 0.04045
@@ -28,16 +27,18 @@ def _rgb_to_lab(rgb_nhwc: np.ndarray, xp) -> np.ndarray:
     )  # (N,3,H,W)
 
     # RGB -> XYZ
-    rgb2xyz = xp.array(
-        [[0.412453, 0.357580, 0.180423],
-        [0.212671, 0.715160, 0.072169],
-        [0.019334, 0.119193, 0.950227]], dtype=xp.float32
-    )
+    if rgb2xyz is None:
+        rgb2xyz = xp.array(
+            [[0.412453, 0.357580, 0.180423],
+            [0.212671, 0.715160, 0.072169],
+            [0.019334, 0.119193, 0.950227]], dtype=xp.float32
+        )
     # xyz[n,i,h,w] = Σ_j rgb2xyz[i,j] * lin_rgb[n,j,h,w]   ==   M @ rgb per pixel
     xyz = xp.einsum('ij, njhw -> nihw', rgb2xyz, lin_rgb)
 
     # Normalize for D65 white point
-    white = xp.array([0.95047, 1.0, 1.08883], dtype=xp.float32).reshape(1, 3, 1, 1)
+    if white is None:
+        white = xp.array([0.95047, 1.0, 1.08883], dtype=xp.float32).reshape(1, 3, 1, 1)
     xyz_norm = xyz / white
 
     # Non‑linear transform to Lab
@@ -59,7 +60,7 @@ def _rgb_to_lab(rgb_nhwc: np.ndarray, xp) -> np.ndarray:
     return lab_nhwc
 
 
-def _lab_to_rgb(lab_nhwc: np.ndarray, xp, clip: bool = True) -> np.ndarray:
+def _lab_to_rgb(lab_nhwc: np.ndarray, xp, clip: bool = True, white=None) -> np.ndarray:
     """
     Convert NHWC Lab to NHWC RGB (float32, [0,1]).
     """
@@ -87,7 +88,8 @@ def _lab_to_rgb(lab_nhwc: np.ndarray, xp, clip: bool = True) -> np.ndarray:
     xyz = xp.stack([fx_, fy_, fz_], axis=1)  # (N,3,H,W)
 
     # Denormalise for D65 white point
-    white = xp.array([0.95047, 1.0, 1.08883], dtype=xp.float32).reshape(1, 3, 1, 1)
+    if white is None:
+        white = xp.array([0.95047, 1.0, 1.08883], dtype=xp.float32).reshape(1, 3, 1, 1)
     xyz_im = xyz * white
 
     x = xyz_im[:, 0, :, :]
@@ -119,17 +121,19 @@ def _lab_to_rgb(lab_nhwc: np.ndarray, xp, clip: bool = True) -> np.ndarray:
 class ReinhardNormalizer(Stage):
     def __init__(
         self,
-        lab_reference_mean: Tuple[float, float, float] = [68.94, 29.76, -18.97],
-        lab_reference_std: Tuple[float, float, float] = [11.52, 13.42, 8.59],
+        lab_reference_mean: Tuple[float, float, float] = (68.94, 29.76, -18.97),
+        lab_reference_std: Tuple[float, float, float] = (11.52, 13.42, 8.59),
         apply_modified_reinhard: bool = False,
     ) -> None:
         self.lab_reference_mean = lab_reference_mean
         self.lab_reference_std = lab_reference_std
         self.apply_modified_reinhard = apply_modified_reinhard
 
-        self._xp = None
-        self._ref_mean = None
-        self._ref_std = None
+        self._xp: Any = None
+        self._ref_mean: Any = None
+        self._ref_std: Any = None
+        self._rgb2xyz: Any = None
+        self._white: Any = None
 
         self.log.info(f"ReinhardNormalizer initialized (modified={apply_modified_reinhard})")
 
@@ -142,6 +146,14 @@ class ReinhardNormalizer(Stage):
                 self._xp = get_xp_backend(self.ctx["use_gpu"])
                 self._ref_mean = self._xp.asarray(self.lab_reference_mean, dtype=self._xp.float32)
                 self._ref_std = self._xp.asarray(self.lab_reference_std, dtype=self._xp.float32)
+                self._rgb2xyz = self._xp.array(
+                    [[0.412453, 0.357580, 0.180423],
+                     [0.212671, 0.715160, 0.072169],
+                     [0.019334, 0.119193, 0.950227]], dtype=self._xp.float32
+                )
+                self._white = self._xp.array(
+                    [0.95047, 1.0, 1.08883], dtype=self._xp.float32
+                ).reshape(1, 3, 1, 1)
 
             patches = batch.patches  # NHWC uint8
             if patches.ndim != 4 or patches.shape[-1] != 3:
@@ -153,11 +165,12 @@ class ReinhardNormalizer(Stage):
             rgb_float = patches.astype(self._xp.float32) / 255.0  # (N, H, W, 3)
 
             # Convert to Lab (NHWC)
-            lab = _rgb_to_lab(rgb_float, self._xp)  # (N, H, W, 3)
+            lab = _rgb_to_lab(rgb_float, self._xp, rgb2xyz=self._rgb2xyz, white=self._white)  # (N, H, W, 3)
 
             # Compute per‑patch mean and std over spatial axes (H,W)
-            mean_lab = lab.reshape(len(lab), -1, 3).mean(axis=1)   # (N,3)
-            std_lab = lab.reshape(len(lab), -1, 3).std(axis=1, ddof=1)  # (N,3)
+            lab_flat = lab.reshape(len(lab), -1, 3)
+            mean_lab = lab_flat.mean(axis=1)   # (N,3)
+            std_lab = lab_flat.std(axis=1, ddof=1)  # (N,3)
 
             if not self.apply_modified_reinhard:
                 # Standard Reinhard
@@ -176,8 +189,8 @@ class ReinhardNormalizer(Stage):
                     (lab[..., 0] - mean_lab[:, 0][:, None, None]) * q_mul[:, None, None]
                     + mean_lab[:, 0][:, None, None]
                 )
-                a_new = lab[..., 1]
-                b_new = lab[..., 2]
+                a_new = lab[..., 1].copy()
+                b_new = lab[..., 2].copy()
 
                 mask = q <= 0
                 if self._xp.any(mask):
@@ -191,10 +204,10 @@ class ReinhardNormalizer(Stage):
                 lab_transformed = self._xp.stack([L_new, a_new, b_new], axis=-1)
 
             # Convert back to RGB (NHWC)
-            rgb_norm_float = _lab_to_rgb(lab_transformed, self._xp, clip=True)
+            rgb_norm_float = _lab_to_rgb(lab_transformed, self._xp, clip=True, white=self._white)
 
             # Back to uint8
-            rgb_norm_uint8 = self._xp.clip(self._xp.round(rgb_norm_float * 255.0), 0, 255).astype(self._xp.uint8)
+            rgb_norm_uint8 = self._xp.round(rgb_norm_float * 255.0).astype(self._xp.uint8)
             batch.patches = rgb_norm_uint8
 
             self.log.debug(f"Normalized batch for wsi='{batch.wsi_id}' size={len(batch)}")

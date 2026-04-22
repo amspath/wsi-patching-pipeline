@@ -54,7 +54,7 @@ p = (
     WSIGrid(slides=slides, resolution=0, unit="level", use_gpu=True)
     .then(PatchExtractor(tile_size=256, stride=256, max_batch_size=800, num_workers=4))
     .then(LowContrastBackgroundFilter(range_threshold=0.2))
-    .then(MacenkoNormalizer())
+    .then(ReinhardNormalizer())
     .to(NumpyMemoryWriter(layout="NCHW"))
 )
 stream = p.stream(cpu_processes=2, profile=False, verbosity_level="INFO")
