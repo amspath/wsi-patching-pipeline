@@ -20,14 +20,14 @@ def main():
     rois_dict = {Path(s).stem: [(0, 0, 18000, 10000)] for s in slides}
 
     p = (
-        WSIGrid(slides=slides, resolution=0, unit="level", use_gpu=False)
+        WSIGrid(slides=slides, resolution=0, unit="level")
         .then(AttachROIs(providers=[RectROIProvider(rois_dict)]))
         .then(PatchExtractor(tile_size=256, stride=256))
         .to(NumpyStreamWriter(layout="NCHW"))
     )
 
     start_time = time.time()
-    stream = p.stream(num_workers=4, profile=False, verbosity_level="INFO", writer_prefetch_factor=10)
+    stream = p.stream(num_workers=4, verbosity_level="INFO")
     for wsi_ids, final_images, final_coords, meta in stream:
         ...
 

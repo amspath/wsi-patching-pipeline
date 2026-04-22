@@ -21,7 +21,7 @@ def main(argv=None):
     )
     parser.add_argument("--out", type=str, default="./output/train-%06d.tar", help="Shard pattern for WebDataset.")
     parser.add_argument("--num-workers", type=int, default=4, help="Max slides processed concurrently.")
-    parser.add_argument("--batch", type=int, default=200, help="Batch size for GPU micro-batching.")
+    parser.add_argument("--batch", type=int, default=200, help="Batch size for micro-batching.")
     parser.add_argument(
         "--profile", action="store_true", help="Enable per-stage profiling for producers.", default=True
     )
@@ -39,7 +39,7 @@ def main(argv=None):
     rois_dict = {Path(s).stem: [(0, 0, 18000, 10000)] for s in slides}
 
     p = (
-        WSIGrid(slides=slides, resolution=0, unit="level", use_gpu=False)
+        WSIGrid(slides=slides, resolution=0, unit="level")
         .then(AttachROIs(providers=[RectROIProvider(rois_dict)]))
         .then(PatchExtractor(tile_size=224, stride=224, max_batch_size=args.batch))
         .then(PNGEncoder())
