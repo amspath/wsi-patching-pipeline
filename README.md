@@ -5,8 +5,8 @@
 A pragmatic pipeline for streaming whole-slide image (WSI) patches with region prefetch, per-WSI multiprocessing producers, and an async writer. It's ideal for building pipelines that create datasets, or for patching in a streaming fashion during inference without overloading your memory. It’s designed as a runnable skeleton you can extend: swap in your own ROI logic, classifiers, encoders, or sinks by building components on the `custom_component` module facilities.
 
 ✨ What you get
-- Streaming, regionized tiling of WSIs (cuCIM preferred; Pillow fallback for small images).
-- Per-slide producers (multiprocessing) feeding a bounded MP queue.
+- Streaming, regionized tiling of WSIs.
+- Per-slide producers (theading) feeding a bounded queue.
 - Single writer process for continuous writing in the sink (i.e. to a webdataset, or numpy arrays).
 - Batched GPU steps.
 - Built-in isolated stage profiling per slide + aggregated stats.
@@ -22,51 +22,42 @@ pip install "wsi-patching @ git+https://github.com/amspath/wsi-patching-pipeline
 # GPU install
 pip install "wsi-patching[gpu] @ git+https://github.com/amspath/wsi-patching-pipeline.git"
 ```
+> For some stages, GPUs are required, and thus the GPU install is required. 
 
 
-## 2) Dev install
-
-Python ≥3.10 is recommended.
-```
-git clone https://github.com/amspath/wsi-patching-pipeline.git
-cd wsi-patching-pipeline
-pip install -e .
-pip install -e .[gpu]
-```
-
-## 3) Checkout the examples
-`demo.py` shows you how to build a basic pipeline for creating a WebDataset (A materializing pipeline)
-```python
-p = (
-    WSIGrid(slides=slides, resolution=0, unit="level", use_gpu=True)
-    .then(AttachROIs(providers=[RectROIProvider(rois_dict)]))
-    .then(PatchExtractor(tile_size=224, stride=224, max_batch_size=800))
-    .then(CellVitTissueClassifierFilter())
-    .then(PNGEncoder())
-    .to(WebDatasetWriter(shard_size=300, shuffle_buffer_size=500))
-)
-p.materialize(cpu_processes=4)
-```
-
+## 2) Checkout the examples
 `numpy_mem_writer_demo.py` shows you how to build a basic pipeline for patching up a wsi in memory, without the need of writing to disk (RAM heavy for larger datasets, obviously).
 ```python
 p = (
-    WSIGrid(slides=slides, resolution=0, unit="level", use_gpu=True)
-    .then(PatchExtractor(tile_size=256, stride=256, max_batch_size=800, num_workers=4))
-    .then(LowContrastBackgroundFilter(range_threshold=0.2))
-    .then(MacenkoNormalizer())
-    .to(NumpyMemoryWriter(layout="NCHW"))
+  WSIGrid(slides=slides, resolution=0, unit="level")
+  .then(AttachROIs(providers=[RectROIProvider(rois_dict)]))
+  .then(PatchExtractor(tile_size=256, stride=256))
+  .to(NumpyStreamWriter(layout="NCHW"))
 )
-stream = p.stream(cpu_processes=2, profile=False, verbosity_level="INFO")
-for wsi_ids, final_images, final_coords, meta in stream:
+stream = p.stream(num_workers=4)
+for wsi_id, final_images, final_coords, meta in stream:
     ...
 ```
 
-## 4) Check out the currently available components:
+> Useful to know: Stream writers do not order the patches per WSI. This improves speed. You can check the wsi_id returned from the stream to check which WSI each batch belongs to. If you per se want ordered batches, you can set the num_workers to 1. 
+
+`webdataset_materialize_writer_demo.py` shows you how to build a basic pipeline for creating a WebDataset (A materializing pipeline)
+```python
+p = (
+  WSIGrid(slides=slides, resolution=0, unit="level")
+  .then(AttachROIs(providers=[RectROIProvider(rois_dict)]))
+  .then(PatchExtractor(tile_size=224, stride=224))
+  .then(PNGEncoder())
+  .to(WebDatasetWriter(shard_size=300, shuffle_buffer_size=500))
+)
+p.materialize(num_workers=4)
+```
+
+## 3) Check out the currently available components:
 #### Core components
-- `WSIGrid`: Your starter block!
+- `WSIGrid`: Your starter block
 - `AttachROIs`: Attach an ROI provider class to ensure that only your regions of interest are patched up. There are two basic ROI providers implemented, being a `RectROIProvider`, and a `RectROIfromXMLProvider`. More to come when needed.
-- `PatchExtractor`: A necessary component in every pipeline. This will nicely read and batch up all your patches. 
+- `PatchExtractor`: A necessary component in every pipeline. This will nicely read and batch up all your patches. The PatchExtractor is a composite stage, which contains three stages. If you want to adapt the PatchExtractor logic, you can individually add the substages to your pipeline and swap out stages for custom ones.
 - A sink component to define what the output should be. There are two types of writers:
   - `MaterializeWriterBase` writers: For writers that materialize data (i.e. write to disk). These types of writers are particularly useful for making large training datasets. Examples include:
     - `WebdatasetWriter`: For writing to/creating a webdataset.
@@ -88,7 +79,7 @@ for wsi_ids, final_images, final_coords, meta in stream:
 
 More to come! Request if you would like your stage to be in the library.
 
-## 5) Build your own components
+## 4) Build your own components
 This library is setup such that you can easily build your own components to suit your own needs and pop it into the pipeline. Components can either extend the `Stage` (a processing stage) or `WriterBase` (a sink) components. 
 
 #### Creating a stage component:
@@ -172,5 +163,19 @@ PNGEncoder.isolated                    640            1.440s          2.412ms
   PNGEncoder.isolated          yields=  320    wall=  0.778s    avg=  2.432ms
 ```
 
-# More will come
-- [ ] Retrained MobileNet classifier for tissue detection with proper documentation
+## 5) Development install
+
+Python ≥3.10 is recommended. UV is also recommended as the package manager
+```
+git clone https://github.com/amspath/wsi-patching-pipeline.git
+cd wsi-patching-pipeline
+uv sync --extra dev,gpu
+```
+
+
+## 6) More will come
+- [ ] Retrained MobileNet classifier for tissue detection with proper documentation. 
+- [ ] Controlled batch sizes in each of the shipped writers
+
+## 7) Contributing
+Feel free to contribute by opening a pull request or adding an issue to the github. We develop this library based on our own usage of it. So if something is not implemented, we just haven´t had the need for it yet. However, we are very open to add new functionality.
