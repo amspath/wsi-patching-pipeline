@@ -83,8 +83,10 @@ def test_aggregator_multiple_slides_and_stages():
         assert slide_id in prof["by_slide"]
 
 
-def test_print_profile_output_contains_headers_and_sorted(capsys):
-    """Test that print_profile outputs expected headers and sorted stages."""
+def test_print_profile_output_contains_headers_and_sorted(caplog):
+    """Test that print_profile logs expected headers and sorted stages."""
+    import logging
+
     agg = PipelineProfileAggregator()
     # Make 'big' stage to appear first (sorted by wall_time_sec desc)
     agg.ingest_msg(
@@ -93,23 +95,22 @@ def test_print_profile_output_contains_headers_and_sorted(capsys):
             "stages": {"big": {"wall_time_sec": 5.0, "yields": 5}, "small": {"wall_time_sec": 1.0, "yields": 2}},
         }
     )
-    agg.print_profile()
-    out = capsys.readouterr().out
+    with caplog.at_level(logging.INFO, logger="wsi_patching.utils.profiling"):
+        agg.print_profile()
+    out = "\n".join(caplog.messages)
 
     # Headers
     assert "=== Pipeline Profile (isolated timings only) ===" in out
     assert re.search(r"\bStage\b\s+Yields\s+Wall \(s\)\s+Avg \(ms/yield\)", out)
 
     # Per-slide section
-    assert "\n--- Per slide breakdown ---" in out
+    assert "--- Per slide breakdown ---" in out
     assert "[S1]" in out
     assert "big" in out and "small" in out
 
     # Order: 'big' should appear before 'small' in the by_stage table
-    # Find the first table after the headers
-    # capture the indices of lines containing the stage names in the top table
-    idx_big = out.find("\nbig")
-    idx_small = out.find("\nsmall")
+    idx_big = out.find("big")
+    idx_small = out.find("small")
     assert idx_big != -1 and idx_small != -1 and idx_big < idx_small
 
 

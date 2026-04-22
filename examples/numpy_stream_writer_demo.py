@@ -2,10 +2,7 @@ import logging
 import time
 from pathlib import Path
 
-from wsi_patching.core import PatchExtractor, WSIGrid
-from wsi_patching.regions_of_interest.attach_rois import AttachROIs
-from wsi_patching.regions_of_interest.roi_providers import RectROIProvider
-from wsi_patching.writers import NumpyStreamWriter
+from wsi_patching import AttachROIs, NumpyStreamWriter, PatchExtractor, RectROIProvider, WSIGrid
 
 
 def main():
@@ -28,7 +25,7 @@ def main():
 
     start_time = time.time()
     stream = p.stream(num_workers=4, verbosity_level="INFO")
-    for wsi_ids, final_images, final_coords, meta in stream:
+    for wsi_id, final_images, final_coords, meta in stream:
         ...
 
     logging.warning(f"Done in {time.time() - start_time:.1f} seconds.")
