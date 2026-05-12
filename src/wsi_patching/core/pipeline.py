@@ -46,6 +46,16 @@ def _tname(t: Any) -> str:
         return str(t)
 
 
+def _signal_end_of_queue(queue: Queue, stop_event: Event) -> None:
+    while True:
+        try:
+            queue.put(EndOfQueue(), block=True, timeout=0.5)
+            return
+        except Full:
+            if stop_event.is_set():
+                return
+
+
 class Stage(ContextAware, metaclass=StageMeta):
     input_type: Any = object
     output_type: Any = object
@@ -228,18 +238,12 @@ class Pipeline(Stage):
                 except GeneratorExit:
                     self.log.info("Consumer stopped early; terminating producers.")
                     stop_event.set()
-                    try:
-                        producer_queue.put(EndOfQueue(), block=True, timeout=0.5)
-                    except Exception:
-                        pass
+                    _signal_end_of_queue(producer_queue, stop_event)
                     stop_all()
                     raise
                 except Exception:
                     stop_event.set()
-                    try:
-                        producer_queue.put(EndOfQueue(), block=True, timeout=0.5)
-                    except Exception:
-                        pass
+                    _signal_end_of_queue(producer_queue, stop_event)
                     stop_all()
                     raise
                 finally:
@@ -273,10 +277,7 @@ class Pipeline(Stage):
                     self.log.info("Materialization completed.")
             except Exception:
                 stop_event.set()
-                try:
-                    producer_queue.put(EndOfQueue(), block=True, timeout=0.5)
-                except Exception:
-                    pass
+                _signal_end_of_queue(producer_queue, stop_event)
                 stop_all()
                 raise
             finally:
@@ -378,10 +379,7 @@ class Pipeline(Stage):
         def stop_all():
             with kill_lock:
                 stop_event.set()
-                try:
-                    queue.put(EndOfQueue(), block=True, timeout=0.5)
-                except Exception:
-                    pass
+                _signal_end_of_queue(queue, stop_event)
 
         def supervisor():
             try:
@@ -414,10 +412,7 @@ class Pipeline(Stage):
                             received += 1
             finally:
                 # Always signal writer; avoid blocking forever
-                try:
-                    queue.put(EndOfQueue(), block=True, timeout=0.5)
-                except Exception:
-                    pass
+                _signal_end_of_queue(queue, stop_event)
 
         sup = Thread(target=supervisor, name="supervisor", daemon=True)
         sup.start()
