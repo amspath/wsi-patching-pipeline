@@ -28,7 +28,7 @@ dependencies = [
     "numpy>=1.24",
     "webdataset>=0.2.86",
     "pillow>=9.0",
-    "fastslide==0.5.2",
+    "fastslide==0.7.3",
     "orjson>=3.8",
     "opencv-python-headless>=4.8",
     "rtree>=1.0",
