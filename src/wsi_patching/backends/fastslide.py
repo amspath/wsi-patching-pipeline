@@ -99,6 +99,19 @@ def get_dimensions_for_level(path: str, level: int) -> Tuple[int, int]:
         return int(W), int(H)
 
 
+def get_bounds(path: str) -> Tuple[int, int]:
+    """Return the (x, y) level-0 offset of the slide's non-empty bounding box.
+
+    MRXS (and similar) slides pad their pixel canvas around the scanned tissue;
+    externally-produced annotation coordinates (e.g. QuPath GeoJSON) are relative
+    to this bounding box, not the raw level-0 origin. Add this offset to convert
+    them into the same level-0 frame used by read_region/get_dimensions_for_level.
+    """
+    with _open_slide(path) as slide:
+        (x, y), _ = slide.bounds
+        return int(x), int(y)
+
+
 def get_level_downsamples(path: str) -> List[float]:
     """Return the list of downsample factors relative to level 0 for each pyramid level."""
     with _open_slide(path) as slide:

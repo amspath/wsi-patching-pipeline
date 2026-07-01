@@ -1,6 +1,7 @@
 # src/wsi_patching/__init__.py
 from importlib.metadata import version as _version
 
+from .annotations import AddAnnotationFromGeoJSON, AddCellAnnotationFromCSV
 from .core import PatchExtractor, ReadWindowChunker, RegionReadAndBatch, TilePlanner, WSIGrid
 from .encoders import PNGEncoder
 from .filtering import LowContrastBackgroundFilter, OtsuFilter, PenArtifactFilter
@@ -19,6 +20,9 @@ __all__ = [
     "RectROIProvider",
     "RectROIfromXMLProvider",
     "WholeSlideProvider",
+    # Annotations
+    "AddCellAnnotationFromCSV",
+    "AddAnnotationFromGeoJSON",
     # Encoders
     "PNGEncoder",
     # Filters
