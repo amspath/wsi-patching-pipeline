@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
 from wsi_patching.backends.cupy_numpy import ensure_array_matches_use_gpu, is_cupy
 from wsi_patching.core.types.util_types import MetaColStorage
+from wsi_patching.utils.audit import get_current_audit
 
 if TYPE_CHECKING:
     import cupy as cp
@@ -111,6 +112,13 @@ class CollatedPatchBatch:
             raise TypeError("Boolean mask must be of type np.bool_")
         if bool_mask.shape[0] != n:
             raise ValueError("Boolean mask length mismatch")
+
+        # Audit hook: snapshot dropped rows' coords + metadata (the "why") before
+        # they're discarded. No-op unless a run has auditing active.
+        rec = get_current_audit()
+        if rec is not None and not bool(bool_mask.all()):
+            drop_mask = ~bool_mask
+            rec.record_meta(self.coords[drop_mask], self.metadata.take(drop_mask).get_all_row_wise())
 
         self.coords = self.coords[bool_mask]
         self.patches = self.patches[ensure_array_matches_use_gpu(bool_mask, is_cupy(self.patches))]

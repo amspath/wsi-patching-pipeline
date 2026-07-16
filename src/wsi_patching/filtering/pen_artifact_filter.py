@@ -3,6 +3,7 @@ from typing import Iterable, Sequence, Tuple
 from wsi_patching.backends.cupy_numpy import ensure_numpy, get_xp_backend, validate_xp_backend
 from wsi_patching.core.pipeline import Stage
 from wsi_patching.core.types.types import CollatedPatchBatch
+from wsi_patching.utils.audit import Knob
 
 
 class PenArtifactFilter(Stage):
@@ -24,6 +25,11 @@ class PenArtifactFilter(Stage):
       - A patch is dropped when its fraction of *pen* pixels (i.e., pixels not kept) exceeds
         `max_pen_fraction`.
     """
+
+    # `pen_fraction` does not depend on `max_pen_fraction`, so the audit report can
+    # re-decide keep/drop for any threshold without re-running. `diff_thresh` feeds
+    # the metric itself, so it gets no slider.
+    AUDIT_KNOBS = (Knob("max_pen_fraction", "pen_fraction", "<=", permissive=1.0),)
 
     # Hard-coded threshold parameter sets (ported from original histolab logic)
     _BLUE_PARAMS: Sequence[Tuple[int, int, int]] = [

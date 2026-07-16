@@ -1,3 +1,4 @@
+import copy
 import logging
 import threading
 from dataclasses import dataclass, field
@@ -6,8 +7,12 @@ from queue import Empty, Full, Queue
 from threading import Event, Thread
 from typing import Any, Callable, Iterable, Iterator, List, Optional, Tuple, Union, get_args, get_origin
 
+import numpy as np
+
 from wsi_patching.backends.fastslide import close_cached_slides
+from wsi_patching.core.types.types import EncodedCollatedPatchBatch
 from wsi_patching.core.types.util_types import EndOfQueue, EndOfStream
+from wsi_patching.utils.audit import AuditRecorder, PipelineAuditAggregator, get_current_audit, set_current_audit
 from wsi_patching.utils.logging_config import LogLevel, init_logging
 from wsi_patching.utils.meta_typing import ContextAware, PipelineContext, StageMeta
 from wsi_patching.utils.profiling import PipelineProfileAggregator, Profiler, get_current_profiler, set_current_profiler
@@ -88,8 +93,10 @@ class Pipeline(Stage):
     stages: List[Stage]
     writer: Optional[Union[MaterializeWriterBase, StreamWriterBase]] = None
     prof_agg: Optional["PipelineProfileAggregator"] = None
+    audit_agg: Optional["PipelineAuditAggregator"] = None
     _context: PipelineContext = field(default_factory=PipelineContext)
     _runtime_type_asserts: bool = True
+    _audit: bool = False
     failed_slides: List[str] = field(default_factory=list)
 
     def __init__(
@@ -102,7 +109,9 @@ class Pipeline(Stage):
         self.stages = stages
         self.writer = writer
         self.prof_agg = prof_agg
+        self.audit_agg = None
         self._context = context or PipelineContext()
+        self._audit = False
         self.failed_slides = []
         self._preflight_types()
 
@@ -112,8 +121,10 @@ class Pipeline(Stage):
 
     def __call__(self, it: Iterable[Any]) -> Iterable[Any]:
         stream: Iterable[Any] = it
-        for s in self.stages:
+        for idx, s in enumerate(self.stages):
             stream = self._wrap_runtime_asserts(s, stream) if self._runtime_type_asserts else s(stream)
+            if self._audit:
+                stream = self._wrap_audit(stream, type(s).__name__, idx, is_last=idx == len(self.stages) - 1)
         return stream
 
     def then(self, nxt: Stage) -> "Pipeline":
@@ -163,6 +174,37 @@ class Pipeline(Stage):
 
         return gen()
 
+    def _wrap_audit(self, it: Iterable[Any], stage_name: str, idx: int, is_last: bool = False) -> Iterable[Any]:
+        """Observe a stage's output patch coords for drop attribution.
+
+        Records the full set of coords a patch-batch stage emits for this slide.
+        The aggregator diffs consecutive stages to attribute drops -- so this only
+        needs the *output* of each stage, and non-patch stages (no `.coords`) are
+        simply skipped.
+
+        At the last stage we also record the survivors' metadata: metadata
+        accumulates down the chain, so those batches carry every stage's columns.
+        Patches dropped along the way get theirs from the `filter_on_mask` hook,
+        so between the two every patch is covered.
+        """
+        rec = get_current_audit()
+
+        def gen() -> Iterator[Any]:
+            out_coords: List[Any] = []
+            wsi_dims = None
+            for item in it:
+                coords = getattr(item, "coords", None)
+                if coords is not None and hasattr(item, "wsi_id"):
+                    out_coords.append(np.asarray(coords).copy())
+                    wsi_dims = getattr(item, "wsi_dims", None)
+                    if is_last and rec is not None and getattr(item, "metadata", None) is not None:
+                        rec.record_meta(coords, item.metadata.get_all_row_wise())
+                yield item
+            if rec is not None and out_coords:
+                rec.record_output(idx, stage_name, out_coords, wsi_dims)
+
+        return gen()
+
     def get_profile(self) -> dict:
         if self.prof_agg is None:
             return {"by_stage": {}, "by_slide": {}}
@@ -177,6 +219,32 @@ class Pipeline(Stage):
         if self.prof_agg is None:
             self.prof_agg = PipelineProfileAggregator()
 
+    def get_audit(self, values: Optional[dict] = None) -> dict:
+        """Per-slide, per-stage record of which patches were kept vs dropped.
+
+        Populated by `dry_run()` or a run with `audit=True`. See
+        `PipelineAuditAggregator.get_audit` for the shape.
+
+        Args:
+            values: after `dry_run()`, re-derive the funnel for other knob values
+                (keyed by stage index) without re-running. Defaults to the values
+                configured on the stages.
+        """
+        if self.audit_agg is None:
+            return {"by_slide": {}}
+        return self.audit_agg.get_audit(values)
+
+    def print_audit(self) -> None:
+        """Print the per-stage keep/drop funnel table for each slide."""
+        if self.audit_agg is None:
+            print("No audit data. Run with audit=True or use dry_run().")
+            return
+        self.audit_agg.print_audit()
+
+    def _ensure_audit_agg(self) -> None:
+        if self.audit_agg is None:
+            self.audit_agg = PipelineAuditAggregator()
+
     def _orchestrate(
         self,
         *,
@@ -187,6 +255,8 @@ class Pipeline(Stage):
         gracefully_handle_producer_errors: bool,
         sink_runner: Callable[[Queue, Any, Any], Union[Iterable[Any], Any]],
         streaming: bool,
+        audit: bool = False,
+        require_writer: bool = True,
     ):
         """
         Shared core:
@@ -195,13 +265,15 @@ class Pipeline(Stage):
         - spawns producers & supervisor
         - runs the sink (writer) either as iterator (streaming) or in a thread (materialize)
         """
-        slides = self._prep_and_validate(verbosity=verbosity, profile=profile)
+        slides = self._prep_and_validate(
+            verbosity=verbosity, profile=profile, audit=audit, require_writer=require_writer
+        )
         if not slides:
             self.log.info("[WARN] No slides provided. Nothing to do.")
             return
 
         producer_queue, profiler_queue, stop_event = self._init_threading(
-            queue_maxsize=writer_prefetch_factor * num_workers, profile=profile
+            queue_maxsize=writer_prefetch_factor * num_workers, profile=profile, audit=audit
         )
 
         sup_thread, stop_all, fail_box, failed_slides = self._spawn_supervisor(
@@ -210,6 +282,7 @@ class Pipeline(Stage):
             queue=producer_queue,
             profiler_queue=profiler_queue,
             profile=profile,
+            audit=audit,
             verbosity=verbosity,
             gracefully_handle_producer_errors=gracefully_handle_producer_errors,
             stop_event=stop_event,
@@ -283,27 +356,30 @@ class Pipeline(Stage):
             finally:
                 sup_thread.join(timeout=5.0)
 
-    def _prep_and_validate(self, *, verbosity: LogLevel, profile: bool) -> List[str]:
+    def _prep_and_validate(
+        self, *, verbosity: LogLevel, profile: bool, audit: bool = False, require_writer: bool = True
+    ) -> List[str]:
         """
         - init logging
         - ensure writer present
         - collect slides from first stage (grid)
         - export/attach/validate all stages + writer
-        - reset profile aggregator if requested
+        - reset profile / audit aggregators if requested
         """
         init_logging(verbosity)
-        if self.writer is None:
+        if require_writer and self.writer is None:
             raise RuntimeError("Pipeline has no writer; add one via .to(writer)")
 
-        self.log.info("Preparing pipeline (profile=%s).", profile)
+        self.log.info("Preparing pipeline (profile=%s, audit=%s).", profile, audit)
 
         grid = self.stages[0]
         slides = list(getattr(grid, "slides", []))
         # Do not cast to list() again later; preserve this order
 
-        for s in self.stages + [self.writer]:
+        components = self.stages + ([self.writer] if self.writer is not None else [])
+        for s in components:
             s.export_context(self._context)
-        for s in self.stages + [self.writer]:
+        for s in components:
             s.attach_context(self._context)
             s.validate()
 
@@ -312,11 +388,19 @@ class Pipeline(Stage):
             if self.prof_agg is not None:
                 self.prof_agg.reset()
 
+        if audit:
+            self._ensure_audit_agg()
+            if self.audit_agg is not None:
+                self.audit_agg.reset()
+
         return slides
 
-    def _init_threading(self, *, queue_maxsize: int, profile: bool) -> Tuple[Queue, Optional[Queue], Event]:
+    def _init_threading(
+        self, *, queue_maxsize: int, profile: bool, audit: bool = False
+    ) -> Tuple[Queue, Optional[Queue], Event]:
         producer_queue: Queue = Queue(maxsize=queue_maxsize)
-        profiler_queue: Optional[Queue] = Queue() if profile else None
+        # Reused for both profile and audit side-channel messages.
+        profiler_queue: Optional[Queue] = Queue() if (profile or audit) else None
         stop_event: Event = Event()
         return producer_queue, profiler_queue, stop_event
 
@@ -331,6 +415,7 @@ class Pipeline(Stage):
         verbosity: LogLevel,
         gracefully_handle_producer_errors: bool,
         stop_event: Event,
+        audit: bool = False,
     ) -> Tuple[Thread, Callable[[], None], List[str], List[str]]:
         """
         Spawns a supervisor thread that:
@@ -366,6 +451,7 @@ class Pipeline(Stage):
                     stop_event,
                     worker_fail_box,
                     self._context,
+                    audit,
                 ),
                 name=f"producer-{Path(path).stem}",
                 daemon=True,
@@ -400,16 +486,20 @@ class Pipeline(Stage):
                         active.append(spawn_for(pending.pop(0)))
                         self.log.info("Spawning new producer... %d slides left.", len(pending))
 
-                if profile and profiler_queue is not None and self.prof_agg is not None:
-                    received, expected = 0, len(slides)
-                    while received < expected:
+                # All producers are done here, so their side-channel messages
+                # (profile + audit) are already enqueued: drain until empty.
+                if (profile or audit) and profiler_queue is not None:
+                    while True:
                         try:
                             msg = profiler_queue.get(timeout=1.0)
                         except Empty:
                             break
-                        if isinstance(msg, dict) and msg.get("_profile"):
+                        if not isinstance(msg, dict):
+                            continue
+                        if msg.get("_profile") and self.prof_agg is not None:
                             self.prof_agg.ingest_msg(msg)
-                            received += 1
+                        elif msg.get("_audit") and self.audit_agg is not None:
+                            self.audit_agg.ingest_msg(msg)
             finally:
                 # Always signal writer; avoid blocking forever
                 _signal_end_of_queue(queue, stop_event)
@@ -425,6 +515,7 @@ class Pipeline(Stage):
         profile: bool = False,
         verbosity_level: LogLevel = "WARNING",
         gracefully_handle_producer_errors: bool = False,
+        audit: bool = False,
     ) -> Iterable[Any]:
         """Streaming mode: returns a generator that can be streamed to obtain your patches.
 
@@ -435,6 +526,8 @@ class Pipeline(Stage):
             verbosity_level: Logging verbosity level (default="WARNING").
             gracefully_handle_producer_errors: Skip slides that cause errors instead of failing the entire pipeline
                 (default=False).
+            audit: Record per-stage keep/drop accounting; read back via `get_audit()` / `print_audit()` /
+                `visualize_audit()` (default=False).
 
         Returns:
             An iterable generator yielding items from the writer.
@@ -458,6 +551,7 @@ class Pipeline(Stage):
             gracefully_handle_producer_errors=gracefully_handle_producer_errors,
             sink_runner=sink_runner,
             streaming=True,
+            audit=audit,
         )
 
     def materialize(
@@ -467,6 +561,7 @@ class Pipeline(Stage):
         profile: bool = False,
         verbosity_level: LogLevel = "WARNING",
         gracefully_handle_producer_errors: bool = False,
+        audit: bool = False,
     ) -> None:
         """Materializes the pipeline.
 
@@ -477,6 +572,8 @@ class Pipeline(Stage):
             verbosity_level: Logging verbosity level (default="WARNING").
             gracefully_handle_producer_errors: Skip slides that cause errors instead of failing the entire pipeline
                 (default=False).
+            audit: Record per-stage keep/drop accounting; read back via `get_audit()` / `print_audit()` /
+                `visualize_audit()` (default=False).
 
         Returns:
             Nothing. Materialization is performed by the writer.
@@ -498,7 +595,117 @@ class Pipeline(Stage):
             gracefully_handle_producer_errors=gracefully_handle_producer_errors,
             sink_runner=sink_runner,
             streaming=False,
+            audit=audit,
         )
+
+    def _permissive_stages(self, stages: List[Stage]) -> Tuple[List[Stage], List[dict]]:
+        """Copy every knobbed stage with its thresholds neutralized.
+
+        A filter only computes its metric for the patches that reach it, so with
+        real thresholds a patch dropped by an early filter carries no metric from
+        the later ones -- and a slider could then only ever tighten. Running every
+        knobbed stage permissively lets every patch through, so every patch gets
+        every metric and any threshold can be re-decided offline.
+
+        ponytail: shallow copy -- knobbed stages hold only scalars. Never deepcopy;
+        other stages can hold a loaded torch model.
+        """
+        out: List[Stage] = []
+        knobs: List[dict] = []
+        for idx, s in enumerate(stages):
+            declared = getattr(s, "AUDIT_KNOBS", None)
+            if not declared:
+                out.append(s)
+                continue
+            probe_stage = copy.copy(s)
+            for k in declared:
+                init = getattr(s, k.param)
+                knobs.append(
+                    {
+                        "stage_idx": idx,
+                        "stage": type(s).__name__,
+                        "param": k.param,
+                        "column": k.column,
+                        "op": k.op,
+                        "init": init,
+                        "integer": k.integer,
+                    }
+                )
+                setattr(probe_stage, k.param, type(init)(k.permissive))
+            out.append(probe_stage)
+        return out, knobs
+
+    def dry_run(
+        self,
+        num_workers: int = 4,
+        writer_prefetch_factor: int = 2,
+        verbosity_level: LogLevel = "WARNING",
+        gracefully_handle_producer_errors: bool = False,
+        tune: bool = True,
+    ) -> "Pipeline":
+        """Run the pipeline for auditing only -- no output is written.
+
+        Drops the writer and any trailing encoder stages (so no PNG/encoding
+        cost), runs the remaining filters/transforms, and records the per-stage
+        keep/drop funnel. Ideal for tuning tile size / thresholds before a real
+        run. Populates `get_audit()` / `print_audit()` / `visualize_audit()`.
+
+        Args:
+            tune: run knobbed filters permissively so `visualize_audit()` gets live
+                parameter sliders (default=True). Costs speed -- nothing is rejected
+                early, so every filter sees every patch. Set False to audit many
+                slides fast; the report is then static.
+
+        The funnel is identical either way: with `tune=True` the drops are re-derived
+        from the recorded metrics at your configured thresholds.
+
+        Returns self, so you can chain: `p.dry_run().print_audit()`.
+        """
+        # Drop trailing encoder stages (output EncodedCollatedPatchBatch); the writer
+        # is not part of `stages` and is ignored entirely.
+        stages = list(self.stages)
+        while stages and getattr(stages[-1], "output_type", None) is EncodedCollatedPatchBatch:
+            stages = stages[:-1]
+
+        knobs: List[dict] = []
+        if tune:
+            stages, knobs = self._permissive_stages(stages)
+
+        probe = Pipeline(stages, context=self._context)
+        probe._ensure_audit_agg()
+
+        def _drain_sink(q: Queue, v: LogLevel, e: Optional[Event]) -> None:
+            init_logging(v)
+            while True:
+                try:
+                    msg = q.get(timeout=0.5)
+                except Empty:
+                    if e is not None and e.is_set():
+                        break
+                    continue
+                if isinstance(msg, EndOfQueue):
+                    break
+                # EndOfStream and batches are discarded -- we only want the audit.
+
+        probe._orchestrate(
+            num_workers=num_workers,
+            writer_prefetch_factor=writer_prefetch_factor,
+            profile=False,
+            verbosity=verbosity_level,
+            gracefully_handle_producer_errors=gracefully_handle_producer_errors,
+            sink_runner=_drain_sink,
+            streaming=False,
+            audit=True,
+            require_writer=False,
+        )
+        # Set knobs after the run: _prep_and_validate resets the aggregator.
+        if probe.audit_agg is not None:
+            probe.audit_agg.set_knobs(knobs, tuning=tune)
+        # Surface results + resolved context (tile_size, etc.) on the original pipeline.
+        self.audit_agg = probe.audit_agg
+        self.failed_slides = list(probe.failed_slides)
+        self._context.update(probe.context)
+        return self
 
 
 def _producer_worker(
@@ -512,19 +719,24 @@ def _producer_worker(
     stop_event: Optional[Event] = None,
     fail_box: Optional[List[str]] = None,
     context: Optional[PipelineContext] = None,
+    audit: bool = False,
 ):
     init_logging(verbosity_level)
     profiler: Optional[Profiler] = None
+    recorder: Optional[AuditRecorder] = None
     try:
         slide_id = Path(slide_path).stem
         profiler = Profiler(enabled=profile, slide_id=slide_id)
         set_current_profiler(profiler)
+        recorder = AuditRecorder(enabled=audit, slide_id=slide_id)
+        set_current_audit(recorder)
 
         local_stages = [st.for_slide(slide_path) for st in stage_specs]
         if context is not None:
             for s in local_stages:
                 s.attach_context(context)
         pipe = Pipeline(local_stages, context=context)
+        pipe._audit = audit
 
         # sources ignore input
         for out in pipe(iter(())):
@@ -552,7 +764,13 @@ def _producer_worker(
                 profiler_queue.put({"_profile": True, **profiler.serialize()})
             except Exception:
                 logging.info("Failed to send profile message.")
+        if audit and profiler_queue is not None and recorder is not None:
+            try:
+                profiler_queue.put({"_audit": True, **recorder.snapshot()})
+            except Exception:
+                logging.info("Failed to send audit message.")
         set_current_profiler(None)
+        set_current_audit(None)
 
         # best-effort stream boundary
         try:

@@ -10,6 +10,7 @@ A pragmatic pipeline for streaming whole-slide image (WSI) patches with region p
 - Single writer process for continuous writing in the sink (i.e. to a webdataset, or numpy arrays).
 - Batched GPU steps.
 - Built-in isolated stage profiling per slide + aggregated stats.
+- Auditing + interactive visualization of what each stage keeps vs. drops (great for tuning).
 
 
 ## 1) Library install
@@ -53,6 +54,32 @@ p = (
 )
 p.materialize(num_workers=4)
 ```
+
+### Auditing: see what each stage throws out, and tune it live
+Struggling to pick tile sizes and filter thresholds? Audit the pipeline to see, per stage, exactly which patches are kept vs. dropped — then **drag a slider to retune the filters and watch the overlay update instantly**. `dry_run()` runs the filters **without writing any output** (no encoding, no files) so you can iterate fast. See `examples/audit_and_visualize_demo.ipynb`.
+```python
+from wsi_patching import WSIGrid, PatchExtractor, OtsuFilter, RemoveEdgeTiles, visualize_audit
+
+p = (
+    WSIGrid(slides=slides, resolution=2, unit="level")
+    .then(PatchExtractor(tile_size=224, stride=224))
+    .then(OtsuFilter(min_tissue_fraction=0.35))
+    .then(RemoveEdgeTiles(depth=1))
+)
+p.dry_run()          # audit only — nothing is written
+p.print_audit()      # per-stage keep/drop funnel table
+visualize_audit(p, slides[0])   # interactive overlay (renders inline in Jupyter; .save("r.html") too)
+```
+```
+=== Audit: RBIO-GC072-HE-01 ===
+Stage                                  In        Out    Dropped   Drop %
+PatchExtractor                        252        252          0     0.0%
+OtsuFilter                            252         85        167    66.3%
+RemoveEdgeTiles                        85         42         43    50.6%
+```
+`visualize_audit()` draws kept patches (green) and dropped patches colored by the stage that removed them, with hover tooltips of the metadata behind each decision — plus a **slider for every tunable filter parameter**. Dragging one re-decides keep/drop for every patch in the browser (no Python re-run, so it works in the saved HTML too) and prints a config you can paste back into your pipeline.
+
+You can also audit a real run with `p.materialize(audit=True)` / `p.stream(audit=True)`. See the [auditing docs](docs/auditing.md).
 
 ## 3) Check out the currently available components:
 #### Core components

@@ -40,7 +40,7 @@ Repository = "https://github.com/amspath/wsi-patching-pipeline"
 
 [project.optional-dependencies]
 gpu = ['cupy-cuda12x; platform_system != "Darwin"', "torch", "torchvision"]
-dev = ["ruff", "pytest", "tifffile", "pytest-benchmark", "ty", "mkdocs-material"]
+dev = ["ruff", "pytest", "tifffile", "pytest-benchmark", "ty", "mkdocs-material", "ipykernel"]
 
 # --- Hatch VCS versioning (default-ish behavior) ---
 [tool.hatch.version]

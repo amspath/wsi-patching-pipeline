@@ -32,6 +32,7 @@ nav:
   - Installation: installation.md
   - Quickstart: quickstart.md
   - Concepts: concepts.md
+  - Auditing & visualization: auditing.md
   - API Reference: reference.md
   - Extending: extending.md
 

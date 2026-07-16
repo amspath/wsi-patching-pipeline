@@ -3,6 +3,7 @@ from typing import Iterable
 from wsi_patching.backends.cupy_numpy import ensure_array_matches_use_gpu, ensure_numpy, get_xp_backend
 from wsi_patching.core.pipeline import Stage
 from wsi_patching.core.types.types import CollatedPatchBatch
+from wsi_patching.utils.audit import Knob
 
 
 class OtsuFilter(Stage):
@@ -23,6 +24,11 @@ class OtsuFilter(Stage):
          - if `tissue_is_darker=False`: tissue := gray >= thr
       4) Optionally drop patches with insufficient tissue coverage.
     """
+
+    # `tissue_fraction` does not depend on `min_tissue_fraction`, so the audit report
+    # can re-decide keep/drop for any threshold without re-running. `num_bins` and
+    # `tissue_is_darker` change the metric itself, so they get no slider.
+    AUDIT_KNOBS = (Knob("min_tissue_fraction", "tissue_fraction", ">=", permissive=0.0),)
 
     def __init__(
         self,
