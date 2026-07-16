@@ -111,6 +111,7 @@ class WSIGrid(Stage):
                     "slide.requested_unit": self.unit,
                     "slide.requested_fallback_mode": self.fallback_mode,
                     "slide.selected_level": selected_level,
+                    "slide.downsample": slide_downsample,
                     "slide.path": path,
                 },
             )

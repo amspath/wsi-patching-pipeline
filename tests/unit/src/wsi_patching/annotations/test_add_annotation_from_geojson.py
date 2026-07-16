@@ -96,6 +96,43 @@ def test_filter_empty_and_property_subset(tmp_path):
     assert cell == {"cell_label": 1}  # celltype dropped, geometry excluded
 
 
+def test_downsample_scale_from_meta(tmp_path):
+    """GeoJSON is level-0 px; patch coords are requested-resolution px. The stage
+    scales by 1/slide.downsample read from the patch meta column."""
+    gj = tmp_path / "a.geojson"
+    write_geojson(gj, [(40, 40, 1, "A")])  # level-0 centroid
+
+    # downsample=2 -> level-0 (40,40) maps to patch-space (20,20) -> tile (16,16).
+    coords = np.array([[0, 0], [16, 16]], dtype=np.int32)
+    batch = make_batch("slideA", coords)
+    batch.add_meta_column("slide.downsample", np.array([2.0, 2.0]))
+
+    stage = AddAnnotationFromGeoJSON({"slideA": str(gj)}, filter_empty=False)
+    [out] = run_stage(stage, [batch])
+    anns = out.metadata["annotations"]
+
+    assert anns[0] == []
+    assert len(anns[1]) == 1
+    # square(40,40,half=1) * 0.5 - (16,16) -> centred on (4,4), half rounds to 0/1
+    verts = anns[1][0]["geometry"]["coordinates"][0]
+    assert all(0 <= x < 16 and 0 <= y < 16 for x, y in verts), verts
+    assert [int(round(sum(v[i] for v in verts[:4]) / 4)) for i in (0, 1)] == [4, 4]
+
+
+def test_coord_scale_override(tmp_path):
+    """coord_scale overrides the auto 1/downsample (e.g. micron GeoJSON)."""
+    gj = tmp_path / "a.geojson"
+    write_geojson(gj, [(40, 40, 1, "A")])
+
+    coords = np.array([[16, 16]], dtype=np.int32)
+    batch = make_batch("slideA", coords)
+    batch.add_meta_column("slide.downsample", np.array([2.0]))  # must be ignored
+
+    stage = AddAnnotationFromGeoJSON({"slideA": str(gj)}, filter_empty=False, coord_scale=0.5)
+    [out] = run_stage(stage, [batch])
+    assert len(out.metadata["annotations"][0]) == 1
+
+
 def test_matches_bruteforce_at_scale(tmp_path):
     """Grid-bucket matching must equal naive centroid-in-patch over many features,
     including geometry-less features and non-grid-aligned patches."""

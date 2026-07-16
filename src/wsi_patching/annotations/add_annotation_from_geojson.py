@@ -9,32 +9,6 @@ from wsi_patching.core.pipeline import Stage
 from wsi_patching.core.types.types import CollatedPatchBatch
 
 
-def _iter_xy(coords: Any):
-    """Yield every (x, y) leaf coordinate pair from a GeoJSON coordinates structure."""
-    if (
-        isinstance(coords, (list, tuple))
-        and len(coords) == 2
-        and isinstance(coords[0], (int, float))
-        and isinstance(coords[1], (int, float))
-    ):
-        yield coords[0], coords[1]
-    else:
-        for c in coords:
-            yield from _iter_xy(c)
-
-
-def _shift_coords(coords: Any, x0: int, y0: int) -> Any:
-    """Recursively rebuild a coordinates structure with (x0, y0) subtracted, rounded to int."""
-    if (
-        isinstance(coords, (list, tuple))
-        and len(coords) == 2
-        and isinstance(coords[0], (int, float))
-        and isinstance(coords[1], (int, float))
-    ):
-        return [int(round(coords[0] - x0)), int(round(coords[1] - y0))]
-    return [_shift_coords(c, x0, y0) for c in coords]
-
-
 class AddAnnotationFromGeoJSON(Stage):
     """Attach GeoJSON annotations to each patch.
 
@@ -45,9 +19,12 @@ class AddAnnotationFromGeoJSON(Stage):
     feature properties and (optionally) the geometry shifted to patch-local int
     coordinates. The WebDatasetWriter JSON-serializes this column per sample.
 
-    GeoJSON coords are assumed to be in level-0 pixels and patch coords
-    in the same space (true when patching at resolution=0, unit="level"). Add a
-    coord_scale knob if a non-zero level is ever needed.
+    GeoJSON coords are assumed to be in level-0 pixels; patch coords live in the
+    requested-resolution space (level-N / resampled). They are reconciled by scaling
+    the GeoJSON coords by ``1 / slide.downsample`` (read from the patch metadata, so
+    it works at any mpp/level, not just resolution=0, unit="level"). Override with
+    ``coord_scale`` when the GeoJSON is not in level-0 pixels (e.g. microns: pass
+    ``1 / target_mpp``; already-target-space: pass ``1.0``).
     """
 
     def __init__(
@@ -59,6 +36,7 @@ class AddAnnotationFromGeoJSON(Stage):
         column_name: str = "annotations",
         filter_empty: bool = False,
         wsi_offsets: Optional[Dict[str, Tuple[int, int]]] = None,
+        coord_scale: Optional[float] = None,  # None = auto (1 / slide.downsample)
     ):
         self.wsi_to_geojson_mapping = wsi_to_geojson_mapping
         self.property_keys = property_keys
@@ -67,6 +45,7 @@ class AddAnnotationFromGeoJSON(Stage):
         self.column_name = column_name
         self.filter_empty = filter_empty
         self.wsi_offsets = wsi_offsets
+        self.coord_scale = coord_scale
 
         # caches for the currently loaded WSI
         self._cx: Optional[np.ndarray] = None  # (N,) centroid x
@@ -89,7 +68,14 @@ class AddAnnotationFromGeoJSON(Stage):
 
         tile_size: int = int(self.ctx["tile_size"])
 
-        self._ensure_loaded(first.wsi_id, tile_size)
+        # GeoJSON (level-0 px) -> patch (requested-resolution) space scale.
+        if self.coord_scale is not None:
+            scale = float(self.coord_scale)
+        else:
+            ds_col = first.metadata.get("slide.downsample")
+            scale = 1.0 / float(ds_col[0]) if ds_col is not None else 1.0
+
+        self._ensure_loaded(first.wsi_id, tile_size, scale)
         it = chain([first], it)
 
         cx, cy, features, buckets = self._cx, self._cy, self._features, self._buckets
@@ -119,7 +105,10 @@ class AddAnnotationFromGeoJSON(Stage):
                         geom = feature.get("geometry") or {}
                         cell[self.geometry_key] = {
                             "type": geom.get("type"),
-                            "coordinates": _shift_coords(geom.get("coordinates", []), x0 - ox, y0 - oy),
+                            # (coord + off) * scale - patch_xy, folded into a single shift.
+                            "coordinates": _shift_coords(
+                                geom.get("coordinates", []), scale, x0 - ox * scale, y0 - oy * scale
+                            ),
                         }
                     cells.append(cell)
 
@@ -134,7 +123,7 @@ class AddAnnotationFromGeoJSON(Stage):
             if len(batch.patches) > 0:
                 yield batch
 
-    def _ensure_loaded(self, wsi_id: str, tile_size: int) -> None:
+    def _ensure_loaded(self, wsi_id: str, tile_size: int, scale: float = 1.0) -> None:
         if wsi_id not in self.wsi_to_geojson_mapping:
             raise KeyError(f"No GeoJSON file provided for WSI '{wsi_id}'")
         path = self.wsi_to_geojson_mapping[wsi_id]
@@ -163,8 +152,9 @@ class AddAnnotationFromGeoJSON(Stage):
             starts = (np.cumsum(counts) - counts)[nz]  # segment starts of non-empty features
             sums = np.add.reduceat(arr, starts, axis=0)  # (num_nonempty, 2)
             cnz = counts[nz].astype(np.float64)
-            cx[nz] = sums[:, 0] / cnz + ox
-            cy[nz] = sums[:, 1] / cnz + oy
+            # Scale level-0 centroids (with level-0 offset) into patch space.
+            cx[nz] = (sums[:, 0] / cnz + ox) * scale
+            cy[nz] = (sums[:, 1] / cnz + oy) * scale
 
         # Grid-bucket the centroids by tile_size cell -> O(1) patch lookup, no R-tree.
         buckets: Dict[Tuple[int, int], List[int]] = defaultdict(list)
@@ -188,3 +178,29 @@ def _candidate_fids(buckets, x0, y0, x1, y1, tile_size):
     for gx in range(x0 // tile_size, (x1 - 1) // tile_size + 1):
         for gy in range(y0 // tile_size, (y1 - 1) // tile_size + 1):
             yield from buckets.get((gx, gy), ())
+
+
+def _iter_xy(coords: Any):
+    """Yield every (x, y) leaf coordinate pair from a GeoJSON coordinates structure."""
+    if (
+        isinstance(coords, (list, tuple))
+        and len(coords) == 2
+        and isinstance(coords[0], (int, float))
+        and isinstance(coords[1], (int, float))
+    ):
+        yield coords[0], coords[1]
+    else:
+        for c in coords:
+            yield from _iter_xy(c)
+
+
+def _shift_coords(coords: Any, scale: float, x0: float, y0: float) -> Any:
+    """Recursively rebuild coords as round(coord * scale - (x0, y0)), int-valued."""
+    if (
+        isinstance(coords, (list, tuple))
+        and len(coords) == 2
+        and isinstance(coords[0], (int, float))
+        and isinstance(coords[1], (int, float))
+    ):
+        return [int(round(coords[0] * scale - x0)), int(round(coords[1] * scale - y0))]
+    return [_shift_coords(c, scale, x0, y0) for c in coords]
