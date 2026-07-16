@@ -65,6 +65,7 @@ class CollatedPatchBatch:
     coords: np.ndarray  # (N, 2)
     patches: Union[np.ndarray, "cp.ndarray"]  # (N, ...)
     metadata: MetaColStorage
+    wsi_dims: Tuple[int, int]  # (W, H) of the whole slide at patched resolution
 
     def __init__(
         self,
@@ -72,11 +73,13 @@ class CollatedPatchBatch:
         coords: np.ndarray,
         patches: Union[np.ndarray, "cp.ndarray"],
         use_gpu: bool,
+        wsi_dims: Tuple[int, int],
         metadata: Optional[MetaColStorage] = None,
     ):
         self.wsi_id = wsi_id
         self.coords = coords
         self.patches = patches
+        self.wsi_dims = wsi_dims
 
         if metadata is not None:
             self.metadata = metadata
@@ -138,6 +141,7 @@ class EncodedCollatedPatchBatch(CollatedPatchBatch):
             coords=batch.coords,
             patches=batch.patches,
             use_gpu=is_cupy(batch.patches),
+            wsi_dims=batch.wsi_dims,
             metadata=batch.metadata,
         )
         obj.encoding = encoding

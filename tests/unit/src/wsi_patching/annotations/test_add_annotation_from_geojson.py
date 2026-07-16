@@ -30,7 +30,9 @@ def write_geojson(path: Path, cells):
 def make_batch(wsi_id: str, coords: np.ndarray, patch_hw: int = 4):
     n = coords.shape[0]
     patches = np.zeros((n, patch_hw, patch_hw, 3), dtype=np.uint8)
-    return CollatedPatchBatch(wsi_id=wsi_id, coords=coords.astype(np.int32), patches=patches, use_gpu=False)
+    return CollatedPatchBatch(
+        wsi_id=wsi_id, coords=coords.astype(np.int32), patches=patches, use_gpu=False, wsi_dims=(1024, 1024)
+    )
 
 
 def run_stage(stage: AddAnnotationFromGeoJSON, batches: Iterable[CollatedPatchBatch], tile_size: int = 16):
@@ -67,9 +69,7 @@ def test_annotations_shifted_by_wsi_offset(tmp_path):
     gj = tmp_path / "a.geojson"
     write_geojson(gj, [(5, 5, 1, "A")])
 
-    stage = AddAnnotationFromGeoJSON(
-        {"slideA": str(gj)}, filter_empty=False, wsi_offsets={"slideA": (100, 200)}
-    )
+    stage = AddAnnotationFromGeoJSON({"slideA": str(gj)}, filter_empty=False, wsi_offsets={"slideA": (100, 200)})
     # patch at (100,200) in level-0 frame == (0,0) in GeoJSON-relative frame
     coords = np.array([[100, 200]], dtype=np.int32)
     [out] = run_stage(stage, [make_batch("slideA", coords)])
@@ -143,8 +143,11 @@ def test_matches_bruteforce_at_scale(tmp_path):
 
     gj = tmp_path / "big.geojson"
     features = [
-        {"type": "Feature", "geometry": {"type": "Polygon", "coordinates": _square(cx, cy)},
-         "properties": {"cell_label": lbl}}
+        {
+            "type": "Feature",
+            "geometry": {"type": "Polygon", "coordinates": _square(cx, cy)},
+            "properties": {"cell_label": lbl},
+        }
         for cx, cy, lbl, _ in cells
     ]
     # a geometry-less feature must be silently ignored (never matches)
@@ -152,8 +155,9 @@ def test_matches_bruteforce_at_scale(tmp_path):
     gj.write_bytes(orjson.dumps({"type": "FeatureCollection", "features": features}))
 
     coords = rng.integers(0, 2000, (200, 2)).astype(np.int32)  # includes unaligned origins
-    stage = AddAnnotationFromGeoJSON({"slideA": str(gj)}, property_keys=["cell_label"],
-                                     include_geometry=False, filter_empty=False)
+    stage = AddAnnotationFromGeoJSON(
+        {"slideA": str(gj)}, property_keys=["cell_label"], include_geometry=False, filter_empty=False
+    )
     [out] = run_stage(stage, [make_batch("slideA", coords)], tile_size=ts)
     anns = out.metadata["annotations"]
 

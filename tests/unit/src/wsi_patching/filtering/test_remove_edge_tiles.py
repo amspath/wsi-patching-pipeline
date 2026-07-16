@@ -6,15 +6,17 @@ from wsi_patching.filtering.remove_edge_tiles import RemoveEdgeTiles
 from wsi_patching.utils.meta_typing import PipelineContext
 
 
-def make_batch(coords, wsi_width, wsi_height, wsi_id="slideA", with_dims=True):
+def make_batch(coords, wsi_width, wsi_height, wsi_id="slideA"):
     coords = np.asarray(coords, dtype=np.int64)
     n = coords.shape[0]
     patches = np.zeros((n, 2, 2, 3), dtype=np.uint8)
-    batch = CollatedPatchBatch(patches=patches, wsi_id=wsi_id, coords=coords, use_gpu=False)
-    if with_dims:
-        batch.add_meta_column("slide.width", np.full(n, wsi_width))
-        batch.add_meta_column("slide.height", np.full(n, wsi_height))
-    return batch
+    return CollatedPatchBatch(
+        patches=patches,
+        wsi_id=wsi_id,
+        coords=coords,
+        use_gpu=False,
+        wsi_dims=(wsi_width, wsi_height),
+    )
 
 
 # -----------------------
@@ -93,15 +95,6 @@ def test_all_tiles_on_border_yields_nothing():
 
     out = list(filt([make_batch(coords, 1000, 1000)]))
     assert out == []
-
-
-def test_missing_dims_metadata_raises():
-    coords = [(224, 224)]
-    filt = RemoveEdgeTiles(depth=1)
-    filt.attach_context(PipelineContext({"tile_size": 224}))
-
-    with pytest.raises(KeyError, match="slide.width"):
-        list(filt([make_batch(coords, 1000, 1000, with_dims=False)]))
 
 
 def test_metadata_columns_are_filtered_in_sync():

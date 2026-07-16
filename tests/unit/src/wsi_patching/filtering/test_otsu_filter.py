@@ -107,7 +107,9 @@ def test_polarity_and_stats(monkeypatch, patch_backends, tissue_is_darker, caplo
     filt = OtsuFilter(tissue_is_darker=tissue_is_darker, num_bins=256, min_tissue_fraction=0.0)
     filt.attach_context(PipelineContext({"use_gpu": False}))
 
-    batch = CollatedPatchBatch(patches=patches.copy(), wsi_id="id", coords=np.zeros((B, 2)), use_gpu=False)
+    batch = CollatedPatchBatch(
+        patches=patches.copy(), wsi_id="id", coords=np.zeros((B, 2)), use_gpu=False, wsi_dims=(1024, 1024)
+    )
 
     with caplog.at_level("INFO"):
         out_batches = list(filt([batch]))
@@ -166,7 +168,9 @@ def test_min_tissue_fraction_filters(monkeypatch, patch_backends):
     filt = OtsuFilter(tissue_is_darker=False, min_tissue_fraction=0.75)
     filt.attach_context(PipelineContext({"use_gpu": False}))
 
-    batch = CollatedPatchBatch(patches=patches.copy(), wsi_id="id", coords=np.zeros((B, 2)), use_gpu=False)
+    batch = CollatedPatchBatch(
+        patches=patches.copy(), wsi_id="id", coords=np.zeros((B, 2)), use_gpu=False, wsi_dims=(1024, 1024)
+    )
     out = next(iter(filt([batch])))
 
     # Only the second item (4/4 tissue = 1.0) survives; first has 0.5 < 0.75

@@ -16,11 +16,10 @@ class RemoveEdgeTiles(Stage):
         depth * tile_size <= x < W - depth * tile_size
         depth * tile_size <= y < H - depth * tile_size
 
-    where ``(W, H)`` are the WSI dimensions at the patched resolution. Those dimensions
-    are read from the per-batch metadata columns ``slide.width`` / ``slide.height``
-    (seeded by :class:`~wsi_patching.core.wsi_grid.WSIGrid`); ``tile_size`` is read from
-    the pipeline context. This makes the filter correct regardless of batch/region
-    layout, unlike inferring the slide size from a single batch's coordinates.
+    where ``(W, H)`` are the WSI dimensions at the patched resolution, read from
+    ``batch.wsi_dims``; ``tile_size`` is read from the pipeline context. This makes the
+    filter correct regardless of batch/region layout, unlike inferring the slide size
+    from a single batch's coordinates.
 
     Parameters
     ----------
@@ -45,7 +44,7 @@ class RemoveEdgeTiles(Stage):
                 yield batch
                 continue
 
-            wsi_width, wsi_height = self._wsi_dims(batch)
+            wsi_width, wsi_height = batch.wsi_dims
             coords = batch.coords  # (N, 2) int, top-left (x, y) at patched resolution
 
             keep_mask = (
@@ -66,14 +65,3 @@ class RemoveEdgeTiles(Stage):
                 continue
 
             yield batch
-
-    @staticmethod
-    def _wsi_dims(batch: CollatedPatchBatch) -> tuple[int, int]:
-        """WSI (width, height) at the patched resolution, from batch metadata."""
-        meta = batch.metadata
-        if "slide.width" not in meta or "slide.height" not in meta:
-            raise KeyError(
-                "RemoveEdgeTiles requires 'slide.width'/'slide.height' metadata "
-                "(seeded by WSIGrid). Ensure WSIGrid is the pipeline source."
-            )
-        return int(meta["slide.width"][0]), int(meta["slide.height"][0])
