@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+    <url>
+         <loc>https://amspath.github.io/wsi-patching-pipeline/</loc>
+         <lastmod>2026-07-16</lastmod>
+    </url>
+    <url>
+         <loc>https://amspath.github.io/wsi-patching-pipeline/auditing/</loc>
+         <lastmod>2026-07-16</lastmod>
+    </url>
+    <url>
+         <loc>https://amspath.github.io/wsi-patching-pipeline/concepts/</loc>
+         <lastmod>2026-07-16</lastmod>
+    </url>
+    <url>
+         <loc>https://amspath.github.io/wsi-patching-pipeline/extending/</loc>
+         <lastmod>2026-07-16</lastmod>
+    </url>
+    <url>
+         <loc>https://amspath.github.io/wsi-patching-pipeline/installation/</loc>
+         <lastmod>2026-07-16</lastmod>
+    </url>
+    <url>
+         <loc>https://amspath.github.io/wsi-patching-pipeline/quickstart/</loc>
+         <lastmod>2026-07-16</lastmod>
+    </url>
+    <url>
+         <loc>https://amspath.github.io/wsi-patching-pipeline/reference/</loc>
+         <lastmod>2026-07-16</lastmod>
+    </url>
+</urlset>

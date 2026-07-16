@@ -1,0 +1,1162 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="High-performance streaming of whole-slide image patches for digital pathology.">
+      
+      
+      
+        <link rel="canonical" href="https://amspath.github.io/wsi-patching-pipeline/auditing/">
+      
+      
+        <link rel="prev" href="../concepts/">
+      
+      
+        <link rel="next" href="../reference/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Auditing & visualization - wsi-patching</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="cyan">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#auditing-visualization" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="wsi-patching" class="md-header__button md-logo" aria-label="wsi-patching" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            wsi-patching
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Auditing & visualization
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="cyan"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="teal" data-md-color-accent="cyan"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/amspath/wsi-patching-pipeline" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    amspath/wsi-patching-pipeline
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href=".." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../installation/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Installation
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../quickstart/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Quickstart
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../concepts/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Concepts
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    <li class="md-tabs__item md-tabs__item--active">
+      <a href="./" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Auditing & visualization
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../reference/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  API Reference
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../extending/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Extending
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="wsi-patching" class="md-nav__button md-logo" aria-label="wsi-patching" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    wsi-patching
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/amspath/wsi-patching-pipeline" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    amspath/wsi-patching-pipeline
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quickstart
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../concepts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Auditing & visualization
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Auditing & visualization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#dry-run-audit-without-writing-output" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dry run: audit without writing output
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#interactive-overlay" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Interactive overlay
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reordering-filters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reordering filters
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#live-parameter-sliders" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Live parameter sliders
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Live parameter sliders">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#which-parameters-get-a-slider" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Which parameters get a slider
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#how-dry_run-makes-this-work" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How dry_run makes this work
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tuning-knobs-on-your-own-stage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tuning knobs on your own stage
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#auditing-a-real-run" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Auditing a real run
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#programmatic-access" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Programmatic access
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../extending/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Extending
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#dry-run-audit-without-writing-output" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dry run: audit without writing output
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#interactive-overlay" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Interactive overlay
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reordering-filters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reordering filters
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#live-parameter-sliders" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Live parameter sliders
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Live parameter sliders">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#which-parameters-get-a-slider" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Which parameters get a slider
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#how-dry_run-makes-this-work" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How dry_run makes this work
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tuning-knobs-on-your-own-stage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tuning knobs on your own stage
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#auditing-a-real-run" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Auditing a real run
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#programmatic-access" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Programmatic access
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="auditing-visualization">Auditing &amp; visualization<a class="headerlink" href="#auditing-visualization" title="Permanent link">&para;</a></h1>
+<p>Tuning a patching pipeline means answering one question: <strong>what does each stage
+throw out, and why?</strong> The auditing tools record, per stage per slide, how many
+patches came in and out, <em>which</em> patches each stage dropped, and the metadata
+behind each drop — then show it as a funnel table and an interactive overlay.</p>
+<h2 id="dry-run-audit-without-writing-output">Dry run: audit without writing output<a class="headerlink" href="#dry-run-audit-without-writing-output" title="Permanent link">&para;</a></h2>
+<p><code>dry_run()</code> runs the pipeline's filters <strong>without a writer and without encoding</strong>,
+purely to collect the audit. It's the fast way to iterate on parameters. No
+writer is required.</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">wsi_patching</span><span class="w"> </span><span class="kn">import</span> <span class="n">PatchExtractor</span><span class="p">,</span> <span class="n">OtsuFilter</span><span class="p">,</span> <span class="n">RemoveEdgeTiles</span><span class="p">,</span> <span class="n">WSIGrid</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">p</span> <span class="o">=</span> <span class="p">(</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">WSIGrid</span><span class="p">(</span><span class="n">slides</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;slide.tiff&quot;</span><span class="p">],</span> <span class="n">resolution</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">unit</span><span class="o">=</span><span class="s2">&quot;level&quot;</span><span class="p">)</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="o">.</span><span class="n">then</span><span class="p">(</span><span class="n">PatchExtractor</span><span class="p">(</span><span class="n">tile_size</span><span class="o">=</span><span class="mi">224</span><span class="p">,</span> <span class="n">stride</span><span class="o">=</span><span class="mi">224</span><span class="p">))</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="o">.</span><span class="n">then</span><span class="p">(</span><span class="n">OtsuFilter</span><span class="p">(</span><span class="n">min_tissue_fraction</span><span class="o">=</span><span class="mf">0.35</span><span class="p">))</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="o">.</span><span class="n">then</span><span class="p">(</span><span class="n">RemoveEdgeTiles</span><span class="p">(</span><span class="n">depth</span><span class="o">=</span><span class="mi">1</span><span class="p">))</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="p">)</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="n">p</span><span class="o">.</span><span class="n">dry_run</span><span class="p">()</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="n">p</span><span class="o">.</span><span class="n">print_audit</span><span class="p">()</span>
+</span></code></pre></div>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>=== Audit: slide ===
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>Stage                                  In        Out    Dropped   Drop %
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>PatchExtractor                        252        252          0     0.0%
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>OtsuFilter                            252         85        167    66.3%
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>RemoveEdgeTiles                        85         42         43    50.6%
+</span></code></pre></div>
+<h2 id="interactive-overlay">Interactive overlay<a class="headerlink" href="#interactive-overlay" title="Permanent link">&para;</a></h2>
+<p><code>visualize_audit(pipeline, slide)</code> returns a report that renders inline in
+Jupyter (it's the last expression in the cell) and can be saved as a
+self-contained HTML file.</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">wsi_patching</span><span class="w"> </span><span class="kn">import</span> <span class="n">visualize_audit</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="n">report</span> <span class="o">=</span> <span class="n">visualize_audit</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="s2">&quot;slide.tiff&quot;</span><span class="p">)</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="n">report</span>                       <span class="c1"># renders inline in a notebook</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="n">report</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;report.html&quot;</span><span class="p">)</span>   <span class="c1"># standalone shareable file</span>
+</span></code></pre></div>
+<ul>
+<li><strong>Green</strong> patches are kept; each other color is a stage that dropped those patches.</li>
+<li><strong>Hover</strong> a patch to see the stage and its metadata (e.g. <code>tissue_fraction=0.03</code>).</li>
+<li><strong>Sliders</strong> re-tune each filter's threshold live — see below.</li>
+<li><strong>Unchecking a stage in the legend removes it from the pipeline</strong>: everything is
+  re-filtered without it, so the patches it had dropped are re-judged by the
+  remaining stages and recolored (kept, or dropped by a later stage). The funnel
+  marks it <code>(off)</code> and the config box drops it.</li>
+<li><strong>The ▲▼ arrows reorder the filters</strong>, re-running the whole attribution in the
+  new order — see below.</li>
+</ul>
+<p>Every legend checkbox means exactly one thing — <em>is this stage in the pipeline?</em>
+<code>kept</code> and <code>unknown</code> are outcomes rather than stages, so they are shown as plain
+swatches with no checkbox.</p>
+<h2 id="reordering-filters">Reordering filters<a class="headerlink" href="#reordering-filters" title="Permanent link">&para;</a></h2>
+<p>The ▲▼ arrows move a filter up or down the pipeline. The overlay, funnel and config
+box all follow, and the config box is emitted in the new order — paste it straight
+back into your code.</p>
+<p><strong>Reordering cannot change which patches survive.</strong> A patch is kept only if it
+passes <em>every</em> filter, and that is independent of the order they run in. What it
+changes is:</p>
+<ul>
+<li><strong>Who gets the blame.</strong> With <code>OtsuFilter</code> last, it looks responsible for only 57
+  drops; move it first and you see it is really rejecting 167 patches — the other
+  filters were just getting to some of them first.</li>
+<li><strong>How much work each stage does</strong> — which is a real speed decision. Putting the
+  cheap filter first means the expensive one sees far fewer patches:</li>
+</ul>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>RemoveEdgeTiles     252 -&gt; 190      OtsuFilter          252 -&gt; 85
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>LowContrast         190 -&gt;  67      RemoveEdgeTiles      85 -&gt; 42
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>OtsuFilter           67 -&gt;  10      LowContrast          42 -&gt; 10
+</span></code></pre></div>
+<p>Both keep the same 10 patches, but the left order only runs Otsu on 67 patches
+instead of 252. <code>RemoveEdgeTiles</code> is pure arithmetic, so it is nearly free to put
+first.</p>
+<p>A filter will only swap with an adjacent <strong>filter</strong>. It cannot be moved across the
+source or a pixel-transforming stage (e.g. a normalizer), because the recorded
+metrics were measured on that stage's output — moving past it would invalidate them.
+Those arrows are disabled.</p>
+<p>Between the two you can answer both tuning questions without ever re-running:
+<em>what threshold?</em> (slider) and <em>do I even need this filter?</em> (checkbox).</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Unchecking a filter that has <strong>no slider</strong> (e.g. <code>CellVitTissueClassifierFilter</code>)
+turns its patches <strong>grey — "unknown"</strong>, not green. Those patches were dropped in
+Python before the later stages ever measured them, so there is no honest way to
+say what the rest of the pipeline would have done with them. Re-run without that
+stage to find out.</p>
+</div>
+<h2 id="live-parameter-sliders">Live parameter sliders<a class="headerlink" href="#live-parameter-sliders" title="Permanent link">&para;</a></h2>
+<p>After a <code>dry_run()</code>, the report grows a <strong>slider for every tunable filter
+parameter</strong>. Drag one — or type an exact value in the box on the right — and the
+overlay, the funnel and a copy-pasteable config update instantly:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>[▲][▼]  RemoveEdgeTiles.depth           &gt;=  [==O=============]  [   1   ]
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>[▲][▼]  OtsuFilter.min_tissue_fraction  &gt;=  [======O=========]  [ 0.350 ]
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>.then(RemoveEdgeTiles(depth=1))
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>.then(OtsuFilter(min_tissue_fraction=0.350))
+</span></code></pre></div>
+<p>When you like what you see, paste the config box straight into your pipeline.</p>
+<p>The slider track spans the observed range of the metric, since nothing outside it
+changes the outcome — but the number box accepts any value, so you can push a
+threshold past the extremes if you want to see it drop everything.</p>
+<p><strong>No Python runs while you drag.</strong> Every threshold filter computes a per-patch
+metric that doesn't depend on its threshold (<code>tissue_fraction</code>, <code>pen_fraction</code>,
+<code>gray_range</code>, <code>edge_distance</code>), so the report records the metric once and
+re-decides keep/drop in the browser. That's why the sliders keep working in a
+saved <code>.html</code> file with no kernel attached.</p>
+<h3 id="which-parameters-get-a-slider">Which parameters get a slider<a class="headerlink" href="#which-parameters-get-a-slider" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Slider</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>OtsuFilter.min_tissue_fraction</code></td>
+<td>✅</td>
+</tr>
+<tr>
+<td><code>PenArtifactFilter.max_pen_fraction</code></td>
+<td>✅</td>
+</tr>
+<tr>
+<td><code>LowContrastBackgroundFilter.range_threshold</code></td>
+<td>✅</td>
+</tr>
+<tr>
+<td><code>RemoveEdgeTiles.depth</code></td>
+<td>✅</td>
+</tr>
+<tr>
+<td><code>OtsuFilter.num_bins</code> / <code>tissue_is_darker</code>, <code>PenArtifactFilter.diff_thresh</code></td>
+<td>❌ changes the metric itself</td>
+</tr>
+<tr>
+<td><code>tile_size</code> / <code>stride</code></td>
+<td>❌ changes the patch grid</td>
+</tr>
+</tbody>
+</table>
+<p>The ❌ ones can't be recomputed from recorded data — change them in the
+constructor and <code>dry_run()</code> again.</p>
+<h3 id="how-dry_run-makes-this-work">How <code>dry_run</code> makes this work<a class="headerlink" href="#how-dry_run-makes-this-work" title="Permanent link">&para;</a></h3>
+<p>A filter only computes its metric for the patches that reach it. With real
+thresholds, a patch dropped by <code>OtsuFilter</code> never gets a <code>pen_fraction</code>, so a
+slider could only ever <em>tighten</em>. To avoid that, <code>dry_run()</code> runs every tunable
+filter <strong>permissively</strong> (thresholds neutralized so nothing drops); each patch
+then flows through every stage and carries every metric, and any threshold can be
+re-decided offline in either direction.</p>
+<p>The funnel is unaffected: the drops are re-derived from the recorded metrics at
+<em>your</em> configured thresholds, so <code>print_audit()</code> prints the same table it would
+for a real run. The cost is speed — nothing is rejected early, so every filter
+sees every patch. To audit many slides fast, use <code>dry_run(tune=False)</code>; the
+report is then static.</p>
+<p><code>materialize(audit=True)</code> / <code>stream(audit=True)</code> are never permissive — a real
+run writes exactly what its real thresholds say — so those reports are static too.</p>
+<h3 id="tuning-knobs-on-your-own-stage">Tuning knobs on your own stage<a class="headerlink" href="#tuning-knobs-on-your-own-stage" title="Permanent link">&para;</a></h3>
+<p>Any stage whose decision is <code>metric op threshold</code> can opt in by declaring a
+<code>Knob</code>, as long as the metric does not depend on the threshold:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">wsi_patching.custom_component</span><span class="w"> </span><span class="kn">import</span> <span class="n">Knob</span><span class="p">,</span> <span class="n">Stage</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="k">class</span><span class="w"> </span><span class="nc">MyFilter</span><span class="p">(</span><span class="n">Stage</span><span class="p">):</span>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>    <span class="n">AUDIT_KNOBS</span> <span class="o">=</span> <span class="p">(</span><span class="n">Knob</span><span class="p">(</span><span class="s2">&quot;max_blur&quot;</span><span class="p">,</span> <span class="s2">&quot;blur_score&quot;</span><span class="p">,</span> <span class="s2">&quot;&lt;=&quot;</span><span class="p">,</span> <span class="n">permissive</span><span class="o">=</span><span class="mf">1.0</span><span class="p">),)</span>
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>
+</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">it</span><span class="p">):</span>
+</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>        <span class="k">for</span> <span class="n">batch</span> <span class="ow">in</span> <span class="n">it</span><span class="p">:</span>
+</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>            <span class="n">batch</span><span class="o">.</span><span class="n">add_meta_column</span><span class="p">(</span><span class="s2">&quot;blur_score&quot;</span><span class="p">,</span> <span class="n">scores</span><span class="p">)</span>   <span class="c1"># for every row, before filtering</span>
+</span><span id="__span-5-9"><a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>            <span class="n">batch</span><span class="o">.</span><span class="n">filter_on_mask</span><span class="p">(</span><span class="n">scores</span> <span class="o">&lt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_blur</span><span class="p">)</span>
+</span><span id="__span-5-10"><a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a>            <span class="k">yield</span> <span class="n">batch</span>
+</span></code></pre></div>
+<p><code>permissive</code> is the value at which the stage drops nothing. Attach the metric
+column for <strong>all</strong> rows <em>before</em> <code>filter_on_mask</code>, or the dropped patches won't
+have it.</p>
+<h2 id="auditing-a-real-run">Auditing a real run<a class="headerlink" href="#auditing-a-real-run" title="Permanent link">&para;</a></h2>
+<p>You don't have to dry-run. Pass <code>audit=True</code> to a normal run to get the same
+funnel and overlay alongside your written output:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="n">p</span><span class="o">.</span><span class="n">materialize</span><span class="p">(</span><span class="n">audit</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>   <span class="c1"># or p.stream(audit=True)</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="n">p</span><span class="o">.</span><span class="n">print_audit</span><span class="p">()</span>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="n">visualize_audit</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="s2">&quot;slide.tiff&quot;</span><span class="p">)</span>
+</span></code></pre></div>
+<p>Auditing is opt-in and adds no overhead to runs that don't request it.</p>
+<h2 id="programmatic-access">Programmatic access<a class="headerlink" href="#programmatic-access" title="Permanent link">&para;</a></h2>
+<p><code>pipeline.get_audit()</code> returns the raw data if you want to build your own
+report:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="n">audit</span> <span class="o">=</span> <span class="n">pipeline</span><span class="o">.</span><span class="n">get_audit</span><span class="p">()[</span><span class="s2">&quot;by_slide&quot;</span><span class="p">][</span><span class="s2">&quot;slide&quot;</span><span class="p">]</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="n">audit</span><span class="p">[</span><span class="s2">&quot;funnel&quot;</span><span class="p">]</span>      <span class="c1"># [{&quot;stage&quot;, &quot;in&quot;, &quot;out&quot;, &quot;dropped&quot;}, ...]</span>
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="n">audit</span><span class="p">[</span><span class="s2">&quot;kept&quot;</span><span class="p">]</span>        <span class="c1"># (K, 2) coords surviving the whole pipeline</span>
+</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="n">audit</span><span class="p">[</span><span class="s2">&quot;dropped&quot;</span><span class="p">]</span>     <span class="c1"># [{&quot;stage&quot;, &quot;coords&quot;: (D, 2)}, ...] per dropping stage</span>
+</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="n">audit</span><span class="p">[</span><span class="s2">&quot;candidates&quot;</span><span class="p">]</span>  <span class="c1"># (N, 2) every coord that entered the pipeline</span>
+</span><span id="__span-7-6"><a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="n">audit</span><span class="p">[</span><span class="s2">&quot;patch_meta&quot;</span><span class="p">]</span>  <span class="c1"># {(x, y): {col: value}} per-patch metadata</span>
+</span><span id="__span-7-7"><a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="n">audit</span><span class="p">[</span><span class="s2">&quot;knobs&quot;</span><span class="p">]</span>       <span class="c1"># tunable params of the run, with their configured values</span>
+</span></code></pre></div>
+<p>After a <code>dry_run()</code> you can also re-derive the funnel for other knob values
+without re-running — the same computation the sliders do, in Python:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="n">knob</span> <span class="o">=</span> <span class="n">pipeline</span><span class="o">.</span><span class="n">get_audit</span><span class="p">()[</span><span class="s2">&quot;by_slide&quot;</span><span class="p">][</span><span class="s2">&quot;slide&quot;</span><span class="p">][</span><span class="s2">&quot;knobs&quot;</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="p">(</span><span class="mf">0.1</span><span class="p">,</span> <span class="mf">0.2</span><span class="p">,</span> <span class="mf">0.3</span><span class="p">):</span>
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>    <span class="n">entry</span> <span class="o">=</span> <span class="n">pipeline</span><span class="o">.</span><span class="n">get_audit</span><span class="p">(</span><span class="n">values</span><span class="o">=</span><span class="p">{</span><span class="n">knob</span><span class="p">[</span><span class="s2">&quot;stage_idx&quot;</span><span class="p">]:</span> <span class="n">v</span><span class="p">})[</span><span class="s2">&quot;by_slide&quot;</span><span class="p">][</span><span class="s2">&quot;slide&quot;</span><span class="p">]</span>
+</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>    <span class="nb">print</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">entry</span><span class="p">[</span><span class="s2">&quot;kept&quot;</span><span class="p">]))</span>
+</span></code></pre></div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Attribution is generic: a stage's drops are the patch coordinates present in
+its input but absent from its output. This works for every stage — current or
+custom — with no per-stage code. Per-patch metadata is captured at the single
+drop point (<code>CollatedPatchBatch.filter_on_mask</code>) for dropped patches and at the
+last stage for the survivors, so any columns a filter attaches
+(<code>tissue_fraction</code>, <code>pen_fraction</code>, …) show up automatically.</p>
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "content.code.copy", "content.code.annotate"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>

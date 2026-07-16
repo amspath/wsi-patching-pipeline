@@ -1,0 +1,2042 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="High-performance streaming of whole-slide image patches for digital pathology.">
+      
+      
+      
+        <link rel="canonical" href="https://amspath.github.io/wsi-patching-pipeline/reference/">
+      
+      
+        <link rel="prev" href="../auditing/">
+      
+      
+        <link rel="next" href="../extending/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>API Reference - wsi-patching</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="cyan">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#api-reference" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="wsi-patching" class="md-header__button md-logo" aria-label="wsi-patching" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            wsi-patching
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              API Reference
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="cyan"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="teal" data-md-color-accent="cyan"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/amspath/wsi-patching-pipeline" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    amspath/wsi-patching-pipeline
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href=".." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../installation/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Installation
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../quickstart/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Quickstart
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../concepts/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Concepts
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../auditing/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Auditing & visualization
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    <li class="md-tabs__item md-tabs__item--active">
+      <a href="./" class="md-tabs__link">
+        
+  
+  
+    
+  
+  API Reference
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../extending/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Extending
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="wsi-patching" class="md-nav__button md-logo" aria-label="wsi-patching" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    wsi-patching
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/amspath/wsi-patching-pipeline" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    amspath/wsi-patching-pipeline
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quickstart
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../concepts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../auditing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Auditing & visualization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#entry-point" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Entry point
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Entry point">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#wsigrid" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        WSIGrid
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#regions-of-interest" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Regions of interest
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Regions of interest">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#attachrois" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        AttachROIs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rectroiprovider" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        RectROIProvider
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rectroifromxmlprovider" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        RectROIfromXMLProvider
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#wholeslideprovider" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        WholeSlideProvider
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#core-stages" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Core stages
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Core stages">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#patchextractor" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PatchExtractor
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sub-stages-advanced" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sub-stages (advanced)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#filters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Filters
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Filters">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#lowcontrastbackgroundfilter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        LowContrastBackgroundFilter
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#otsufilter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        OtsuFilter
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#penartifactfilter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PenArtifactFilter
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cellvittissueclassifierfilter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CellVitTissueClassifierFilter
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#transforms" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Transforms
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Transforms">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#macenkonormalizer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MacenkoNormalizer
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#encoders" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Encoders
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Encoders">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pngencoder" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PNGEncoder
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#stream-writers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stream writers
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Stream writers">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#numpystreamwriter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        NumpyStreamWriter
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torchstreamwriter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TorchStreamWriter
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#materialize-writers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Materialize writers
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Materialize writers">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#webdatasetwriter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        WebDatasetWriter
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pipeline-execution" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pipeline execution
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Pipeline execution">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#stream-and-materialize" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        .stream() and .materialize()
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#after-execution" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        After execution
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../extending/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Extending
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#entry-point" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Entry point
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Entry point">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#wsigrid" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        WSIGrid
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#regions-of-interest" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Regions of interest
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Regions of interest">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#attachrois" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        AttachROIs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rectroiprovider" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        RectROIProvider
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rectroifromxmlprovider" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        RectROIfromXMLProvider
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#wholeslideprovider" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        WholeSlideProvider
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#core-stages" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Core stages
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Core stages">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#patchextractor" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PatchExtractor
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sub-stages-advanced" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sub-stages (advanced)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#filters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Filters
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Filters">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#lowcontrastbackgroundfilter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        LowContrastBackgroundFilter
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#otsufilter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        OtsuFilter
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#penartifactfilter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PenArtifactFilter
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cellvittissueclassifierfilter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CellVitTissueClassifierFilter
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#transforms" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Transforms
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Transforms">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#macenkonormalizer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MacenkoNormalizer
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#encoders" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Encoders
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Encoders">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pngencoder" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PNGEncoder
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#stream-writers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stream writers
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Stream writers">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#numpystreamwriter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        NumpyStreamWriter
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torchstreamwriter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TorchStreamWriter
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#materialize-writers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Materialize writers
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Materialize writers">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#webdatasetwriter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        WebDatasetWriter
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pipeline-execution" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pipeline execution
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Pipeline execution">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#stream-and-materialize" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        .stream() and .materialize()
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#after-execution" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        After execution
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="api-reference">API Reference<a class="headerlink" href="#api-reference" title="Permanent link">&para;</a></h1>
+<p>All public components are importable from <code>wsi_patching</code> unless noted otherwise.</p>
+<hr />
+<h2 id="entry-point">Entry point<a class="headerlink" href="#entry-point" title="Permanent link">&para;</a></h2>
+<h3 id="wsigrid"><code>WSIGrid</code><a class="headerlink" href="#wsigrid" title="Permanent link">&para;</a></h3>
+<p>The source stage; every pipeline starts here.</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">wsi_patching</span><span class="w"> </span><span class="kn">import</span> <span class="n">WSIGrid</span>
+</span></code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>slides</code></td>
+<td><code>List[str]</code></td>
+<td>—</td>
+<td>Paths to WSI files</td>
+</tr>
+<tr>
+<td><code>resolution</code></td>
+<td><code>float</code></td>
+<td>—</td>
+<td>Desired resolution value</td>
+</tr>
+<tr>
+<td><code>unit</code></td>
+<td><code>"level" \| "mpp" \| "downsample"</code></td>
+<td>—</td>
+<td>Unit of <code>resolution</code></td>
+</tr>
+<tr>
+<td><code>use_gpu</code></td>
+<td><code>bool</code></td>
+<td><code>False</code></td>
+<td>Enable GPU-accelerated backends (CuPy)</td>
+</tr>
+<tr>
+<td><code>fallback_mode</code></td>
+<td><code>"nearest" \| "floor" \| "ceil" \| "error" \| "resample"</code></td>
+<td><code>"error"</code></td>
+<td>What to do when the exact resolution is unavailable</td>
+</tr>
+<tr>
+<td><code>resample_interpolation</code></td>
+<td><code>"nearest" \| "linear" \| "cubic" \| "area" \| "lanczos"</code></td>
+<td><code>"lanczos"</code></td>
+<td>Interpolation used when <code>fallback_mode="resample"</code></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="regions-of-interest">Regions of interest<a class="headerlink" href="#regions-of-interest" title="Permanent link">&para;</a></h2>
+<h3 id="attachrois"><code>AttachROIs</code><a class="headerlink" href="#attachrois" title="Permanent link">&para;</a></h3>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">wsi_patching</span><span class="w"> </span><span class="kn">import</span> <span class="n">AttachROIs</span>
+</span></code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>providers</code></td>
+<td><code>List[ROIProvider]</code></td>
+<td>—</td>
+<td>One or more ROI providers; ROIs from all providers are merged</td>
+</tr>
+<tr>
+<td><code>on_empty</code></td>
+<td><code>"error" \| "whole_slide"</code></td>
+<td><code>"error"</code></td>
+<td>What to do when a slide has no ROIs</td>
+</tr>
+</tbody>
+</table>
+<h3 id="rectroiprovider"><code>RectROIProvider</code><a class="headerlink" href="#rectroiprovider" title="Permanent link">&para;</a></h3>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">wsi_patching</span><span class="w"> </span><span class="kn">import</span> <span class="n">RectROIProvider</span>
+</span></code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>rois</code></td>
+<td><code>Dict[str, List[Tuple[int, int, int, int]]]</code></td>
+<td>Maps slide stem → list of <code>(x, y, width, height)</code> tuples in pixels at the selected resolution level</td>
+</tr>
+</tbody>
+</table>
+<h3 id="rectroifromxmlprovider"><code>RectROIfromXMLProvider</code><a class="headerlink" href="#rectroifromxmlprovider" title="Permanent link">&para;</a></h3>
+<p>Reads rectangular ROIs from ASAP-style XML annotation files.</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">wsi_patching</span><span class="w"> </span><span class="kn">import</span> <span class="n">RectROIfromXMLProvider</span>
+</span></code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>rois</code></td>
+<td><code>Dict[str, str]</code></td>
+<td>—</td>
+<td>Maps slide stem → path to XML annotation file</td>
+</tr>
+<tr>
+<td><code>annotation_group</code></td>
+<td><code>str</code></td>
+<td><code>"roi"</code></td>
+<td><code>PartOfGroup</code> attribute value to filter annotations by</td>
+</tr>
+<tr>
+<td><code>annotation_level</code></td>
+<td><code>Optional[int]</code></td>
+<td><code>None</code></td>
+<td>Pyramid level the annotation coordinates were drawn at; <code>None</code> means same level as the pipeline</td>
+</tr>
+</tbody>
+</table>
+<h3 id="wholeslideprovider"><code>WholeSlideProvider</code><a class="headerlink" href="#wholeslideprovider" title="Permanent link">&para;</a></h3>
+<p>Produces a single ROI covering the entire slide. Takes no parameters.</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">wsi_patching</span><span class="w"> </span><span class="kn">import</span> <span class="n">WholeSlideProvider</span>
+</span></code></pre></div>
+<hr />
+<h2 id="core-stages">Core stages<a class="headerlink" href="#core-stages" title="Permanent link">&para;</a></h2>
+<h3 id="patchextractor"><code>PatchExtractor</code><a class="headerlink" href="#patchextractor" title="Permanent link">&para;</a></h3>
+<p>Composite stage that combines <code>TilePlanner</code> + <code>ReadWindowChunker</code> + <code>RegionReadAndBatch</code>. Use this in most pipelines.</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">wsi_patching</span><span class="w"> </span><span class="kn">import</span> <span class="n">PatchExtractor</span>
+</span></code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tile_size</code></td>
+<td><code>int</code></td>
+<td>—</td>
+<td>Square patch size in pixels</td>
+</tr>
+<tr>
+<td><code>stride</code></td>
+<td><code>int</code></td>
+<td>—</td>
+<td>Spacing between patch top-left corners</td>
+</tr>
+<tr>
+<td><code>tile_selection_mode</code></td>
+<td><code>"any_overlap" \| "full_inside_bounds" \| "center_in_roi"</code></td>
+<td><code>"any_overlap"</code></td>
+<td>How to decide if a tile is inside the ROI</td>
+</tr>
+<tr>
+<td><code>max_batch_size</code></td>
+<td><code>int</code></td>
+<td><code>200</code></td>
+<td>Maximum patches per output batch</td>
+</tr>
+<tr>
+<td><code>wsi_edge_policy</code></td>
+<td><code>"drop" \| "pad_with_zeros" \| "pad_with_edge"</code></td>
+<td><code>"pad_with_zeros"</code></td>
+<td>How to handle tiles that extend beyond the WSI edge</td>
+</tr>
+<tr>
+<td><code>roi_edge_policy</code></td>
+<td><code>"read_from_image" \| "use_wsi_edge_policy"</code></td>
+<td><code>"use_wsi_edge_policy"</code></td>
+<td>How to handle tiles at the ROI boundary</td>
+</tr>
+<tr>
+<td><code>dtype</code></td>
+<td><code>np.dtype</code></td>
+<td><code>np.uint8</code></td>
+<td>Patch array dtype</td>
+</tr>
+<tr>
+<td><code>max_window_size</code></td>
+<td><code>Optional[int]</code></td>
+<td><code>None</code></td>
+<td>Max read-window size; defaults to <code>20 × tile_size</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="sub-stages-advanced">Sub-stages (advanced)<a class="headerlink" href="#sub-stages-advanced" title="Permanent link">&para;</a></h3>
+<p>If you need to customise individual steps inside <code>PatchExtractor</code>, you can chain the three sub-stages yourself:</p>
+<table>
+<thead>
+<tr>
+<th>Stage</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>TilePlanner(tile_size, stride, tile_selection_mode)</code></td>
+<td>Computes tile coordinates for each ROI</td>
+</tr>
+<tr>
+<td><code>ReadWindowChunker(max_window_size=None)</code></td>
+<td>Groups tiles into efficient read windows</td>
+</tr>
+<tr>
+<td><code>RegionReadAndBatch(batch_size, wsi_edge_policy, roi_edge_policy, dtype)</code></td>
+<td>Reads pixel data and collates into batches</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="filters">Filters<a class="headerlink" href="#filters" title="Permanent link">&para;</a></h2>
+<p>All filters accept a <code>CollatedPatchBatch</code> and yield a filtered <code>CollatedPatchBatch</code>. They can be inserted with <code>.then()</code> after <code>PatchExtractor</code>.</p>
+<h3 id="lowcontrastbackgroundfilter"><code>LowContrastBackgroundFilter</code><a class="headerlink" href="#lowcontrastbackgroundfilter" title="Permanent link">&para;</a></h3>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">wsi_patching</span><span class="w"> </span><span class="kn">import</span> <span class="n">LowContrastBackgroundFilter</span>
+</span></code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>range_threshold</code></td>
+<td><code>float</code></td>
+<td><code>0.2</code></td>
+<td>Minimum grayscale dynamic range (max − min, in <code>[0,1]</code>) for a patch to be kept</td>
+</tr>
+<tr>
+<td><code>float_precision</code></td>
+<td><code>"float32" \| "float64"</code></td>
+<td><code>"float32"</code></td>
+<td>Working precision for grayscale conversion</td>
+</tr>
+</tbody>
+</table>
+<h3 id="otsufilter"><code>OtsuFilter</code><a class="headerlink" href="#otsufilter" title="Permanent link">&para;</a></h3>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">wsi_patching</span><span class="w"> </span><span class="kn">import</span> <span class="n">OtsuFilter</span>
+</span></code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tissue_is_darker</code></td>
+<td><code>bool</code></td>
+<td><code>True</code></td>
+<td>If <code>True</code>, pixels darker than the Otsu threshold are classified as tissue</td>
+</tr>
+<tr>
+<td><code>num_bins</code></td>
+<td><code>int</code></td>
+<td><code>256</code></td>
+<td>Histogram bins for Otsu computation</td>
+</tr>
+<tr>
+<td><code>float_precision</code></td>
+<td><code>"float32" \| "float64"</code></td>
+<td><code>"float32"</code></td>
+<td>Working precision</td>
+</tr>
+<tr>
+<td><code>min_tissue_fraction</code></td>
+<td><code>float</code></td>
+<td><code>0.0</code></td>
+<td>Minimum fraction of tissue pixels for a patch to be kept</td>
+</tr>
+</tbody>
+</table>
+<h3 id="penartifactfilter"><code>PenArtifactFilter</code><a class="headerlink" href="#penartifactfilter" title="Permanent link">&para;</a></h3>
+<p>Detects blue, green, and red pen markings using batched GPU-accelerated colour thresholds.</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">wsi_patching</span><span class="w"> </span><span class="kn">import</span> <span class="n">PenArtifactFilter</span>
+</span></code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>diff_thresh</code></td>
+<td><code>float</code></td>
+<td><code>5.0</code></td>
+<td>Minimum colour channel difference to classify a pixel as pen</td>
+</tr>
+<tr>
+<td><code>max_pen_fraction</code></td>
+<td><code>float</code></td>
+<td><code>0.01</code></td>
+<td>Maximum fraction of pen pixels before a patch is discarded</td>
+</tr>
+</tbody>
+</table>
+<h3 id="cellvittissueclassifierfilter"><code>CellVitTissueClassifierFilter</code><a class="headerlink" href="#cellvittissueclassifierfilter" title="Permanent link">&para;</a></h3>
+<p>Uses a MobileNetV3 model (from CellViT) to classify patches as tissue or background. <strong>Requires the <code>[gpu]</code> extra.</strong></p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">wsi_patching</span><span class="w"> </span><span class="kn">import</span> <span class="n">CellVitTissueClassifierFilter</span>
+</span></code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>model_file_path</code></td>
+<td><code>str \| Path</code></td>
+<td>Path to the <code>.pth</code> model weights file</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="transforms">Transforms<a class="headerlink" href="#transforms" title="Permanent link">&para;</a></h2>
+<h3 id="macenkonormalizer"><code>MacenkoNormalizer</code><a class="headerlink" href="#macenkonormalizer" title="Permanent link">&para;</a></h3>
+<p>Applies Macenko stain normalisation. Fits on the first batch of each slide. <strong>Requires the <code>[gpu]</code> extra.</strong></p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">wsi_patching</span><span class="w"> </span><span class="kn">import</span> <span class="n">MacenkoNormalizer</span>
+</span></code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>alpha</code></td>
+<td><code>float</code></td>
+<td><code>1.0</code></td>
+<td>Percentile for robust SVD</td>
+</tr>
+<tr>
+<td><code>beta</code></td>
+<td><code>float</code></td>
+<td><code>0.15</code></td>
+<td>Transparency threshold</td>
+</tr>
+<tr>
+<td><code>light_intensity</code></td>
+<td><code>int</code></td>
+<td><code>255</code></td>
+<td>Maximum transmitted light intensity</td>
+</tr>
+<tr>
+<td><code>pixel_limit</code></td>
+<td><code>Optional[int]</code></td>
+<td><code>500_000</code></td>
+<td>Max pixels sampled for fitting; <code>None</code> uses all pixels</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>If the first batch of a slide contains only background, fitting will produce poor results. Consider placing a background filter before <code>MacenkoNormalizer</code>.</p>
+</div>
+<hr />
+<h2 id="encoders">Encoders<a class="headerlink" href="#encoders" title="Permanent link">&para;</a></h2>
+<h3 id="pngencoder"><code>PNGEncoder</code><a class="headerlink" href="#pngencoder" title="Permanent link">&para;</a></h3>
+<p>Encodes patches to PNG bytes. Required before <code>WebDatasetWriter</code>.</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">wsi_patching</span><span class="w"> </span><span class="kn">import</span> <span class="n">PNGEncoder</span>
+</span></code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>compress_level</code></td>
+<td><code>int</code></td>
+<td><code>1</code></td>
+<td>PNG compression level (0–9); 1 is fast with decent compression</td>
+</tr>
+<tr>
+<td><code>threads</code></td>
+<td><code>Optional[int]</code></td>
+<td><code>None</code></td>
+<td>Worker threads for parallel encoding; <code>None</code> uses one per CPU</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="stream-writers">Stream writers<a class="headerlink" href="#stream-writers" title="Permanent link">&para;</a></h2>
+<p>Stream writers yield results to the caller directly; use with <code>.stream()</code>.</p>
+<h3 id="numpystreamwriter"><code>NumpyStreamWriter</code><a class="headerlink" href="#numpystreamwriter" title="Permanent link">&para;</a></h3>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">wsi_patching</span><span class="w"> </span><span class="kn">import</span> <span class="n">NumpyStreamWriter</span>
+</span></code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>layout</code></td>
+<td><code>"NCHW" \| "NHWC"</code></td>
+<td><code>"NCHW"</code></td>
+<td>Output array axis order</td>
+</tr>
+<tr>
+<td><code>dtype</code></td>
+<td><code>np.dtype</code></td>
+<td><code>np.float32</code></td>
+<td>Output array dtype</td>
+</tr>
+</tbody>
+</table>
+<p>Yields: <code>(wsi_id: str, images: np.ndarray, coords: np.ndarray, meta: list[dict])</code></p>
+<h3 id="torchstreamwriter"><code>TorchStreamWriter</code><a class="headerlink" href="#torchstreamwriter" title="Permanent link">&para;</a></h3>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">wsi_patching</span><span class="w"> </span><span class="kn">import</span> <span class="n">TorchStreamWriter</span>  <span class="c1"># requires [gpu] extra</span>
+</span></code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>layout</code></td>
+<td><code>"NCHW" \| "NHWC"</code></td>
+<td><code>"NCHW"</code></td>
+<td>Output tensor axis order</td>
+</tr>
+<tr>
+<td><code>dtype</code></td>
+<td><code>torch.dtype</code></td>
+<td><code>torch.float32</code></td>
+<td>Output tensor dtype</td>
+</tr>
+<tr>
+<td><code>device</code></td>
+<td><code>Optional[torch.device]</code></td>
+<td><code>None</code></td>
+<td>Target device; <code>None</code> uses the GPU when <code>use_gpu=True</code></td>
+</tr>
+</tbody>
+</table>
+<p>Yields: <code>(wsi_id: str, images: torch.Tensor, coords: torch.Tensor, meta: list[dict])</code></p>
+<hr />
+<h2 id="materialize-writers">Materialize writers<a class="headerlink" href="#materialize-writers" title="Permanent link">&para;</a></h2>
+<p>Materialize writers write to disk; use with <code>.materialize()</code>.</p>
+<h3 id="webdatasetwriter"><code>WebDatasetWriter</code><a class="headerlink" href="#webdatasetwriter" title="Permanent link">&para;</a></h3>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">wsi_patching</span><span class="w"> </span><span class="kn">import</span> <span class="n">WebDatasetWriter</span>
+</span></code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>outdir</code></td>
+<td><code>Path</code></td>
+<td><code>Path("./output/")</code></td>
+<td>Directory where shard tar files are written</td>
+</tr>
+<tr>
+<td><code>shard_size</code></td>
+<td><code>int</code></td>
+<td><code>200</code></td>
+<td>Maximum number of patches per shard file</td>
+</tr>
+<tr>
+<td><code>shuffle_buffer_size</code></td>
+<td><code>Optional[int]</code></td>
+<td><code>None</code></td>
+<td>Buffer size before a random flush; defaults to <code>shard_size × 3</code></td>
+</tr>
+</tbody>
+</table>
+<p>Shard files are named <code>shard-000000.tar</code>, <code>shard-000001.tar</code>, etc. Each entry contains keys <code>png</code> (PNG bytes), <code>meta</code> (JSON), and <code>__key__</code> (e.g. <code>slide_a_1024_2048</code>).</p>
+<hr />
+<h2 id="pipeline-execution">Pipeline execution<a class="headerlink" href="#pipeline-execution" title="Permanent link">&para;</a></h2>
+<h3 id="stream-and-materialize"><code>.stream()</code> and <code>.materialize()</code><a class="headerlink" href="#stream-and-materialize" title="Permanent link">&para;</a></h3>
+<p>Both methods share the same parameters:</p>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>num_workers</code></td>
+<td><code>int</code></td>
+<td><code>4</code></td>
+<td>Number of concurrent producer threads (one per slide)</td>
+</tr>
+<tr>
+<td><code>writer_prefetch_factor</code></td>
+<td><code>int</code></td>
+<td><code>2</code></td>
+<td>Queue depth = <code>writer_prefetch_factor × num_workers</code></td>
+</tr>
+<tr>
+<td><code>profile</code></td>
+<td><code>bool</code></td>
+<td><code>False</code></td>
+<td>Enable per-stage timing profiling</td>
+</tr>
+<tr>
+<td><code>verbosity_level</code></td>
+<td><code>LogLevel</code></td>
+<td><code>"WARNING"</code></td>
+<td>Logging level (<code>"DEBUG"</code>, <code>"INFO"</code>, <code>"WARNING"</code>, <code>"ERROR"</code>)</td>
+</tr>
+<tr>
+<td><code>gracefully_handle_producer_errors</code></td>
+<td><code>bool</code></td>
+<td><code>False</code></td>
+<td>Skip failed slides instead of raising</td>
+</tr>
+</tbody>
+</table>
+<h3 id="after-execution">After execution<a class="headerlink" href="#after-execution" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Attribute / Method</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pipeline.failed_slides</code></td>
+<td><code>List[str]</code> of slide names that failed (non-empty only when <code>gracefully_handle_producer_errors=True</code>)</td>
+</tr>
+<tr>
+<td><code>pipeline.print_profile()</code></td>
+<td>Print a formatted profile table to stdout</td>
+</tr>
+<tr>
+<td><code>pipeline.get_profile()</code></td>
+<td>Return the profile as a dict (<code>{"by_stage": {...}, "by_slide": {...}}</code>)</td>
+</tr>
+</tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "content.code.copy", "content.code.annotate"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>
