@@ -74,7 +74,7 @@ def test_validate_requires_keys():
 def test_filter_keeps_only_class0_on_cpu():
     # Build batch: bright -> keep, dim -> drop (according to DummyThreshModel threshold 0.5)
     patches, coords = _mk_batch([255, 10, 200, 0])  # [B=4]
-    batch = CollatedPatchBatch(wsi_id="WSI1", patches=patches, coords=coords, use_gpu=False)
+    batch = CollatedPatchBatch(wsi_id="WSI1", patches=patches, coords=coords, use_gpu=False, wsi_dims=(1024, 1024))
 
     f = CellVitTissueClassifierFilter("dummy_path.pt")
     f.attach_context(PipelineContext({"use_gpu": False, "tile_size": 128}))

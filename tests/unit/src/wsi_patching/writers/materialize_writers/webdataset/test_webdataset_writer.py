@@ -10,7 +10,11 @@ from wsi_patching.writers.materialize_writers.webdataset.webdataset_writer impor
 
 def get_encoded_cbp(key: str, h: int = 2, w: int = 3, c: int = 3):
     cpb = CollatedPatchBatch(
-        wsi_id=key, coords=np.zeros((1, 2)), patches=np.zeros((1, h, w, c), dtype=np.uint8), use_gpu=False
+        wsi_id=key,
+        coords=np.zeros((1, 2)),
+        patches=np.zeros((1, h, w, c), dtype=np.uint8),
+        use_gpu=False,
+        wsi_dims=(1024, 1024),
     )
 
     cpb_it = PNGEncoder()([cpb])

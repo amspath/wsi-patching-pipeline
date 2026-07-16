@@ -414,7 +414,9 @@ class RegionReadAndBatch(Stage):
         # returns a view of the buffer, which is reused on the next batch iteration.
         coords_out = coords_slice.copy()
         patches_xp = xp.asarray(batch_slice.copy(), dtype=self.dtype)
-        cpb = CollatedPatchBatch(task.wsi_id, coords_out, patches_xp, use_gpu=self.ctx["use_gpu"])
+        cpb = CollatedPatchBatch(
+            task.wsi_id, coords_out, patches_xp, use_gpu=self.ctx["use_gpu"], wsi_dims=task.wsi_dims
+        )
         for k, v in task.meta.items():
             cpb.add_meta_column(k, np.array([v] * len(coords_out)))
         return cpb

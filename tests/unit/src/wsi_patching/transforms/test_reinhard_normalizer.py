@@ -18,6 +18,7 @@ def _make_batch(patches: np.ndarray) -> CollatedPatchBatch:
         wsi_id="test",
         coords=np.zeros((len(patches), 2), dtype=np.int64),
         use_gpu=False,
+        wsi_dims=(1024, 1024),
     )
 
 

@@ -9,7 +9,11 @@ from wsi_patching.utils.meta_typing import PipelineContext
 
 def make_collated(patches):
     return CollatedPatchBatch(
-        wsi_id="id", patches=patches, coords=np.zeros((patches.shape[0], 2), dtype=np.int32), use_gpu=False
+        wsi_id="id",
+        patches=patches,
+        coords=np.zeros((patches.shape[0], 2), dtype=np.int32),
+        use_gpu=False,
+        wsi_dims=(1024, 1024),
     )
 
 

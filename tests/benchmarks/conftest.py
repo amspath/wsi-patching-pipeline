@@ -29,6 +29,6 @@ def make_patch_batch():
         rng = np.random.default_rng(42)
         patches = rng.integers(0, 256, size=(n, tile_size, tile_size, 3), dtype=np.uint8)
         coords = np.stack([np.arange(n), np.zeros(n, dtype=np.int64)], axis=1).astype(np.int64)
-        return CollatedPatchBatch(wsi_id="bench", coords=coords, patches=patches, use_gpu=False)
+        return CollatedPatchBatch(wsi_id="bench", coords=coords, patches=patches, use_gpu=False, wsi_dims=(1024, 1024))
 
     return _make

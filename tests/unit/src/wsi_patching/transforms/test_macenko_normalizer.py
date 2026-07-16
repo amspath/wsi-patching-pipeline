@@ -197,7 +197,11 @@ def H_true():
 def synthetic_batch(H_true):
     patches = synth_patches_from_stains(H_true, n_patches=6, patch_hw=(48, 48), I0=255, conc_scale=1.2, seed=42)
     return CollatedPatchBatch(
-        patches=patches, wsi_id="wsi_synth", coords=np.array([[0, 0]] * patches.shape[0]), use_gpu=False
+        patches=patches,
+        wsi_id="wsi_synth",
+        coords=np.array([[0, 0]] * patches.shape[0]),
+        use_gpu=False,
+        wsi_dims=(1024, 1024),
     )
 
 
@@ -291,7 +295,9 @@ def test_shapes_and_types(monkeypatch, H_true):
 
     # Single small patch, still should fit
     patches = synth_patches_from_stains(H_true, n_patches=1, patch_hw=(16, 16), seed=7)
-    batch = CollatedPatchBatch(patches=patches, wsi_id="S3", coords=np.array([[0, 0]]), use_gpu=False)
+    batch = CollatedPatchBatch(
+        patches=patches, wsi_id="S3", coords=np.array([[0, 0]]), use_gpu=False, wsi_dims=(1024, 1024)
+    )
 
     norm = MacenkoNormalizer(pixel_limit=None)
     norm.attach_context(PipelineContext({"use_gpu": False}))
@@ -333,7 +339,9 @@ def test_golden_H_and_maxsat_with_controlled_whites(monkeypatch, H_true):
     )
     patch = gold["patch"]
 
-    batch = CollatedPatchBatch(patches=patch, wsi_id="GOLD", coords=np.array([[0, 0]]), use_gpu=False)
+    batch = CollatedPatchBatch(
+        patches=patch, wsi_id="GOLD", coords=np.array([[0, 0]]), use_gpu=False, wsi_dims=(1024, 1024)
+    )
 
     norm = MacenkoNormalizer(alpha=alpha, beta=beta, light_intensity=I0, pixel_limit=None)
     norm.attach_context(PipelineContext({"use_gpu": False}))

@@ -27,7 +27,9 @@ def make_batch(wsi_id: str, coords: np.ndarray, n_channels: int = 3, patch_hw: i
     # We'll use a simple (N, H, W, C) to be friendly with downstream tooling.
     N = coords.shape[0]
     patches = np.zeros((N, patch_hw, patch_hw, n_channels), dtype=np.uint8)
-    return CollatedPatchBatch(wsi_id=wsi_id, coords=coords.astype(np.int32), patches=patches, use_gpu=False)
+    return CollatedPatchBatch(
+        wsi_id=wsi_id, coords=coords.astype(np.int32), patches=patches, use_gpu=False, wsi_dims=(1024, 1024)
+    )
 
 
 def run_stage_collect(stage: AddCellAnnotationFromCSV, batches: Iterable[CollatedPatchBatch]):

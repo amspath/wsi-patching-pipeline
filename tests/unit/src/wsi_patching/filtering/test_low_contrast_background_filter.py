@@ -114,7 +114,9 @@ def test_stats_and_filtering(monkeypatch, patch_backends, caplog):
     filt = LowContrastBackgroundFilter(range_threshold=0.2, float_precision="float32")
     filt.attach_context(PipelineContext({"use_gpu": False}))
 
-    batch = CollatedPatchBatch(patches=patches.copy(), wsi_id="slideA", coords=np.zeros((B, 2)), use_gpu=False)
+    batch = CollatedPatchBatch(
+        patches=patches.copy(), wsi_id="slideA", coords=np.zeros((B, 2)), use_gpu=False, wsi_dims=(1024, 1024)
+    )
 
     with caplog.at_level("INFO"):
         out_batches = list(filt([batch]))
@@ -168,7 +170,9 @@ def test_all_filtered_yields_nothing(monkeypatch, patch_backends):
     filt = LowContrastBackgroundFilter(range_threshold=0.2, float_precision="float32")
     filt.attach_context(PipelineContext({"use_gpu": False}))
 
-    batch = CollatedPatchBatch(patches=patches.copy(), wsi_id="slideB", coords=np.zeros((B, 2)), use_gpu=False)
+    batch = CollatedPatchBatch(
+        patches=patches.copy(), wsi_id="slideB", coords=np.zeros((B, 2)), use_gpu=False, wsi_dims=(1024, 1024)
+    )
 
     out_batches = list(filt([batch]))
     assert out_batches == []  # nothing yielded
@@ -190,12 +194,28 @@ def test_float_precision_controls_threshold_dtype(monkeypatch, np_xp, patch_back
     before = len(np_xp._asarray_dtypes)
     f64 = mod.LowContrastBackgroundFilter(range_threshold=0.2, float_precision="float64")
     f64.attach_context(PipelineContext({"use_gpu": False}))
-    _ = list(f64([CollatedPatchBatch(patches=patches.copy(), wsi_id="id", coords=np.zeros((B, 2)), use_gpu=False)]))
+    _ = list(
+        f64(
+            [
+                CollatedPatchBatch(
+                    patches=patches.copy(), wsi_id="id", coords=np.zeros((B, 2)), use_gpu=False, wsi_dims=(1024, 1024)
+                )
+            ]
+        )
+    )
     assert np_xp._asarray_dtypes[before] == np.float64
 
     # float32 path
     before = len(np_xp._asarray_dtypes)
     f32 = mod.LowContrastBackgroundFilter(range_threshold=0.2, float_precision="float32")
     f32.attach_context(PipelineContext({"use_gpu": False}))
-    _ = list(f32([CollatedPatchBatch(patches=patches.copy(), wsi_id="id", coords=np.zeros((B, 2)), use_gpu=False)]))
+    _ = list(
+        f32(
+            [
+                CollatedPatchBatch(
+                    patches=patches.copy(), wsi_id="id", coords=np.zeros((B, 2)), use_gpu=False, wsi_dims=(1024, 1024)
+                )
+            ]
+        )
+    )
     assert np_xp._asarray_dtypes[before] == np.float32
