@@ -3,6 +3,7 @@ from typing import Iterable
 from wsi_patching.backends.cupy_numpy import ensure_array_matches_use_gpu, ensure_numpy, get_xp_backend
 from wsi_patching.core.pipeline import Stage
 from wsi_patching.core.types.types import CollatedPatchBatch
+from wsi_patching.utils.audit import Knob
 
 
 class LowContrastBackgroundFilter(Stage):
@@ -20,6 +21,9 @@ class LowContrastBackgroundFilter(Stage):
       2) Compute per-patch dynamic range: max(gray) - min(gray).
       3) Keep patch iff range >= `range_threshold`.
     """
+
+    # `gray_range` does not depend on `range_threshold` -- see `Knob`.
+    AUDIT_KNOBS = (Knob("range_threshold", "gray_range", ">=", permissive=0.0),)
 
     def __init__(
         self,

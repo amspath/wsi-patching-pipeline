@@ -4,6 +4,25 @@ import numpy as np
 
 from wsi_patching.core.pipeline import Stage
 from wsi_patching.core.types.types import CollatedPatchBatch
+from wsi_patching.utils.audit import Knob
+
+
+def _edge_distance(coords: np.ndarray, wsi_dims: tuple, tile_size: int) -> np.ndarray:
+    """How many full tile rings a tile sits away from the nearest slide border.
+
+    Defined so that this stage's keep condition is exactly `edge_distance >= depth`.
+    Each of the four clauses of the keep condition is an integer upper bound on
+    `depth`, so their conjunction is the minimum of the four bounds:
+
+        x >= depth*ts        <=>  depth <= x // ts
+        x <  W - depth*ts    <=>  depth <= ceil((W - x)/ts) - 1   (and same for y/H)
+    """
+    W, H = int(wsi_dims[0]), int(wsi_dims[1])
+    x, y = coords[:, 0].astype(np.int64), coords[:, 1].astype(np.int64)
+    ts = int(tile_size)
+    return np.minimum.reduce(
+        [x // ts, y // ts, -(-(W - x) // ts) - 1, -(-(H - y) // ts) - 1]  # -(-a//b) is ceil(a/b)
+    )
 
 
 class RemoveEdgeTiles(Stage):
@@ -27,6 +46,10 @@ class RemoveEdgeTiles(Stage):
         Number of tile rings to remove along every border. ``depth=0`` is a no-op.
     """
 
+    # `edge_distance` is pure geometry -- independent of `depth` -- so the audit
+    # report can re-decide keep/drop for any depth without re-running.
+    AUDIT_KNOBS = (Knob("depth", "edge_distance", ">=", permissive=0.0, integer=True),)
+
     def __init__(self, *, depth: int = 1):
         if depth < 0:
             raise ValueError("depth must be >= 0")
@@ -37,22 +60,17 @@ class RemoveEdgeTiles(Stage):
 
     def __call__(self, it: Iterable[CollatedPatchBatch]) -> Iterable[CollatedPatchBatch]:
         tile_size = int(self.ctx["tile_size"])
-        margin = self.depth * tile_size
 
         for batch in it:
+            # Attach the metric for every row (the audit needs it even at depth=0).
+            edge_distance = _edge_distance(batch.coords, batch.wsi_dims, tile_size)
+            batch.add_meta_column("edge_distance", edge_distance)
+
             if self.depth == 0:
                 yield batch
                 continue
 
-            wsi_width, wsi_height = batch.wsi_dims
-            coords = batch.coords  # (N, 2) int, top-left (x, y) at patched resolution
-
-            keep_mask = (
-                (coords[:, 0] >= margin)
-                & (coords[:, 0] < wsi_width - margin)
-                & (coords[:, 1] >= margin)
-                & (coords[:, 1] < wsi_height - margin)
-            )
+            keep_mask = edge_distance >= self.depth
 
             in_sz = len(batch.patches)
             batch.filter_on_mask(np.asarray(keep_mask, dtype=np.bool_))
