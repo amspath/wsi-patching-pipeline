@@ -4,7 +4,13 @@ from importlib.metadata import version as _version
 from .annotations import AddAnnotationFromGeoJSON, AddCellAnnotationFromCSV
 from .core import PatchExtractor, ReadWindowChunker, RegionReadAndBatch, TilePlanner, WSIGrid
 from .encoders import PNGEncoder
-from .filtering import LowContrastBackgroundFilter, OtsuFilter, PenArtifactFilter, RemoveEdgeTiles
+from .filtering import (
+    LowContrastBackgroundFilter,
+    OtsuFilter,
+    PenArtifactFilter,
+    RemoveEdgeTiles,
+    SegmentationMaskFilter,
+)
 from .regions_of_interest import AttachROIs, RectROIfromXMLProvider, RectROIProvider, WholeSlideProvider
 from .utils import visualize_audit, visualize_selected_patches
 from .writers import NumpyStreamWriter, TorchStreamWriter, WebDatasetWriter
@@ -31,6 +37,7 @@ __all__ = [
     "OtsuFilter",
     "PenArtifactFilter",
     "RemoveEdgeTiles",
+    "SegmentationMaskFilter",
     # Writers
     "NumpyStreamWriter",
     "WebDatasetWriter",
