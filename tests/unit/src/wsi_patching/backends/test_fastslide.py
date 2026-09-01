@@ -268,6 +268,110 @@ class TestGetLevelForResolutionUnitMpp:
 
 
 # ---------------------------------------------------------------------------
+# get_level_for_resolution — max_relative_deviation
+# ---------------------------------------------------------------------------
+
+
+class TestGetLevelForResolutionMaxRelativeDeviation:
+    # level_downsamples = [1.0, 2.0, 4.0]
+
+    @pytest.fixture(autouse=True)
+    def _patch(self, monkeypatch):
+        fake = FakeFastSlide("dummy.svs")
+        monkeypatch.setattr(mod, "_new_slide", _make_patcher(fake))
+
+    def test_within_tolerance_passes(self):
+        # 2.02 is 1% off level 2.0
+        assert (
+            mod.get_level_for_resolution(
+                "dummy.svs", resolution=2.02, unit="downsample", fallback_mode="nearest", max_relative_deviation=0.05
+            )
+            == 1
+        )
+
+    def test_outside_tolerance_raises(self):
+        # 1.3 → nearest is 1.0, 23% off
+        with pytest.raises(ValueError, match="max_relative_deviation"):
+            mod.get_level_for_resolution(
+                "dummy.svs", resolution=1.3, unit="downsample", fallback_mode="nearest", max_relative_deviation=0.01
+            )
+
+    def test_none_disables_check(self):
+        assert (
+            mod.get_level_for_resolution(
+                "dummy.svs", resolution=1.3, unit="downsample", fallback_mode="nearest", max_relative_deviation=None
+            )
+            == 0
+        )
+
+    @pytest.mark.parametrize("fallback_mode", ["floor", "ceil", "resample", "error"])
+    def test_ignored_by_other_modes(self, fallback_mode):
+        # 2.0 is an exact match, so every mode selects level 1 regardless of the deviation band
+        assert (
+            mod.get_level_for_resolution(
+                "dummy.svs",
+                resolution=2.0,
+                unit="downsample",
+                fallback_mode=cast(Literal["nearest", "floor", "ceil", "error", "resample"], fallback_mode),
+                max_relative_deviation=0.0,
+            )
+            == 1
+        )
+
+    def test_floor_ignores_deliberate_deviation(self):
+        # floor at 1.1 correctly returns 2.0 (82% off) — the band must not interfere
+        assert (
+            mod.get_level_for_resolution(
+                "dummy.svs", resolution=1.1, unit="downsample", fallback_mode="floor", max_relative_deviation=0.01
+            )
+            == 1
+        )
+
+    def test_negative_tolerance_raises(self):
+        with pytest.raises(ValueError, match="non-negative"):
+            mod.get_level_for_resolution(
+                "dummy.svs", resolution=2.0, unit="downsample", fallback_mode="nearest", max_relative_deviation=-0.1
+            )
+
+    def test_unit_level_is_unaffected(self):
+        assert (
+            mod.get_level_for_resolution(
+                "dummy.svs", resolution=2, unit="level", fallback_mode="nearest", max_relative_deviation=0.0
+            )
+            == 2
+        )
+
+
+class TestGetLevelForResolutionMaxRelativeDeviationMpp:
+    """The slide from issue #84: base mpp 0.253, level mpps [0.253, 1.012, 4.048, 8.097]."""
+
+    @pytest.fixture(autouse=True)
+    def _patch(self, monkeypatch):
+        fake = FakeFastSlide(
+            "aperio.svs",
+            level_dimensions=[(4000, 3000), (1000, 750), (250, 188), (125, 94)],
+            level_downsamples=[1.0, 4.0, 16.0, 32.0],
+            mpp=(0.253, 0.253),
+        )
+        monkeypatch.setattr(mod, "_new_slide", _make_patcher(fake))
+
+    def test_nearest_selects_level_1_within_five_percent(self):
+        # level 1 is 1.012 mpp, 1.2% above the requested 1.0
+        assert (
+            mod.get_level_for_resolution(
+                "aperio.svs", resolution=1.0, unit="mpp", fallback_mode="nearest", max_relative_deviation=0.05
+            )
+            == 1
+        )
+
+    def test_nearest_raises_at_one_percent(self):
+        with pytest.raises(ValueError, match="deviating"):
+            mod.get_level_for_resolution(
+                "aperio.svs", resolution=1.0, unit="mpp", fallback_mode="nearest", max_relative_deviation=0.01
+            )
+
+
+# ---------------------------------------------------------------------------
 # get_level_for_resolution — invalid inputs
 # ---------------------------------------------------------------------------
 
@@ -434,10 +538,7 @@ class TestGetResampleFactor:
     def test_unknown_unit_raises(self):
         with pytest.raises(ValueError, match="Unknown unit"):
             mod.get_resample_factor(
-                "dummy.svs",
-                resolution=1.0,
-                unit=cast(Literal["mpp", "downsample"], "level"),
-                selected_level=0,
+                "dummy.svs", resolution=1.0, unit=cast(Literal["mpp", "downsample"], "level"), selected_level=0
             )
 
     def test_missing_mpp_raises(self, monkeypatch):
