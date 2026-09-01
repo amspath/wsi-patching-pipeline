@@ -14,6 +14,7 @@ def test_export_context_sets_expected_keys():
     assert ctx["fallback_mode"] == "nearest"
     assert ctx["use_gpu"] is True
     assert ctx["resample_interpolation"] == "lanczos"
+    assert ctx["max_relative_deviation"] == 0.01
 
 
 def test_export_context_resample_interpolation_custom():
@@ -50,6 +51,7 @@ def test_for_slide_returns_single_slide_clone():
         unit="mpp",
         fallback_mode="nearest",
         resample_interpolation="cubic",
+        max_relative_deviation=0.5,
     )
 
     g2 = grid.for_slide("/data/C.svs")
@@ -60,6 +62,7 @@ def test_for_slide_returns_single_slide_clone():
     assert g2.unit == "mpp"
     assert g2.fallback_mode == "nearest"
     assert g2.resample_interpolation == "cubic"
+    assert g2.max_relative_deviation == 0.5
 
 
 @patch("wsi_patching.core.wsi_grid.Path.exists", return_value=True)
@@ -68,7 +71,7 @@ def test_for_slide_returns_single_slide_clone():
 @patch("wsi_patching.core.wsi_grid.get_level_for_resolution")
 def test_call_yields_slide_objects_with_dims(mock_get_level, mock_dims, mock_downsamples, mock_exists):
     # Mock per-path selected levels
-    def _get_level(path, resolution, unit, fallback_mode):
+    def _get_level(path, resolution, unit, fallback_mode, max_relative_deviation=None):
         if path.endswith("A.svs"):
             return 1
         return 2
@@ -120,7 +123,10 @@ def test_call_yields_slide_objects_with_dims(mock_get_level, mock_dims, mock_dow
 
     # get_level_for_resolution called with our resolution/unit/fallback_mode
     mock_get_level.assert_has_calls(
-        [call("/slides/A.svs", 0.5, "mpp", "nearest"), call("/slides/B.svs", 0.5, "mpp", "nearest")]
+        [
+            call("/slides/A.svs", 0.5, "mpp", "nearest", max_relative_deviation=0.01),
+            call("/slides/B.svs", 0.5, "mpp", "nearest", max_relative_deviation=0.01),
+        ]
     )
 
     # get_dimensions_for_level called with (path, level)
@@ -173,3 +179,12 @@ def test_non_resample_fallback_has_factor_one(mock_get_level, mock_dims, mock_do
     assert s.dims == (150, 100)
     assert s.downsample == 2.0
     assert s.resample_factor == 1.0
+
+
+def test_defaults_are_quarter_mpp_nearest_with_one_percent_band():
+    grid = WSIGrid(slides=["/data/A.svs"])
+
+    assert grid.resolution == 0.25
+    assert grid.unit == "mpp"
+    assert grid.fallback_mode == "nearest"
+    assert grid.max_relative_deviation == 0.01

@@ -21,11 +21,12 @@ class WSIGrid(Stage):
     def __init__(
         self,
         slides: List[str],
-        resolution: float,
-        unit: Literal["level", "mpp", "downsample"],
+        resolution: float = 0.25,
+        unit: Literal["level", "mpp", "downsample"] = "mpp",
         use_gpu: bool = False,
-        fallback_mode: Literal["nearest", "floor", "ceil", "error", "resample"] = "error",
+        fallback_mode: Literal["nearest", "floor", "ceil", "error", "resample"] = "nearest",
         resample_interpolation: Literal["nearest", "linear", "cubic", "area", "lanczos"] = "lanczos",
+        max_relative_deviation: float | None = 0.01,
     ):
         """
         Initializes the WSIGrid stage, the starting point of a WSI patching pipeline.
@@ -33,14 +34,18 @@ class WSIGrid(Stage):
         Args:
             slides: List of file paths to whole slide images (WSIs).
             use_gpu: Whether to use GPU-accelerated backends when possible (e.g., cuCIM, CuPy).
-            resolution: Desired resolution for patch extraction.
-            unit: Unit of the resolution ("level", "mpp", or "downsample").
-            fallback_mode: Strategy for selecting resolution if exact match is unavailable (default is "error").
+            resolution: Desired resolution for patch extraction (default is 0.25).
+            unit: Unit of the resolution ("level", "mpp", or "downsample"). Default is "mpp".
+            fallback_mode: Strategy for selecting resolution if exact match is unavailable (default is "nearest").
                 Options are ("nearest", "floor", "ceil", "error", "resample").
                 - "resample": selects the finest level with resolution <= requested, reads extra pixels,
                   then downsamples to the exact target resolution using cv2.resize. Not valid for unit="level".
             resample_interpolation: Interpolation method used when fallback_mode="resample".
                 Options are ("nearest", "linear", "cubic", "area", "lanczos"). Default is "lanczos".
+            max_relative_deviation: Maximum allowed relative deviation between the requested
+                resolution and the selected level when fallback_mode="nearest" (default is 0.01,
+                i.e. 1%). Raises if the closest level lies outside that band. Pass None to disable.
+                Ignored by the other fallback modes.
         """
         self.slides = list(slides)
         self.use_gpu = use_gpu
@@ -48,6 +53,7 @@ class WSIGrid(Stage):
         self.unit = unit
         self.fallback_mode = fallback_mode
         self.resample_interpolation = resample_interpolation
+        self.max_relative_deviation = max_relative_deviation
 
     def export_context(self, ctx: "PipelineContext") -> None:
         # Seed/override global grid parameters for other stages to read.
@@ -56,6 +62,7 @@ class WSIGrid(Stage):
         ctx["fallback_mode"] = self.fallback_mode
         ctx["use_gpu"] = self.use_gpu
         ctx["resample_interpolation"] = self.resample_interpolation
+        ctx["max_relative_deviation"] = self.max_relative_deviation
 
     def validate(self) -> None:
         validate_xp_backend(self.use_gpu)
@@ -68,6 +75,7 @@ class WSIGrid(Stage):
             unit=self.unit,
             fallback_mode=self.fallback_mode,
             resample_interpolation=self.resample_interpolation,
+            max_relative_deviation=self.max_relative_deviation,
         )
 
     def __call__(self, it: Iterable[Any]) -> Iterable[Slide]:
@@ -77,7 +85,9 @@ class WSIGrid(Stage):
                 raise FileNotFoundError(f"Slide path does not exist: {path}")
 
             wsi_id = Path(path).stem
-            selected_level = get_level_for_resolution(path, self.resolution, self.unit, self.fallback_mode)
+            selected_level = get_level_for_resolution(
+                path, self.resolution, self.unit, self.fallback_mode, max_relative_deviation=self.max_relative_deviation
+            )
             W, H = get_dimensions_for_level(path, selected_level)
             level_downsamples = get_level_downsamples(path)
             downsample = level_downsamples[selected_level]
@@ -110,6 +120,7 @@ class WSIGrid(Stage):
                     "slide.requested_resolution": self.resolution,
                     "slide.requested_unit": self.unit,
                     "slide.requested_fallback_mode": self.fallback_mode,
+                    "slide.requested_max_relative_deviation": self.max_relative_deviation,
                     "slide.selected_level": selected_level,
                     "slide.downsample": slide_downsample,
                     "slide.path": path,
