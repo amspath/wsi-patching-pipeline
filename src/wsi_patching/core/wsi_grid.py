@@ -26,7 +26,7 @@ class WSIGrid(Stage):
         use_gpu: bool = False,
         fallback_mode: Literal["nearest", "floor", "ceil", "error", "resample"] = "nearest",
         resample_interpolation: Literal["nearest", "linear", "cubic", "area", "lanczos"] = "lanczos",
-        max_relative_deviation: float | None = 0.01,
+        max_relative_deviation: float | None = 0.05,
     ):
         """
         Initializes the WSIGrid stage, the starting point of a WSI patching pipeline.
@@ -43,8 +43,8 @@ class WSIGrid(Stage):
             resample_interpolation: Interpolation method used when fallback_mode="resample".
                 Options are ("nearest", "linear", "cubic", "area", "lanczos"). Default is "lanczos".
             max_relative_deviation: Maximum allowed relative deviation between the requested
-                resolution and the selected level when fallback_mode="nearest" (default is 0.01,
-                i.e. 1%). Raises if the closest level lies outside that band. Pass None to disable.
+                resolution and the selected level when fallback_mode="nearest" (default is 0.05,
+                i.e. 5%). Raises if the closest level lies outside that band. Pass None to disable.
                 Ignored by the other fallback modes.
         """
         self.slides = list(slides)

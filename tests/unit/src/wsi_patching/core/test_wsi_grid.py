@@ -14,7 +14,7 @@ def test_export_context_sets_expected_keys():
     assert ctx["fallback_mode"] == "nearest"
     assert ctx["use_gpu"] is True
     assert ctx["resample_interpolation"] == "lanczos"
-    assert ctx["max_relative_deviation"] == 0.01
+    assert ctx["max_relative_deviation"] == 0.05
 
 
 def test_export_context_resample_interpolation_custom():
@@ -124,8 +124,8 @@ def test_call_yields_slide_objects_with_dims(mock_get_level, mock_dims, mock_dow
     # get_level_for_resolution called with our resolution/unit/fallback_mode
     mock_get_level.assert_has_calls(
         [
-            call("/slides/A.svs", 0.5, "mpp", "nearest", max_relative_deviation=0.01),
-            call("/slides/B.svs", 0.5, "mpp", "nearest", max_relative_deviation=0.01),
+            call("/slides/A.svs", 0.5, "mpp", "nearest", max_relative_deviation=0.05),
+            call("/slides/B.svs", 0.5, "mpp", "nearest", max_relative_deviation=0.05),
         ]
     )
 
@@ -181,10 +181,10 @@ def test_non_resample_fallback_has_factor_one(mock_get_level, mock_dims, mock_do
     assert s.resample_factor == 1.0
 
 
-def test_defaults_are_quarter_mpp_nearest_with_one_percent_band():
+def test_defaults_are_quarter_mpp_nearest_with_five_percent_band():
     grid = WSIGrid(slides=["/data/A.svs"])
 
     assert grid.resolution == 0.25
     assert grid.unit == "mpp"
     assert grid.fallback_mode == "nearest"
-    assert grid.max_relative_deviation == 0.01
+    assert grid.max_relative_deviation == 0.05

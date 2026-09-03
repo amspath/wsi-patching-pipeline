@@ -22,7 +22,7 @@ from wsi_patching import WSIGrid
 | `use_gpu` | `bool` | `False` | Enable GPU-accelerated backends (CuPy) |
 | `fallback_mode` | `"nearest" \| "floor" \| "ceil" \| "error" \| "resample"` | `"nearest"` | What to do when the exact resolution is unavailable |
 | `resample_interpolation` | `"nearest" \| "linear" \| "cubic" \| "area" \| "lanczos"` | `"lanczos"` | Interpolation used when `fallback_mode="resample"` |
-| `max_relative_deviation` | `float \| None` | `0.01` | Max relative deviation between the request and the selected level for `fallback_mode="nearest"`; `None` disables the check |
+| `max_relative_deviation` | `float \| None` | `0.05` | Max relative deviation between the request and the selected level for `fallback_mode="nearest"`; `None` disables the check |
 
 ---
 

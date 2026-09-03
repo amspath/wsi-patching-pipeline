@@ -96,7 +96,7 @@ If the slide does not have an exact match for the requested resolution, `fallbac
 | `"ceil"` | Picks the lowest resolution level that is ≥ the request |
 | `"resample"` | Reads from a finer level, then downsamples with `cv2.resize` to hit the exact target. Not valid with `unit="level"`. |
 
-`max_relative_deviation` guards `fallback_mode="nearest"`: if the closest level deviates from the requested resolution by more than this fraction (default `0.01`, i.e. 1%), an error is raised instead of silently patching at the wrong resolution. Pass `None` to disable the check. The other fallback modes ignore it.
+`max_relative_deviation` guards `fallback_mode="nearest"`: if the closest level deviates from the requested resolution by more than this fraction (default `0.05`, i.e. 5%), an error is raised instead of silently patching at the wrong resolution. Pass `None` to disable the check. The other fallback modes ignore it.
 
 `resample_interpolation` controls the interpolation method when `fallback_mode="resample"` (default `"lanczos"`; options: `"nearest"`, `"linear"`, `"cubic"`, `"area"`, `"lanczos"`).
 
