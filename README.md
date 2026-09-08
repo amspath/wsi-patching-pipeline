@@ -15,7 +15,7 @@ A pragmatic pipeline for streaming whole-slide image (WSI) patches with region p
 
 ## 1) Library install
 
-Python ≥3.10 <3.14 is recommended. 3.14 is yet unsupported.
+Python ≥3.10 is supported, and 3.10 through 3.14 are tested in CI.
 ```
 # CPU install
 pip install wsi-patching

@@ -1,6 +1,6 @@
 # Installation
 
-Python **≥ 3.10, < 3.14** is required. Python 3.14 is not yet supported.
+Python **≥ 3.10** is required. 3.10 through 3.14 are tested in CI.
 
 ## CPU
 
