@@ -15,7 +15,7 @@ A pragmatic pipeline for streaming whole-slide image (WSI) patches with region p
 
 ## 1) Library install
 
-Python ≥3.10 is supported, and 3.10 through 3.14 are tested in CI.
+Python ≥3.11 is supported, and 3.11 through 3.14 are tested in CI.
 ```
 # CPU install
 pip install wsi-patching
@@ -198,7 +198,7 @@ PNGEncoder.isolated                    640            1.440s          2.412ms
 
 ## 5) Development install
 
-Python ≥3.10 is recommended. UV is also recommended as the package manager
+Python ≥3.11 is recommended. UV is also recommended as the package manager
 ```
 git clone https://github.com/amspath/wsi-patching-pipeline.git
 cd wsi-patching-pipeline
