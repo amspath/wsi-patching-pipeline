@@ -140,6 +140,7 @@ def get_level_for_resolution(
     resolution: float,
     unit: Literal["level", "mpp", "downsample"],
     fallback_mode: Literal["nearest", "floor", "ceil", "error", "resample"],
+    max_relative_deviation: float | None = None,
 ) -> int:
     """
     Determine which pyramid level to use for a given resolution specification.
@@ -152,7 +153,8 @@ def get_level_for_resolution(
             - If unit == "downsample": Downsample factor relative to level 0.
         unit: Resolution unit ("level", "mpp", or "downsample").
         fallback_mode:
-            - "nearest":  pick level whose value is closest to 'resolution'.
+            - "nearest":  pick level whose value is closest to 'resolution';
+                          see 'max_relative_deviation'.
             - "floor":    pick coarsest level with value >= 'resolution'
                           (if none, use coarsest level).
             - "ceil":     pick finest level with value <= 'resolution'
@@ -160,6 +162,9 @@ def get_level_for_resolution(
             - "resample": same selection as "ceil"; caller must then resample
                           the read pixels to the exact requested resolution.
                           Raises ValueError when unit == "level".
+        max_relative_deviation: Maximum allowed |level_value - resolution| / resolution
+            for fallback_mode="nearest". Raises ValueError when the closest level lies
+            outside that band. None disables the check. Ignored by the other modes.
 
     Returns:
         level_idx: int
@@ -168,6 +173,9 @@ def get_level_for_resolution(
         # --- Guard: resample is not meaningful for discrete level indices ---
         if fallback_mode == "resample" and unit == "level":
             raise ValueError("fallback_mode='resample' is not meaningful for unit='level'.")
+
+        if max_relative_deviation is not None and max_relative_deviation < 0:
+            raise ValueError(f"max_relative_deviation must be non-negative, got {max_relative_deviation}.")
 
         # --- Trivial case: unit == "level" ---------------------------------
         if unit == "level":
@@ -239,5 +247,15 @@ def get_level_for_resolution(
 
         else:
             raise ValueError(f"Unknown fallback_mode: {fallback_mode}")
+
+        if fallback_mode == "nearest" and max_relative_deviation is not None:
+            deviation = abs(values[level_idx] - requested) / requested
+            if deviation > max_relative_deviation:
+                raise ValueError(
+                    f"Nearest level {level_idx} has {unit} {values[level_idx]}, deviating "
+                    f"{deviation:.2%} from the requested {requested} "
+                    f"(max_relative_deviation={max_relative_deviation:.2%}). "
+                    f"Available values: {values}. Widen max_relative_deviation, or pass None to disable."
+                )
 
         return level_idx

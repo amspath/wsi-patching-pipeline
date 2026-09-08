@@ -30,8 +30,11 @@ class TestResampleFallbackMode:
         resample_batches = _stream_patches(pyramid_slide, resolution=4.0, unit="downsample", fallback_mode="resample")
         resample_total = sum(b.shape[0] for b in resample_batches)
 
-        # nearest: picks level 1 (ds=2.0, closest to 4.0); actual dims 256×256
-        nearest_batches = _stream_patches(pyramid_slide, resolution=4.0, unit="downsample", fallback_mode="nearest")
+        # nearest: picks level 1 (ds=2.0, closest to 4.0); actual dims 256×256.
+        # 2.0 is 50% off the request, so the deviation guard has to be disabled here.
+        nearest_batches = _stream_patches(
+            pyramid_slide, resolution=4.0, unit="downsample", fallback_mode="nearest", max_relative_deviation=None
+        )
         nearest_total = sum(b.shape[0] for b in nearest_batches)
 
         assert resample_total == 4, f"expected 4 patches (2×2 virtual grid), got {resample_total}"

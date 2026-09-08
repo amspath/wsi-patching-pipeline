@@ -17,11 +17,12 @@ from wsi_patching import WSIGrid
 | Parameter | Type | Default | Description |
 |---|---|---|---|
 | `slides` | `List[str]` | — | Paths to WSI files |
-| `resolution` | `float` | — | Desired resolution value |
-| `unit` | `"level" \| "mpp" \| "downsample"` | — | Unit of `resolution` |
+| `resolution` | `float` | `0.25` | Desired resolution value |
+| `unit` | `"level" \| "mpp" \| "downsample"` | `"mpp"` | Unit of `resolution` |
 | `use_gpu` | `bool` | `False` | Enable GPU-accelerated backends (CuPy) |
-| `fallback_mode` | `"nearest" \| "floor" \| "ceil" \| "error" \| "resample"` | `"error"` | What to do when the exact resolution is unavailable |
+| `fallback_mode` | `"nearest" \| "floor" \| "ceil" \| "error" \| "resample"` | `"nearest"` | What to do when the exact resolution is unavailable |
 | `resample_interpolation` | `"nearest" \| "linear" \| "cubic" \| "area" \| "lanczos"` | `"lanczos"` | Interpolation used when `fallback_mode="resample"` |
+| `max_relative_deviation` | `float \| None` | `0.05` | Max relative deviation between the request and the selected level for `fallback_mode="nearest"`; `None` disables the check |
 
 ---
 
